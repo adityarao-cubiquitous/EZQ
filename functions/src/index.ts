@@ -341,6 +341,7 @@ export const reserveTable = onCall(async (request) => {
   await assertAdminAccess(request.auth?.uid, restaurantId, branchId);
   const queueRef = db.doc(`${queueEntriesPath(restaurantId, branchId)}/${queueEntryId}`);
   const tableRef = db.doc(`${tablesPath(restaurantId, branchId)}/${tableId}`);
+  const date = businessDate();
 
   await db.runTransaction(async (transaction) => {
     const [queueSnap, tableSnap] = await Promise.all([
@@ -353,20 +354,28 @@ export const reserveTable = onCall(async (request) => {
     if (!tableSnap.exists || tableSnap.get("status") !== "available") {
       throw new HttpsError("failed-precondition", "Table is not available");
     }
+    const assignedAt = FieldValue.serverTimestamp();
     transaction.update(queueRef, {
-      status: "reserved" satisfies QueueStatus,
+      status: "seated" satisfies QueueStatus,
       assignedTableId: tableId,
       assignedTableNumber: tableSnap.get("tableNumber"),
-      reservedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
+      reservedAt: assignedAt,
+      seatedAt: assignedAt,
+      updatedAt: assignedAt,
     });
     transaction.update(tableRef, {
-      status: "reserved" satisfies TableStatus,
+      status: "occupied" satisfies TableStatus,
       currentQueueEntryId: queueEntryId,
       currentTokenCode: queueSnap.get("tokenCode"),
-      reservedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
+      reservedAt: assignedAt,
+      occupiedAt: assignedAt,
+      updatedAt: assignedAt,
     });
+    transaction.set(
+      db.doc(dailyCounterPath(restaurantId, branchId, date)),
+      {totalSeated: FieldValue.increment(1), updatedAt: assignedAt},
+      {merge: true},
+    );
     transaction.set(db.collection("notifications").doc(), {
       restaurantId,
       branchId,

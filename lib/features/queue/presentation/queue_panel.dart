@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../tables/domain/restaurant_table.dart';
 import '../domain/queue_entry.dart';
+import '../domain/queue_status.dart';
 
 class QueuePanel extends StatelessWidget {
   const QueuePanel({
@@ -77,6 +78,7 @@ class _QueueEntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canReserve = entry.status == QueueStatus.waiting;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -116,19 +118,29 @@ class _QueueEntryCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: EzqButton(
-                  label: 'Reserve',
-                  onPressed: availableTables.isEmpty
-                      ? () => ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('No available tables right now.'),
-                          ),
-                        )
-                      : onReserve,
-                ),
+                child: canReserve
+                    ? EzqButton(
+                        label: 'Reserve',
+                        onPressed: availableTables.isEmpty
+                            ? () => ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'No available tables right now.',
+                                  ),
+                                ),
+                              )
+                            : onReserve,
+                      )
+                    : OutlinedButton(
+                        onPressed: null,
+                        child: Text(entry.status.wireName),
+                      ),
               ),
               const SizedBox(width: 8),
-              OutlinedButton(onPressed: onSkip, child: const Text('Skip')),
+              OutlinedButton(
+                onPressed: canReserve ? onSkip : null,
+                child: const Text('Skip'),
+              ),
             ],
           ),
         ],

@@ -9,13 +9,11 @@ class TableGrid extends StatelessWidget {
     super.key,
     required this.tables,
     this.completedPartySizeFor,
-    this.onMarkSeated,
     this.onMealFinished,
   });
 
   final List<RestaurantTable> tables;
   final int Function(RestaurantTable table)? completedPartySizeFor;
-  final void Function(RestaurantTable table)? onMarkSeated;
   final void Function(RestaurantTable table, int initialPartySize)?
   onMealFinished;
 
@@ -58,9 +56,6 @@ class TableGrid extends StatelessWidget {
                 return _TableCard(
                   table: table,
                   initialPartySize: completedPartySizeFor?.call(table),
-                  onMarkSeated: onMarkSeated == null
-                      ? null
-                      : () => onMarkSeated!(table),
                   onMealFinished: onMealFinished == null
                       ? null
                       : () => onMealFinished!(
@@ -155,13 +150,11 @@ class _TableCard extends StatelessWidget {
   const _TableCard({
     required this.table,
     required this.initialPartySize,
-    required this.onMarkSeated,
     required this.onMealFinished,
   });
 
   final RestaurantTable table;
   final int? initialPartySize;
-  final VoidCallback? onMarkSeated;
   final VoidCallback? onMealFinished;
 
   @override
@@ -176,10 +169,6 @@ class _TableCard extends StatelessWidget {
         table.status == TableStatus.occupied &&
         table.currentQueueEntryId != null &&
         onMealFinished != null;
-    final canMarkSeated =
-        table.status == TableStatus.reserved &&
-        table.currentQueueEntryId != null &&
-        onMarkSeated != null;
     final occupiedCount = table.currentQueueEntryId == null
         ? 0
         : initialPartySize ?? table.capacity;
@@ -226,81 +215,70 @@ class _TableCard extends StatelessWidget {
           ),
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  table.status.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        table.status.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    if (table.currentTokenCode != null) ...[
+                      const SizedBox(width: 7),
+                      Flexible(
+                        child: Text(
+                          table.currentTokenCode!,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.navyText,
+                            fontFamily: 'JetBrains Mono',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              if (table.currentTokenCode != null) ...[
+              if (canFinishMeal) ...[
                 const SizedBox(width: 8),
-                Text(
-                  table.currentTokenCode!,
-                  style: const TextStyle(
-                    color: AppColors.navyText,
-                    fontFamily: 'JetBrains Mono',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                Tooltip(
+                  message: 'Finish meal',
+                  child: SizedBox.square(
+                    dimension: 32,
+                    child: FilledButton(
+                      onPressed: onMealFinished,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.deepTeal,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size.square(32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      child: const Icon(Icons.done_all, size: 16),
+                    ),
                   ),
                 ),
               ],
             ],
           ),
-          if (canFinishMeal)
-            SizedBox(
-              width: double.infinity,
-              height: 32,
-              child: FilledButton.icon(
-                onPressed: onMealFinished,
-                icon: const Icon(Icons.done_all, size: 15),
-                label: Text(
-                  'Meal finished${initialPartySize == null ? '' : ' ($initialPartySize)'}',
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.deepTeal,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-          if (canMarkSeated)
-            SizedBox(
-              width: double.infinity,
-              height: 32,
-              child: FilledButton.icon(
-                onPressed: onMarkSeated,
-                icon: const Icon(Icons.event_seat, size: 15),
-                label: const Text('Mark seated'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.deepTeal,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );

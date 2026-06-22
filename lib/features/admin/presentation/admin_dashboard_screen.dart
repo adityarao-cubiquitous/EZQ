@@ -81,13 +81,6 @@ class AdminDashboardScreen extends ConsumerWidget {
                                       queueById[table.currentQueueEntryId]
                                           ?.partySize ??
                                       table.capacity,
-                                  onMarkSeated: (table) => _markSeated(
-                                    context: context,
-                                    ref: ref,
-                                    table: table,
-                                    queueEntry:
-                                        queueById[table.currentQueueEntryId],
-                                  ),
                                   onMealFinished: (table, initialPartySize) =>
                                       _completeMeal(
                                         context: context,
@@ -129,13 +122,6 @@ class AdminDashboardScreen extends ConsumerWidget {
                                       queueById[table.currentQueueEntryId]
                                           ?.partySize ??
                                       table.capacity,
-                                  onMarkSeated: (table) => _markSeated(
-                                    context: context,
-                                    ref: ref,
-                                    table: table,
-                                    queueEntry:
-                                        queueById[table.currentQueueEntryId],
-                                  ),
                                   onMealFinished: (table, initialPartySize) =>
                                       _completeMeal(
                                         context: context,
@@ -208,7 +194,7 @@ class AdminDashboardScreen extends ConsumerWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${entry.tokenCode} updated: customer can proceed to ${selectedTable.tableNumber}.',
+            '${entry.tokenCode} seated at ${selectedTable.tableNumber}. Table is now occupied.',
           ),
         ),
       );
@@ -236,40 +222,6 @@ class AdminDashboardScreen extends ConsumerWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('${entry.tokenCode} skipped')));
-  }
-
-  Future<void> _markSeated({
-    required BuildContext context,
-    required WidgetRef ref,
-    required RestaurantTable table,
-    required QueueEntry? queueEntry,
-  }) async {
-    final queueEntryId = table.currentQueueEntryId;
-    if (queueEntryId == null) return;
-
-    try {
-      await ref
-          .read(tableRepositoryProvider)
-          .markSeated(
-            restaurantId: restaurantId,
-            branchId: branchId,
-            tableId: table.id,
-            queueEntryId: queueEntryId,
-          );
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${table.tableNumber} marked occupied${queueEntry == null ? '' : ' for ${queueEntry.tokenCode}'}.',
-          ),
-        ),
-      );
-    } catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not mark seated: $error')));
-    }
   }
 
   Future<void> _completeMeal({
@@ -336,12 +288,11 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
   late RestaurantTable? _selectedTable = _bestInitialTable();
 
   List<RestaurantTable> _sortedTablesForParty() {
-    final tables = [...widget.availableTables];
     final partySize = widget.entry.partySize;
+    final tables = widget.availableTables
+        .where((table) => table.capacity >= partySize)
+        .toList();
     tables.sort((a, b) {
-      final aFits = a.capacity >= partySize;
-      final bFits = b.capacity >= partySize;
-      if (aFits != bFits) return aFits ? -1 : 1;
       final capacity = a.capacity.compareTo(b.capacity);
       if (capacity != 0) return capacity;
       final sortOrder = a.sortOrder.compareTo(b.sortOrder);
@@ -353,13 +304,7 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
 
   RestaurantTable? _bestInitialTable() {
     if (_sortedAvailableTables.isEmpty) return null;
-    final partySize = widget.entry.partySize;
-    final fittingTables = _sortedAvailableTables
-        .where((table) => table.capacity >= partySize)
-        .toList();
-    if (fittingTables.isEmpty) return _sortedAvailableTables.first;
-    fittingTables.sort((a, b) => a.capacity.compareTo(b.capacity));
-    return fittingTables.first;
+    return _sortedAvailableTables.first;
   }
 
   void _submit() {
@@ -371,7 +316,7 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Reserve ${widget.entry.tokenCode}'),
+      title: Text('Seat ${widget.entry.tokenCode}'),
       content: SizedBox(
         width: 360,
         child: Column(
@@ -389,7 +334,7 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
             ),
             const SizedBox(height: 8),
             if (_sortedAvailableTables.isEmpty)
-              const _NoAvailableTablesNotice()
+              _NoAvailableTablesNotice(partySize: widget.entry.partySize)
             else
               DropdownButtonFormField<RestaurantTable>(
                 initialValue: _selectedTable,
@@ -397,8 +342,7 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
                 icon: const Icon(Icons.keyboard_arrow_down_rounded),
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.event_seat),
-                  helperText:
-                      'Sorted by best capacity fit for this party size.',
+                  helperText: 'Only available tables that fit are shown.',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -424,7 +368,7 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
               ),
             const SizedBox(height: 12),
             const Text(
-              'When confirmed, the customer status page updates to show their table is ready.',
+              'When confirmed, the table becomes occupied and the customer sees their assigned table.',
               style: TextStyle(color: AppColors.mutedText, fontSize: 13),
             ),
           ],
@@ -438,7 +382,7 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
         FilledButton.icon(
           onPressed: _selectedTable == null ? null : _submit,
           icon: const Icon(Icons.event_seat),
-          label: const Text('Update customer'),
+          label: const Text('Seat now'),
         ),
       ],
     );
@@ -447,15 +391,15 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
   String _tableOptionLabel(RestaurantTable table) {
     final fitLabel = table.capacity == widget.entry.partySize
         ? 'exact fit'
-        : table.capacity > widget.entry.partySize
-        ? 'fits'
-        : 'small';
-    return '${table.tableNumber} · ${table.capacity} top · ${table.section} · $fitLabel';
+        : 'fits';
+    return '${table.tableNumber} · ${table.capacity} seats · $fitLabel';
   }
 }
 
 class _NoAvailableTablesNotice extends StatelessWidget {
-  const _NoAvailableTablesNotice();
+  const _NoAvailableTablesNotice({required this.partySize});
+
+  final int partySize;
 
   @override
   Widget build(BuildContext context) {
@@ -468,7 +412,7 @@ class _NoAvailableTablesNotice extends StatelessWidget {
         border: Border.all(color: const Color(0x33F59E0B)),
       ),
       child: const Text(
-        'No available tables right now.',
+        'No available table can fit this party right now.',
         style: TextStyle(
           color: AppColors.navyText,
           fontSize: 13,

@@ -67,7 +67,7 @@ node tool/e2e_firestore_smoke.mjs ezq-dev-cubiquitous
 - Legacy `cleaning` table status should be treated as `available`; do not reintroduce a cleaning flow unless explicitly requested.
 - Table tiles should expose capacity and occupied count. Admin tables are grouped/sorted by capacity for easier table assignment.
 - Reserving a queue entry should ask the manager to pick a table from available tables, not type a table number manually.
-- Marking seated should update the table to occupied and the queue entry to seated.
+- Reserving a queue entry should immediately update the table to occupied and the queue entry to seated; there is no separate mark-seated step.
 - Finishing a meal should capture completed party size and record lifecycle timestamps.
 
 ## UI/UX Direction
@@ -98,4 +98,3 @@ These are already covered by `.gitignore`; keep that behavior intact.
 - Do not revert user changes unless explicitly asked.
 - Keep commits focused and avoid committing secrets or local machine state.
 - Firebase client config files contain public Firebase app identifiers; do not place private service account keys in the repo.
-

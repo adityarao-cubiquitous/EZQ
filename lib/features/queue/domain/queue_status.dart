@@ -30,6 +30,7 @@ enum QueueStatus {
     return switch (this) {
       QueueStatus.waiting => {
         QueueStatus.reserved,
+        QueueStatus.seated,
         QueueStatus.skipped,
         QueueStatus.cancelled,
       }.contains(next),
@@ -53,7 +54,9 @@ enum QueueStatus {
   }
 
   bool get isLiveQueueVisible => switch (this) {
-    QueueStatus.waiting || QueueStatus.reserved || QueueStatus.onTheWay => true,
+    QueueStatus.waiting => true,
+    QueueStatus.reserved ||
+    QueueStatus.onTheWay ||
     QueueStatus.seated ||
     QueueStatus.completed ||
     QueueStatus.skipped ||

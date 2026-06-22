@@ -27,13 +27,6 @@ abstract class TableRepository {
     required TableStatus status,
   });
 
-  Future<void> markSeated({
-    required String restaurantId,
-    required String branchId,
-    required String tableId,
-    required String queueEntryId,
-  });
-
   Future<void> completeMeal({
     required String restaurantId,
     required String branchId,
@@ -80,6 +73,13 @@ class FirebaseTableRepository implements TableRepository {
     final entryRef = _firestore.doc(
       FirestorePaths.queueEntry(restaurantId, branchId, queueEntryId),
     );
+    final counterRef = _firestore.doc(
+      FirestorePaths.dailyCounter(
+        restaurantId,
+        branchId,
+        DateTimeUtils.businessDate(),
+      ),
+    );
 
     await _firestore.runTransaction<void>((transaction) async {
       final tableSnapshot = await transaction.get(tableRef);
@@ -102,24 +102,31 @@ class FirebaseTableRepository implements TableRepository {
           : 'previous_completion';
       final tableNumber = tableData?['tableNumber'] as String? ?? '';
       final tokenCode = entrySnapshot.data()?['tokenCode'] as String? ?? '';
+      final assignedAt = FieldValue.serverTimestamp();
       transaction.update(tableRef, {
-        'status': TableStatus.reserved.wireName,
+        'status': TableStatus.occupied.wireName,
         'currentQueueEntryId': queueEntryId,
         'currentTokenCode': tokenCode,
-        'reservedAt': FieldValue.serverTimestamp(),
+        'reservedAt': assignedAt,
+        'occupiedAt': assignedAt,
         'currentCycleStartAt': cycleStartAt,
         'currentCycleSource': cycleSource,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': assignedAt,
       });
       transaction.update(entryRef, {
-        'status': 'reserved',
+        'status': QueueStatus.seated.wireName,
         'assignedTableId': tableId,
         'assignedTableNumber': tableNumber,
-        'reservedAt': FieldValue.serverTimestamp(),
+        'reservedAt': assignedAt,
+        'seatedAt': assignedAt,
         'tableCycleStartAt': cycleStartAt,
         'tableCycleSource': cycleSource,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': assignedAt,
       });
+      transaction.set(counterRef, {
+        'totalSeated': FieldValue.increment(1),
+        'updatedAt': assignedAt,
+      }, SetOptions(merge: true));
     });
   }
 
@@ -136,65 +143,6 @@ class FirebaseTableRepository implements TableRepository {
           'status': status.wireName,
           'updatedAt': FieldValue.serverTimestamp(),
         });
-  }
-
-  @override
-  Future<void> markSeated({
-    required String restaurantId,
-    required String branchId,
-    required String tableId,
-    required String queueEntryId,
-  }) async {
-    final tableRef = _firestore.doc(
-      FirestorePaths.table(restaurantId, branchId, tableId),
-    );
-    final entryRef = _firestore.doc(
-      FirestorePaths.queueEntry(restaurantId, branchId, queueEntryId),
-    );
-    final counterRef = _firestore.doc(
-      FirestorePaths.dailyCounter(
-        restaurantId,
-        branchId,
-        DateTimeUtils.businessDate(),
-      ),
-    );
-
-    await _firestore.runTransaction<void>((transaction) async {
-      final tableSnapshot = await transaction.get(tableRef);
-      final entrySnapshot = await transaction.get(entryRef);
-      if (!tableSnapshot.exists || !entrySnapshot.exists) {
-        throw StateError('Table or queue entry not found.');
-      }
-      final tableStatus = TableStatus.fromWireName(
-        tableSnapshot.data()?['status'] as String?,
-      );
-      if (tableStatus != TableStatus.reserved) {
-        throw StateError('Only reserved tables can be marked seated.');
-      }
-      final entryStatus = QueueStatus.fromWireName(
-        entrySnapshot.data()?['status'] as String?,
-      );
-      if (entryStatus != QueueStatus.reserved &&
-          entryStatus != QueueStatus.onTheWay) {
-        throw StateError('Customer is not ready to be seated.');
-      }
-
-      final seatedAt = FieldValue.serverTimestamp();
-      transaction.update(tableRef, {
-        'status': TableStatus.occupied.wireName,
-        'occupiedAt': seatedAt,
-        'updatedAt': seatedAt,
-      });
-      transaction.update(entryRef, {
-        'status': QueueStatus.seated.wireName,
-        'seatedAt': seatedAt,
-        'updatedAt': seatedAt,
-      });
-      transaction.set(counterRef, {
-        'totalSeated': FieldValue.increment(1),
-        'updatedAt': seatedAt,
-      }, SetOptions(merge: true));
-    });
   }
 
   @override
@@ -338,14 +286,6 @@ class MockTableRepository implements TableRepository {
     required String branchId,
     required String tableId,
     required TableStatus status,
-  }) async {}
-
-  @override
-  Future<void> markSeated({
-    required String restaurantId,
-    required String branchId,
-    required String tableId,
-    required String queueEntryId,
   }) async {}
 
   @override

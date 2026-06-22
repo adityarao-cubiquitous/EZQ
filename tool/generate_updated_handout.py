@@ -184,7 +184,7 @@ def build_addendum():
     story.append(heading("1. Product Decisions Updated Since Original Handout"))
     updates = [
         ["Area", "Latest decision"],
-        ["Cleaning state", "Removed from MVP. Table lifecycle is now available -> reserved -> occupied -> available, with blocked kept as an administrative state."],
+        ["Cleaning state", "Removed from MVP. Table lifecycle is now available -> occupied -> available, with blocked kept as an administrative state. Legacy reserved data is treated as transitional only."],
         ["Customer authentication", "Customer web app remains guest/no-email. Customers join by QR/web with name, phone, party size, and optional notes."],
         ["Admin authentication", "Manager/admin login uses Firebase email/password authentication."],
         ["Party size input", "Customer party size uses exact values rather than broad ranges; larger party sizes are supported through a picklist."],
@@ -225,8 +225,8 @@ def build_addendum():
         "Table grid is grouped and sorted by capacity: 2-top, 4-top, 6-top, 8-top, 10-top.",
         "Each table tile shows table number, status, token if linked, capacity, and occupied count.",
         "Location/section text such as main, bar, patio, and window was removed from table tiles for cleaner scanning.",
-        "Available tables show Occ 0. Reserved and occupied tables show the linked queue party size.",
-        "Reserved table tiles are actionable with Mark seated.",
+        "Available tables show Occ 0. Occupied tables show the linked queue party size.",
+        "Reserve moves the selected table directly to occupied; there is no separate Mark seated step.",
         "Occupied table tiles are actionable with Meal finished and let the manager confirm the number of guests who finished.",
         "Live Queue panel supports Reserve and Skip. Reserve opens a table picklist sorted by best capacity fit.",
         "Topbar metrics show Free, Occupied, and Waiting counts.",
@@ -237,7 +237,7 @@ def build_addendum():
     state_rows = [
         ["Table state", "Tile action", "Primary data shown"],
         ["available", "No direct action on tile", "Table number, Cap, Occ 0, available badge."],
-        ["reserved", "Mark seated", "Table number, Cap, Occ party size, reserved badge, token."],
+        ["reserved", "Legacy only", "Old reserved data should be migrated to occupied/seated or released."],
         ["occupied", "Meal finished", "Table number, Cap, Occ party size, occupied badge, token."],
         ["blocked", "No operational MVP action yet", "Reserved for future admin controls."],
     ]
@@ -246,10 +246,8 @@ def build_addendum():
     story.append(heading("4. Updated Table Lifecycle"))
     lifecycle = [
         "Manager reserves an available table for a queue entry.",
-        "Queue entry becomes reserved and table becomes reserved.",
-        "Customer status page changes to the table-ready/reserved state.",
-        "When the customer arrives, manager clicks Mark seated on the reserved table tile.",
-        "Queue entry becomes seated and table becomes occupied.",
+        "Queue entry becomes seated and table becomes occupied immediately.",
+        "Customer status page changes to the seated/table-assigned state.",
         "When the meal is finished, manager clicks Meal finished and records guests completed.",
         "Queue entry becomes completed and table becomes available.",
         "The next customer for that table uses the previous completed end time as the next cycle start where applicable.",
@@ -286,8 +284,8 @@ def build_addendum():
     story.append(heading("6. Updated Status Transitions"))
     transition_rows = [
         ["Entity", "Allowed MVP transitions"],
-        ["Queue Entry", "waiting -> reserved; waiting -> skipped; waiting -> cancelled; reserved -> on_the_way; reserved -> seated; reserved -> no_show; reserved -> cancelled; on_the_way -> seated; on_the_way -> no_show; on_the_way -> cancelled; seated -> completed."],
-        ["Table", "available -> reserved; available -> occupied; available -> blocked; reserved -> occupied; reserved -> available; occupied -> available; blocked -> available."],
+        ["Queue Entry", "waiting -> seated; waiting -> skipped; waiting -> cancelled; reserved/on_the_way legacy states may still transition to seated/cancelled/no_show; seated -> completed."],
+        ["Table", "available -> occupied; available -> blocked; reserved legacy state should move to occupied or available; occupied -> available; blocked -> available."],
     ]
     story.append(simple_table([[Paragraph(c, S["SmallMuted"]) for c in row] for row in transition_rows], [35 * mm, 135 * mm]))
 
@@ -295,8 +293,8 @@ def build_addendum():
     for item in [
         "Seed script now creates 14 tables for The Spice House Indiranagar.",
         "Table capacities include 2, 4, 6, 8, and 10 seats.",
-        "Demo queue entries extend through Q35 with waiting, reserved, on_the_way, seated, and completed-like flows.",
-        "Current dashboard is useful for testing capacity grouping, exact-fit reservation, seated transition, and meal-finished flow.",
+        "Demo queue entries extend through Q35 with waiting, seated, and completed-like flows.",
+        "Current dashboard is useful for testing capacity grouping, exact-fit reservation, direct occupied assignment, and meal-finished flow.",
         "Seed script path: tool/seed_firestore.mjs.",
     ]:
         story.append(bullet(item))
@@ -310,7 +308,7 @@ def build_addendum():
         ["Admin login", "Implemented with Firebase Auth email/password."],
         ["Admin dashboard", "Implemented with capacity-grouped tables and live queue panel."],
         ["Reserve table", "Implemented with best-fit table picker."],
-        ["Mark seated", "Implemented on reserved table tiles."],
+        ["Mark seated", "Removed from MVP; Reserve now seats the party and occupies the table immediately."],
         ["Meal finished", "Implemented on occupied table tiles with completed party size."],
         ["Menu PDF", "Implemented as backend URL driven customer menu page."],
         ["Hidden-object image", "Placeholder implemented; backend image upload/display path ready."],
