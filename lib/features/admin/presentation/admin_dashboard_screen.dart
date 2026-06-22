@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../queue/data/queue_repository.dart';
@@ -33,7 +34,7 @@ class AdminDashboardScreen extends ConsumerWidget {
         .watchTodayQueue(restaurantId: restaurantId, branchId: branchId);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F8FB),
+      backgroundColor: AppColors.softerSurface,
       body: StreamBuilder(
         stream: tablesStream,
         builder: (context, tablesSnapshot) {
@@ -56,24 +57,28 @@ class AdminDashboardScreen extends ConsumerWidget {
                   .where((table) => table.status == TableStatus.occupied)
                   .length;
 
-              return Column(
-                children: [
-                  _AdminTopBar(
-                    branchName: 'Indiranagar',
-                    freeTables: free,
-                    occupiedTables: occupied,
-                    waitingCount: liveQueue.length,
-                    onReports: () =>
-                        context.go('/admin/$restaurantId/$branchId/reports'),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
+              return SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    _AdminTopBar(
+                      branchName: 'Indiranagar',
+                      freeTables: free,
+                      occupiedTables: occupied,
+                      waitingCount: liveQueue.length,
+                      onReports: () =>
+                          context.go('/admin/$restaurantId/$branchId/reports'),
+                    ),
+                    Expanded(
                       child: LayoutBuilder(
                         builder: (context, constraints) {
-                          final compact = constraints.maxWidth < 900;
+                          final compact = constraints.maxWidth < 960;
+                          final phone = Responsive.isCompact(context);
+                          final pagePadding = phone ? 12.0 : 24.0;
+                          final gap = phone ? 12.0 : 16.0;
                           if (compact) {
                             return ListView(
+                              padding: EdgeInsets.all(pagePadding),
                               children: [
                                 TableGrid(
                                   tables: tables,
@@ -92,7 +97,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                                         initialPartySize: initialPartySize,
                                       ),
                                 ),
-                                const SizedBox(height: 16),
+                                SizedBox(height: gap),
                                 QueuePanel(
                                   queue: liveQueue,
                                   availableTables: availableTables,
@@ -111,55 +116,58 @@ class AdminDashboardScreen extends ConsumerWidget {
                               ],
                             );
                           }
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                flex: 7,
-                                child: TableGrid(
-                                  tables: tables,
-                                  completedPartySizeFor: (table) =>
-                                      queueById[table.currentQueueEntryId]
-                                          ?.partySize ??
-                                      table.capacity,
-                                  onMealFinished: (table, initialPartySize) =>
-                                      _completeMeal(
-                                        context: context,
-                                        ref: ref,
-                                        table: table,
-                                        queueEntry:
-                                            queueById[table
-                                                .currentQueueEntryId],
-                                        initialPartySize: initialPartySize,
-                                      ),
+                          return Padding(
+                            padding: EdgeInsets.all(pagePadding),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 7,
+                                  child: TableGrid(
+                                    tables: tables,
+                                    completedPartySizeFor: (table) =>
+                                        queueById[table.currentQueueEntryId]
+                                            ?.partySize ??
+                                        table.capacity,
+                                    onMealFinished: (table, initialPartySize) =>
+                                        _completeMeal(
+                                          context: context,
+                                          ref: ref,
+                                          table: table,
+                                          queueEntry:
+                                              queueById[table
+                                                  .currentQueueEntryId],
+                                          initialPartySize: initialPartySize,
+                                        ),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 24),
-                              SizedBox(
-                                width: 390,
-                                child: QueuePanel(
-                                  queue: liveQueue,
-                                  availableTables: availableTables,
-                                  onReserve: (entry) => _reserveQueueEntry(
-                                    context: context,
-                                    ref: ref,
-                                    entry: entry,
+                                SizedBox(width: pagePadding),
+                                SizedBox(
+                                  width: 390,
+                                  child: QueuePanel(
+                                    queue: liveQueue,
                                     availableTables: availableTables,
-                                  ),
-                                  onSkip: (entry) => _skipQueueEntry(
-                                    context: context,
-                                    ref: ref,
-                                    entry: entry,
+                                    onReserve: (entry) => _reserveQueueEntry(
+                                      context: context,
+                                      ref: ref,
+                                      entry: entry,
+                                      availableTables: availableTables,
+                                    ),
+                                    onSkip: (entry) => _skipQueueEntry(
+                                      context: context,
+                                      ref: ref,
+                                      entry: entry,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           );
                         },
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               );
             },
           );
@@ -315,10 +323,11 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final dialogWidth = _dialogWidth(context, 360);
     return AlertDialog(
       title: Text('Seat ${widget.entry.tokenCode}'),
       content: SizedBox(
-        width: 360,
+        width: dialogWidth,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -447,10 +456,11 @@ class _MealFinishedDialogState extends State<_MealFinishedDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final dialogWidth = _dialogWidth(context, 360);
     return AlertDialog(
       title: const Text('Meal finished'),
       content: SizedBox(
-        width: 360,
+        width: dialogWidth,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -526,9 +536,16 @@ class _AdminTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = Responsive.isCompact(context);
+    final tablet = Responsive.isTablet(context);
+    final horizontalPadding = compact ? 14.0 : 32.0;
     return Container(
-      height: 76,
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: EdgeInsets.fromLTRB(
+        horizontalPadding,
+        compact ? 12 : 0,
+        horizontalPadding,
+        compact ? 12 : 0,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(
@@ -536,58 +553,141 @@ class _AdminTopBar extends StatelessWidget {
           bottom: BorderSide(color: Color(0x1ABDC8D0)),
         ),
       ),
-      child: Row(
-        children: [
-          const BrandMark(size: 24),
-          const SizedBox(width: 12),
-          const Text(
-            'EZQ',
-            style: TextStyle(
-              color: AppColors.deepTeal,
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(width: 24),
-          Text(
-            branchName,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-          ),
-          const Spacer(),
-          _TopMetric(
-            label: 'Free',
-            value: freeTables,
-            color: AppColors.primaryTeal,
-          ),
-          _TopMetric(
-            label: 'Occupied',
-            value: occupiedTables,
-            color: AppColors.errorRed,
-          ),
-          _TopMetric(
-            label: 'Waiting',
-            value: waitingCount,
-            color: AppColors.accentPurple,
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: 150,
-            child: EzqButton(
-              label: 'Walk-in',
-              icon: Icons.add,
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (context) => const _WalkInDialog(),
+      child: compact
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const BrandMark(size: 22),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'EZQ',
+                      style: TextStyle(
+                        color: AppColors.deepTeal,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        branchName,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Daily summary',
+                      onPressed: onReports,
+                      icon: const Icon(Icons.bar_chart),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _TopMetric(
+                        label: 'Free',
+                        value: freeTables,
+                        color: AppColors.primaryTeal,
+                        compact: true,
+                      ),
+                    ),
+                    Expanded(
+                      child: _TopMetric(
+                        label: 'Occupied',
+                        value: occupiedTables,
+                        color: AppColors.errorRed,
+                        compact: true,
+                      ),
+                    ),
+                    Expanded(
+                      child: _TopMetric(
+                        label: 'Waiting',
+                        value: waitingCount,
+                        color: AppColors.accentPurple,
+                        compact: true,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 112,
+                      child: EzqButton(
+                        label: 'Walk-in',
+                        icon: Icons.add,
+                        onPressed: () => showDialog<void>(
+                          context: context,
+                          builder: (context) => const _WalkInDialog(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : SizedBox(
+              height: tablet ? 72 : 76,
+              child: Row(
+                children: [
+                  const BrandMark(size: 24),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'EZQ',
+                    style: TextStyle(
+                      color: AppColors.deepTeal,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  Text(
+                    branchName,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  _TopMetric(
+                    label: 'Free',
+                    value: freeTables,
+                    color: AppColors.primaryTeal,
+                  ),
+                  _TopMetric(
+                    label: 'Occupied',
+                    value: occupiedTables,
+                    color: AppColors.errorRed,
+                  ),
+                  _TopMetric(
+                    label: 'Waiting',
+                    value: waitingCount,
+                    color: AppColors.accentPurple,
+                  ),
+                  const SizedBox(width: 16),
+                  SizedBox(
+                    width: 150,
+                    child: EzqButton(
+                      label: 'Walk-in',
+                      icon: Icons.add,
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (context) => const _WalkInDialog(),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Daily summary',
+                    onPressed: onReports,
+                    icon: const Icon(Icons.bar_chart),
+                  ),
+                ],
               ),
             ),
-          ),
-          IconButton(
-            tooltip: 'Daily summary',
-            onPressed: onReports,
-            icon: const Icon(Icons.bar_chart),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -597,11 +697,12 @@ class _WalkInDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dialogWidth = _dialogWidth(context, 420);
     return AlertDialog(
       title: const Text('Add walk-in'),
-      content: const SizedBox(
-        width: 420,
-        child: Column(
+      content: SizedBox(
+        width: dialogWidth,
+        child: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(decoration: InputDecoration(labelText: 'Name')),
@@ -633,31 +734,47 @@ class _WalkInDialog extends StatelessWidget {
   }
 }
 
+double _dialogWidth(BuildContext context, double maxWidth) {
+  final screenWidth = MediaQuery.sizeOf(context).width;
+  final availableWidth = screenWidth - 48;
+  if (availableWidth < 280) return availableWidth;
+  return availableWidth < maxWidth ? availableWidth : maxWidth;
+}
+
 class _TopMetric extends StatelessWidget {
   const _TopMetric({
     required this.label,
     required this.value,
     required this.color,
+    this.compact = false,
   });
 
   final String label;
   final int value;
   final Color color;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 10),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: AppColors.mutedText)),
+          Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.mutedText,
+              fontSize: compact ? 11 : 14,
+            ),
+          ),
           Text(
             '$value',
             style: TextStyle(
               color: color,
-              fontSize: 24,
+              fontSize: compact ? 20 : 24,
               fontWeight: FontWeight.w800,
             ),
           ),

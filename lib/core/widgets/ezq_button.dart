@@ -60,7 +60,7 @@ class EzqButton extends StatelessWidget {
               boxShadow: enabled
                   ? const [
                       BoxShadow(
-                        color: Color(0x2E12A9DC),
+                        color: Color(0x2E81D8E5),
                         blurRadius: 18,
                         offset: Offset(0, 9),
                       ),

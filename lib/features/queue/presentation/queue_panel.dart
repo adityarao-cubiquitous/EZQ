@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../tables/domain/restaurant_table.dart';
 import '../domain/queue_entry.dart';
@@ -22,8 +23,9 @@ class QueuePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = Responsive.isCompact(context);
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(compact ? 14 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -32,11 +34,14 @@ class QueuePanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Live Queue',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+            style: TextStyle(
+              fontSize: compact ? 20 : 24,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: compact ? 12 : 16),
           TextField(
             decoration: InputDecoration(
               prefixIcon: const Icon(Icons.search),
@@ -47,7 +52,7 @@ class QueuePanel extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: compact ? 12 : 16),
           for (final entry in queue) ...[
             _QueueEntryCard(
               entry: entry,
@@ -78,9 +83,10 @@ class _QueueEntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = Responsive.isCompact(context);
     final canReserve = entry.status == QueueStatus.waiting;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(compact ? 12 : 16),
       decoration: BoxDecoration(
         color: const Color(0xFFF7F9FF),
         borderRadius: BorderRadius.circular(8),
@@ -93,58 +99,98 @@ class _QueueEntryCard extends StatelessWidget {
             children: [
               Text(
                 entry.tokenCode,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.deepTeal,
                   fontFamily: 'JetBrains Mono',
-                  fontSize: 20,
+                  fontSize: compact ? 18 : 20,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: compact ? 8 : 12),
               Expanded(
                 child: Text(
                   entry.customerName,
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
-              Text('Party ${entry.partySize}'),
+              Text(
+                'Party ${entry.partySize}',
+                style: TextStyle(fontSize: compact ? 12 : 14),
+              ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: compact ? 6 : 8),
           Text(
             '${entry.estimatedWaitMinutes} min wait • ${entry.status.wireName}',
+            style: TextStyle(fontSize: compact ? 12 : 14),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: canReserve
-                    ? EzqButton(
-                        label: 'Reserve',
-                        onPressed: availableTables.isEmpty
-                            ? () => ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'No available tables right now.',
-                                  ),
-                                ),
-                              )
-                            : onReserve,
-                      )
-                    : OutlinedButton(
-                        onPressed: null,
-                        child: Text(entry.status.wireName),
-                      ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: canReserve ? onSkip : null,
-                child: const Text('Skip'),
-              ),
-            ],
-          ),
+          SizedBox(height: compact ? 10 : 12),
+          if (compact)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _ReserveAction(
+                  canReserve: canReserve,
+                  availableTables: availableTables,
+                  statusLabel: entry.status.wireName,
+                  onReserve: onReserve,
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: canReserve ? onSkip : null,
+                  child: const Text('Skip'),
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: _ReserveAction(
+                    canReserve: canReserve,
+                    availableTables: availableTables,
+                    statusLabel: entry.status.wireName,
+                    onReserve: onReserve,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: canReserve ? onSkip : null,
+                  child: const Text('Skip'),
+                ),
+              ],
+            ),
         ],
       ),
+    );
+  }
+}
+
+class _ReserveAction extends StatelessWidget {
+  const _ReserveAction({
+    required this.canReserve,
+    required this.availableTables,
+    required this.statusLabel,
+    required this.onReserve,
+  });
+
+  final bool canReserve;
+  final List<RestaurantTable> availableTables;
+  final String statusLabel;
+  final VoidCallback onReserve;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!canReserve) {
+      return OutlinedButton(onPressed: null, child: Text(statusLabel));
+    }
+    return EzqButton(
+      label: 'Reserve',
+      onPressed: availableTables.isEmpty
+          ? () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No available tables right now.')),
+            )
+          : onReserve,
     );
   }
 }

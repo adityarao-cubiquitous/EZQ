@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/responsive.dart';
 import '../domain/restaurant_table.dart';
 import '../domain/table_status.dart';
 
@@ -20,8 +21,9 @@ class TableGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final capacityGroups = _groupTablesByCapacity(tables);
+    final compact = Responsive.isCompact(context);
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(compact ? 14 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -30,26 +32,29 @@ class TableGrid extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Tables by Capacity',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+            style: TextStyle(
+              fontSize: compact ? 20 : 24,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: compact ? 14 : 16),
           for (final group in capacityGroups) ...[
             _CapacityHeader(
               capacity: group.capacity,
               count: group.tables.length,
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: compact ? 8 : 10),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: group.tables.length,
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 220,
-                childAspectRatio: 1.3,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: compact ? 180 : 220,
+                childAspectRatio: compact ? 1.2 : 1.3,
+                crossAxisSpacing: compact ? 8 : 12,
+                mainAxisSpacing: compact ? 8 : 12,
               ),
               itemBuilder: (context, index) {
                 final table = group.tables[index];
@@ -65,7 +70,8 @@ class TableGrid extends StatelessWidget {
                 );
               },
             ),
-            if (group != capacityGroups.last) const SizedBox(height: 18),
+            if (group != capacityGroups.last)
+              SizedBox(height: compact ? 14 : 18),
           ],
         ],
       ),
@@ -159,22 +165,19 @@ class _TableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (table.status) {
-      TableStatus.available => AppColors.primaryTeal,
-      TableStatus.reserved => AppColors.accentPurple,
-      TableStatus.occupied => AppColors.errorRed,
-      TableStatus.blocked => Colors.grey,
-    };
+    final compact = Responsive.isCompact(context);
+    final occupiedCount = table.currentQueueEntryId == null
+        ? 0
+        : initialPartySize ?? table.capacity;
+    final color = _tableColor(occupiedCount);
+    final statusLabel = _statusLabel(occupiedCount);
     final canFinishMeal =
         table.status == TableStatus.occupied &&
         table.currentQueueEntryId != null &&
         onMealFinished != null;
-    final occupiedCount = table.currentQueueEntryId == null
-        ? 0
-        : initialPartySize ?? table.capacity;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(compact ? 12 : 14),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
@@ -190,8 +193,8 @@ class _TableCard extends StatelessWidget {
             children: [
               Text(
                 table.tableNumber,
-                style: const TextStyle(
-                  fontSize: 24,
+                style: TextStyle(
+                  fontSize: compact ? 22 : 24,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -219,19 +222,19 @@ class _TableCard extends StatelessWidget {
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(
+                      padding: EdgeInsets.symmetric(
                         horizontal: 9,
-                        vertical: 4,
+                        vertical: compact ? 3 : 4,
                       ),
                       decoration: BoxDecoration(
                         color: color,
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        table.status.name,
-                        style: const TextStyle(
+                        statusLabel,
+                        style: TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
+                          fontSize: compact ? 11 : 12,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -282,6 +285,28 @@ class _TableCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Color _tableColor(int occupiedCount) {
+    return switch (table.status) {
+      TableStatus.available => AppColors.primaryTeal,
+      TableStatus.reserved => AppColors.accentPurple,
+      TableStatus.occupied =>
+        occupiedCount >= table.capacity
+            ? AppColors.errorRed
+            : AppColors.warningOrange,
+      TableStatus.blocked => Colors.grey,
+    };
+  }
+
+  String _statusLabel(int occupiedCount) {
+    return switch (table.status) {
+      TableStatus.available => 'available',
+      TableStatus.reserved => 'reserved',
+      TableStatus.occupied =>
+        occupiedCount >= table.capacity ? 'full' : 'partial',
+      TableStatus.blocked => 'blocked',
+    };
   }
 }
 
