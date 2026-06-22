@@ -898,7 +898,7 @@ class _QueueStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _Card(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -933,16 +933,17 @@ class _QueueStatusCard extends StatelessWidget {
                   ],
                 ),
               ),
-              _TokenPill(tokenCode: entry.tokenCode),
             ],
           ),
           const SizedBox(height: 18),
+          _TokenHero(tokenCode: entry.tokenCode),
+          const SizedBox(height: 18),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFFF3FAFE),
-              borderRadius: BorderRadius.circular(8),
+              color: AppColors.softSurface,
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0x1A006687)),
             ),
             child: Row(
@@ -959,23 +960,15 @@ class _QueueStatusCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: _progressValue(entry),
-              minHeight: 8,
-              backgroundColor: const Color(0xFFE8F2F9),
-              valueColor: const AlwaysStoppedAnimation(AppColors.primaryTeal),
-            ),
-          ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
+          _GradientProgressBar(value: _progressValue(entry)),
+          const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(15),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: const Color(0xFFEAF6FF),
               border: Border.all(color: const Color(0x1A006687)),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1077,7 +1070,7 @@ class _RemainingWaitMetricState extends State<_RemainingWaitMetric> {
   @override
   Widget build(BuildContext context) {
     return _MetricBlock(
-      label: 'Remaining wait',
+      label: 'Est. Wait',
       value: '$_remainingMinutes',
       suffix: _remainingMinutes == 1 ? 'min' : 'mins',
       alignEnd: true,
@@ -1086,29 +1079,81 @@ class _RemainingWaitMetricState extends State<_RemainingWaitMetric> {
   }
 }
 
-class _TokenPill extends StatelessWidget {
-  const _TokenPill({required this.tokenCode});
+class _TokenHero extends StatelessWidget {
+  const _TokenHero({required this.tokenCode});
 
   final String tokenCode;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+      width: 124,
+      height: 124,
       decoration: BoxDecoration(
-        color: const Color(0xFFECF4FF),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0x24006687)),
+        shape: BoxShape.circle,
+        color: const Color(0xFFF4FBFF),
+        border: Border.all(
+          color: AppColors.primaryTeal.withValues(alpha: 0.24),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryTeal.withValues(alpha: 0.24),
+            blurRadius: 28,
+            spreadRadius: 2,
+          ),
+          BoxShadow(
+            color: AppColors.accentPurple.withValues(alpha: 0.12),
+            blurRadius: 36,
+            offset: const Offset(0, 16),
+          ),
+        ],
       ),
-      child: Text(
-        tokenCode,
-        style: const TextStyle(
-          color: AppColors.deepTeal,
-          fontFamily: 'JetBrains Mono',
-          fontSize: 22,
-          fontWeight: FontWeight.w800,
+      child: Center(
+        child: Text(
+          tokenCode,
+          style: const TextStyle(
+            color: AppColors.deepTeal,
+            fontFamily: 'JetBrains Mono',
+            fontSize: 34,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _GradientProgressBar extends StatelessWidget {
+  const _GradientProgressBar({required this.value});
+
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    final clampedValue = value.clamp(0.0, 1.0);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Container(
+          height: 10,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F2F9),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 240),
+              width: constraints.maxWidth * clampedValue,
+              decoration: const BoxDecoration(
+                gradient: AppColors.progressGradient,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1346,19 +1391,26 @@ class _InlineReadyCard extends ConsumerWidget {
       child: Column(
         children: [
           Container(
-            width: 96,
-            height: 96,
-            decoration: const BoxDecoration(
-              gradient: AppColors.brandGradient,
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              color: AppColors.primaryTeal.withValues(alpha: 0.12),
               shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryTeal.withValues(alpha: 0.26),
+                  blurRadius: 30,
+                  spreadRadius: 2,
+                ),
+              ],
             ),
             child: const Icon(
-              Icons.notifications_active,
-              color: Colors.white,
+              Icons.check_circle_rounded,
+              color: AppColors.deepTeal,
               size: 40,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
           const Text(
             'Your table is ready!',
             textAlign: TextAlign.center,
@@ -1368,13 +1420,31 @@ class _InlineReadyCard extends ConsumerWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Please proceed to ${entry.assignedTableNumber ?? 'the seating desk'}.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFF3E484F), fontSize: 16),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.softSurface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0x1A006687)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _ReadyMetric(
+                    label: 'Assigned Table',
+                    value: entry.assignedTableNumber ?? 'Desk',
+                  ),
+                ),
+                Container(width: 1, height: 48, color: const Color(0x1A006687)),
+                const Expanded(
+                  child: _ReadyMetric(label: 'Holding For', value: '05:00'),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
           EzqButton(
             label: "I'm on my way",
             onPressed: () async {
@@ -1395,18 +1465,81 @@ class _InlineReadyCard extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: () => context.go('/customer/install'),
-            child: const Text('Need 5 more minutes'),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton(
+              onPressed: () => context.go('/customer/install'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.deepTeal,
+                side: const BorderSide(color: AppColors.line),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                textStyle: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              child: const Text('Need 5 more minutes'),
+            ),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'If you do not arrive in time, your place may be moved back in queue.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.warningOrange),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF1F1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0x33E05C5C)),
+            ),
+            child: const Text(
+              'Please arrive within 5 minutes. If you miss the hold window, your place may move back in queue.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFFBA1A1A),
+                fontSize: 13,
+                height: 18 / 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ReadyMetric extends StatelessWidget {
+  const _ReadyMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppColors.mutedText,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 5),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.deepTeal,
+              fontFamily: 'JetBrains Mono',
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1459,13 +1592,13 @@ class _Card extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.98),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0x1FBDC8D0)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x1012A9DC),
-            blurRadius: 18,
-            offset: Offset(0, 10),
+            color: Color(0x1712A9DC),
+            blurRadius: 26,
+            offset: Offset(0, 14),
           ),
         ],
       ),

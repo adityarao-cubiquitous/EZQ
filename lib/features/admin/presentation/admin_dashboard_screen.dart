@@ -552,6 +552,13 @@ class _AdminTopBar extends StatelessWidget {
           top: BorderSide(color: AppColors.primaryTeal, width: 4),
           bottom: BorderSide(color: Color(0x1ABDC8D0)),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x12006687),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: compact
           ? Column(

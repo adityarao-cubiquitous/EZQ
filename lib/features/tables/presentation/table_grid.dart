@@ -26,8 +26,15 @@ class TableGrid extends StatelessWidget {
       padding: EdgeInsets.all(compact ? 14 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0x1ABDC8D0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F006687),
+            blurRadius: 20,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,7 +187,7 @@ class _TableCard extends StatelessWidget {
       padding: EdgeInsets.all(compact ? 12 : 14),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Column(

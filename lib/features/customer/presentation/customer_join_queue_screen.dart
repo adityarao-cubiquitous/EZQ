@@ -162,13 +162,13 @@ class _JoinQueueCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0x26BDC8D0)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x1212A9DC),
-            blurRadius: 20,
-            offset: Offset(0, 12),
+            color: Color(0x1A12A9DC),
+            blurRadius: 28,
+            offset: Offset(0, 16),
           ),
         ],
       ),
@@ -240,7 +240,7 @@ class _JoinQueueCard extends StatelessWidget {
                   foregroundColor: AppColors.deepTeal,
                   side: const BorderSide(color: AppColors.line),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   textStyle: const TextStyle(
                     fontSize: 15,
@@ -265,6 +265,12 @@ class _PartySizeSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final options = List<int>.generate(20, (index) => index + 1);
+    final ranges = const [
+      (label: '1-2', value: 2),
+      (label: '3-4', value: 4),
+      (label: '5-6', value: 6),
+      (label: '7+', value: 8),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -280,6 +286,26 @@ class _PartySizeSelector extends StatelessWidget {
             ),
           ),
         ),
+        Row(
+          children: [
+            for (final range in ranges) ...[
+              Expanded(
+                child: _PartyRangeButton(
+                  label: range.label,
+                  selected: switch (range.value) {
+                    2 => value <= 2,
+                    4 => value >= 3 && value <= 4,
+                    6 => value >= 5 && value <= 6,
+                    _ => value >= 7,
+                  },
+                  onTap: () => onChanged(range.value),
+                ),
+              ),
+              if (range != ranges.last) const SizedBox(width: 8),
+            ],
+          ],
+        ),
+        const SizedBox(height: 10),
         DropdownButtonFormField<int>(
           initialValue: value,
           icon: const Icon(Icons.keyboard_arrow_down_rounded),
@@ -287,18 +313,21 @@ class _PartySizeSelector extends StatelessWidget {
             prefixIcon: const Icon(Icons.groups_outlined),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
-              vertical: 13,
+              vertical: 16,
             ),
             filled: true,
             fillColor: Colors.white,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(16),
               borderSide: const BorderSide(color: AppColors.line),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.primaryTeal),
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(
+                color: AppColors.primaryTeal,
+                width: 1.5,
+              ),
             ),
           ),
           items: [
@@ -321,6 +350,62 @@ class _PartySizeSelector extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+class _PartyRangeButton extends StatelessWidget {
+  const _PartyRangeButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          height: 42,
+          decoration: BoxDecoration(
+            gradient: selected ? AppColors.primaryGradient : null,
+            color: selected ? null : AppColors.softSurface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? Colors.transparent
+                  : AppColors.line.withValues(alpha: 0.75),
+            ),
+            boxShadow: selected
+                ? const [
+                    BoxShadow(
+                      color: Color(0x1F6A40D7),
+                      blurRadius: 14,
+                      offset: Offset(0, 7),
+                    ),
+                  ]
+                : const [],
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : AppColors.deepTeal,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -449,21 +449,75 @@ class _CustomerBackdrop extends StatelessWidget {
   Widget build(BuildContext context) {
     return Positioned.fill(
       child: IgnorePointer(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topRight,
-              end: Alignment.bottomLeft,
-              stops: const [0, 0.34, 0.72, 1],
-              colors: [
-                AppColors.secondaryCyan.withValues(alpha: 0.28),
-                Colors.white.withValues(alpha: 0.0),
-                const Color(0xFFEAF6FF).withValues(alpha: 0.55),
-                const Color(0xFFF7F3FF).withValues(alpha: 0.38),
-              ],
+        child: Stack(
+          children: [
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFFF5FBFF),
+                    Color(0xFFFAFBFF),
+                    Color(0xFFFFFFFF),
+                  ],
+                ),
+              ),
+              child: SizedBox.expand(),
             ),
-          ),
+            Positioned(
+              top: 74,
+              right: -54,
+              child: _FluidShape(
+                width: 184,
+                height: 132,
+                color: AppColors.primaryTeal.withValues(alpha: 0.09),
+              ),
+            ),
+            Positioned(
+              top: 328,
+              left: -72,
+              child: _FluidShape(
+                width: 210,
+                height: 162,
+                color: AppColors.accentPurple.withValues(alpha: 0.07),
+              ),
+            ),
+            Positioned(
+              bottom: 112,
+              right: -86,
+              child: _FluidShape(
+                width: 238,
+                height: 174,
+                color: AppColors.primaryTeal.withValues(alpha: 0.06),
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _FluidShape extends StatelessWidget {
+  const _FluidShape({
+    required this.width,
+    required this.height,
+    required this.color,
+  });
+
+  final double width;
+  final double height;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
     );
   }

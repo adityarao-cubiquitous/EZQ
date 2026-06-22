@@ -30,7 +30,9 @@ class EzqButton extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             foregroundColor: const Color(0xFFBA1A1A),
             side: const BorderSide(color: Color(0x44BA1A1A), width: 2),
-            shape: const StadiumBorder(),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             textStyle: const TextStyle(fontWeight: FontWeight.w700),
           ),
           child: Text(label),
@@ -46,7 +48,7 @@ class EzqButton extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(16),
           child: Ink(
             height: height,
             width: double.infinity,
@@ -56,13 +58,13 @@ class EzqButton extends StatelessWidget {
                   : const LinearGradient(
                       colors: [Color(0xFFB8C8D2), Color(0xFF8DA3AE)],
                     ),
-              borderRadius: const BorderRadius.all(Radius.circular(999)),
+              borderRadius: const BorderRadius.all(Radius.circular(16)),
               boxShadow: enabled
                   ? const [
                       BoxShadow(
-                        color: Color(0x2E81D8E5),
-                        blurRadius: 18,
-                        offset: Offset(0, 9),
+                        color: Color(0x2A6A40D7),
+                        blurRadius: 24,
+                        offset: Offset(0, 12),
                       ),
                     ]
                   : const [],
