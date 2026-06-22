@@ -1,0 +1,76 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isRestaurantAdmin(restaurantId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/restaurants/$(restaurantId)/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/restaurants/$(restaurantId)/admins/$(request.auth.uid)).data.isActive == true;
+    }
+
+    function isActiveBranch(restaurantId, branchId) {
+      return exists(/databases/$(database)/documents/restaurants/$(restaurantId)/branches/$(branchId))
+        && get(/databases/$(database)/documents/restaurants/$(restaurantId)/branches/$(branchId)).data.isActive == true;
+    }
+
+    match /restaurants/{restaurantId} {
+      allow read: if resource.data.isActive == true || isRestaurantAdmin(restaurantId);
+      allow write: if false;
+
+      match /branches/{branchId} {
+        allow read: if resource.data.isActive == true || isRestaurantAdmin(restaurantId);
+        allow write: if false;
+
+        match /tables/{tableId} {
+          allow read: if true;
+          allow update: if isActiveBranch(restaurantId, branchId);
+          allow create, delete: if false;
+        }
+
+        match /queueEntries/{queueEntryId} {
+          allow read: if true;
+          allow create: if isActiveBranch(restaurantId, branchId)
+            && request.resource.data.status == 'waiting'
+            && request.resource.data.customerName is string
+            && request.resource.data.phone is string
+            && request.resource.data.partySize is int;
+          allow update: if isActiveBranch(restaurantId, branchId);
+          allow delete: if false;
+        }
+
+        match /dailyCounters/{businessDate} {
+          allow read: if isActiveBranch(restaurantId, branchId) || isRestaurantAdmin(restaurantId);
+          allow write: if isActiveBranch(restaurantId, branchId);
+        }
+      }
+
+      match /admins/{adminUserId} {
+        allow read: if isRestaurantAdmin(restaurantId);
+        allow write: if false;
+      }
+    }
+
+    match /customers/{customerId} {
+      allow read: if isSignedIn() && request.auth.uid == customerId;
+      allow write: if false;
+
+      match /visits/{visitId} {
+        allow read: if isSignedIn() && request.auth.uid == customerId;
+        allow write: if false;
+      }
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

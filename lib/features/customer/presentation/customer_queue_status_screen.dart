@@ -1,0 +1,1475 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/firestore_paths.dart';
+import '../../../core/widgets/error_view.dart';
+import '../../../core/widgets/ezq_button.dart';
+import '../../../core/widgets/loading_view.dart';
+import '../../queue/domain/queue_entry.dart';
+import '../../queue/domain/queue_status.dart';
+import '../data/customer_queue_repository.dart';
+import 'customer_shell.dart';
+import 'restaurant_logo.dart';
+
+class CustomerQueueStatusScreen extends ConsumerWidget {
+  const CustomerQueueStatusScreen({
+    super.key,
+    required this.restaurantId,
+    required this.branchId,
+    required this.queueEntryId,
+  });
+
+  final String restaurantId;
+  final String branchId;
+  final String queueEntryId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final queueEntry = ref.watch(
+      queueEntryProvider((
+        restaurantId: restaurantId,
+        branchId: branchId,
+        queueEntryId: queueEntryId,
+      )),
+    );
+    return CustomerShell(
+      restaurantId: restaurantId,
+      branchId: branchId,
+      activeTab: CustomerTab.status,
+      queueEntryId: queueEntryId,
+      child: queueEntry.when(
+        data: (entry) {
+          if (entry.status == QueueStatus.reserved ||
+              entry.status == QueueStatus.onTheWay) {
+            return _StatusContent(
+              restaurantId: restaurantId,
+              branchId: branchId,
+              queueEntryId: queueEntryId,
+              entry: entry,
+              ready: true,
+            );
+          }
+          if (entry.status == QueueStatus.seated) {
+            return _StatusContent(
+              restaurantId: restaurantId,
+              branchId: branchId,
+              queueEntryId: queueEntryId,
+              entry: entry,
+              seated: true,
+            );
+          }
+          return _StatusContent(
+            restaurantId: restaurantId,
+            branchId: branchId,
+            queueEntryId: queueEntryId,
+            entry: entry,
+          );
+        },
+        error: (error, _) => ErrorView(message: error.toString()),
+        loading: () => const SizedBox(height: 700, child: LoadingView()),
+      ),
+    );
+  }
+}
+
+class _StatusContent extends ConsumerWidget {
+  const _StatusContent({
+    required this.restaurantId,
+    required this.branchId,
+    required this.queueEntryId,
+    required this.entry,
+    this.ready = false,
+    this.seated = false,
+  });
+
+  final String restaurantId;
+  final String branchId;
+  final String queueEntryId;
+  final QueueEntry entry;
+  final bool ready;
+  final bool seated;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Column(
+        children: [
+          if (ready)
+            _InlineReadyCard(entry: entry)
+          else if (seated)
+            _InlineSeatedCard(entry: entry)
+          else
+            _QueueStatusCard(entry: entry),
+          const SizedBox(height: 14),
+          _StatusActions(
+            restaurantId: restaurantId,
+            branchId: branchId,
+            queueEntryId: queueEntryId,
+            entry: entry,
+          ),
+          const SizedBox(height: 116),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusActions extends ConsumerWidget {
+  const _StatusActions({
+    required this.restaurantId,
+    required this.branchId,
+    required this.queueEntryId,
+    required this.entry,
+  });
+
+  final String restaurantId;
+  final String branchId;
+  final String queueEntryId;
+  final QueueEntry entry;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      children: [
+        EzqButton(
+          label: 'View Menu',
+          icon: Icons.restaurant_menu_rounded,
+          onPressed: () => context.go(
+            '/customer/$restaurantId/$branchId/menu?queueEntryId=$queueEntryId',
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: OutlinedButton.icon(
+            onPressed: () async {
+              await ref
+                  .read(customerQueueRepositoryProvider)
+                  .cancelQueueEntry(
+                    restaurantId: restaurantId,
+                    branchId: branchId,
+                    queueEntryId: queueEntryId,
+                    phone: entry.phone,
+                  );
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Reservation cancelled')),
+              );
+            },
+            icon: const Icon(Icons.close_rounded, size: 18),
+            label: const Text('Cancel Reservation'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFFBA1A1A),
+              side: const BorderSide(color: Color(0x33BA1A1A)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+              textStyle: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        const _InlinePoweredBy(),
+        const SizedBox(height: 14),
+        const _SponsoredAdCard(),
+        const SizedBox(height: 14),
+        _HiddenObjectImageCard(restaurantId: restaurantId, branchId: branchId),
+      ],
+    );
+  }
+}
+
+class _InlinePoweredBy extends StatelessWidget {
+  const _InlinePoweredBy();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Powered by Cubiquitous',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.68),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: const Color(0x1AD8EAFE)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Image.asset(
+                'assets/brand/cubiquitous.png',
+                fit: BoxFit.contain,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Powered by',
+              style: TextStyle(
+                color: Color(0xFF607D8B),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Text(
+              'Cubiquitous',
+              style: TextStyle(
+                color: AppColors.deepTeal,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SponsoredAdCard extends StatefulWidget {
+  const _SponsoredAdCard();
+
+  @override
+  State<_SponsoredAdCard> createState() => _SponsoredAdCardState();
+}
+
+class _SponsoredAdCardState extends State<_SponsoredAdCard> {
+  late final _DemoAd _ad = _demoAds[math.Random().nextInt(_demoAds.length)];
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Sponsored ad. ${_ad.title}. ${_ad.body}',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0x1AD8EAFE)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0F006687),
+              blurRadius: 16,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: _ad.tint.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(_ad.icon, color: _ad.tint, size: 26),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEAF6FF),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          'Sponsored',
+                          style: TextStyle(
+                            color: AppColors.deepTeal,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    _ad.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.navyText,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _ad.body,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF607D8B),
+                      fontSize: 13,
+                      height: 18 / 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DemoAd {
+  const _DemoAd({
+    required this.icon,
+    required this.tint,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final Color tint;
+  final String title;
+  final String body;
+}
+
+const _demoAds = [
+  _DemoAd(
+    icon: Icons.local_cafe_rounded,
+    tint: Color(0xFF8A5A22),
+    title: 'Cafe Terra is nearby',
+    body: 'Show this queue screen for 10% off coffee while you wait.',
+  ),
+  _DemoAd(
+    icon: Icons.local_offer_rounded,
+    tint: AppColors.warningOrange,
+    title: 'Weekend dessert offer',
+    body: 'Add a chef-special dessert to your table order today.',
+  ),
+  _DemoAd(
+    icon: Icons.shopping_bag_rounded,
+    tint: AppColors.accentPurple,
+    title: 'Indiranagar boutique picks',
+    body: 'Explore a curated local deal just 3 minutes away.',
+  ),
+];
+
+class _HiddenObjectImageCard extends ConsumerWidget {
+  const _HiddenObjectImageCard({
+    required this.restaurantId,
+    required this.branchId,
+  });
+
+  final String restaurantId;
+  final String branchId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final imageUrl = ref.watch(
+      hiddenObjectImageProvider((
+        restaurantId: restaurantId,
+        branchId: branchId,
+      )),
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEFFFF).withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0x1AD8EAFE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0D006687),
+            blurRadius: 18,
+            offset: Offset(0, 9),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF6FF),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: const Icon(
+                  Icons.image_search_rounded,
+                  color: AppColors.deepTeal,
+                  size: 17,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Find the hidden items',
+                  style: TextStyle(
+                    color: AppColors.navyText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          imageUrl.when(
+            data: (url) => _HiddenObjectImageFrame(imageUrl: url),
+            loading: () => const _HiddenObjectPlaceholder(loading: true),
+            error: (_, _) => const _HiddenObjectPlaceholder(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HiddenObjectImageFrame extends StatelessWidget {
+  const _HiddenObjectImageFrame({required this.imageUrl});
+
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = imageUrl?.trim();
+    if (url == null || url.isEmpty) {
+      return const _HiddenObjectPlaceholder();
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: AspectRatio(
+        aspectRatio: 4 / 3,
+        child: Image.network(
+          url,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => const _HiddenObjectPlaceholder(),
+        ),
+      ),
+    );
+  }
+}
+
+class _HiddenObjectPlaceholder extends StatelessWidget {
+  const _HiddenObjectPlaceholder({this.loading = false});
+
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 4 / 3,
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF3FAFE),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0x1A006687)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.82),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Icon(
+                loading
+                    ? Icons.hourglass_empty_rounded
+                    : Icons.add_photo_alternate_rounded,
+                color: AppColors.deepTeal,
+                size: 27,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              loading ? 'Loading puzzle image' : 'Puzzle image pending',
+              style: const TextStyle(
+                color: AppColors.navyText,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 5),
+            const Text(
+              'Hidden-object image will appear here.',
+              style: TextStyle(
+                color: Color(0xFF607D8B),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+typedef HiddenObjectImageArgs = ({String restaurantId, String branchId});
+
+final hiddenObjectImageProvider =
+    StreamProvider.family<String?, HiddenObjectImageArgs>((ref, args) {
+      const useFirebase = bool.fromEnvironment('USE_FIREBASE');
+      if (!useFirebase) return Stream.value(null);
+
+      return FirebaseFirestore.instance
+          .doc(FirestorePaths.branch(args.restaurantId, args.branchId))
+          .snapshots()
+          .map((snapshot) {
+            final data = snapshot.data() ?? <String, dynamic>{};
+            return data['hiddenObjectPuzzleImageUrl'] as String? ??
+                data['waitPuzzleImageUrl'] as String?;
+          });
+    });
+
+// ignore: unused_element
+class _HiddenItemsScenePainter extends CustomPainter {
+  const _HiddenItemsScenePainter({
+    required this.foundIds,
+    required this.targetIds,
+  });
+
+  final Set<String> foundIds;
+  final Set<String> targetIds;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final background = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFFEFFAFF), Color(0xFFFFFCF7), Color(0xFFF4F1FF)],
+      ).createShader(Offset.zero & size);
+    canvas.drawRect(Offset.zero & size, background);
+
+    final tableRect = Rect.fromLTWH(
+      size.width * 0.08,
+      size.height * 0.18,
+      size.width * 0.84,
+      size.height * 0.68,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(tableRect, const Radius.circular(28)),
+      Paint()..color = Colors.white.withValues(alpha: 0.86),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(tableRect.deflate(1), const Radius.circular(27)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = const Color(0x1A006687),
+    );
+
+    _drawPlate(canvas, size, const Offset(0.48, 0.54));
+    _drawMenu(canvas, size, const Offset(0.25, 0.35));
+    _drawCup(canvas, size, const Offset(0.73, 0.35));
+    _drawBowl(canvas, size, const Offset(0.36, 0.72));
+    _drawDessert(canvas, size, const Offset(0.67, 0.70));
+    _drawPlant(canvas, size, const Offset(0.16, 0.72));
+    _drawGift(canvas, size, const Offset(0.84, 0.70));
+
+    for (final item in _sceneItems) {
+      _drawHiddenItem(canvas, size, item);
+    }
+  }
+
+  void _drawPlate(Canvas canvas, Size size, Offset p) {
+    final center = Offset(size.width * p.dx, size.height * p.dy);
+    final radius = size.shortestSide * 0.25;
+    canvas.drawCircle(center, radius, Paint()..color = const Color(0xFFEAF6FF));
+    canvas.drawCircle(center, radius * 0.72, Paint()..color = Colors.white);
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = const Color(0x22006687),
+    );
+  }
+
+  void _drawMenu(Canvas canvas, Size size, Offset p) {
+    final rect = Rect.fromCenter(
+      center: Offset(size.width * p.dx, size.height * p.dy),
+      width: size.width * 0.18,
+      height: size.height * 0.34,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(8)),
+      Paint()..color = const Color(0xFFF8FBFF),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(8)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = const Color(0x22006687),
+    );
+    for (var i = 0; i < 3; i += 1) {
+      canvas.drawLine(
+        rect.topLeft + Offset(12, 18 + i * 15),
+        rect.topRight + Offset(-12, 18 + i * 15),
+        Paint()
+          ..strokeWidth = 2
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0x33006687),
+      );
+    }
+  }
+
+  void _drawCup(Canvas canvas, Size size, Offset p) {
+    final center = Offset(size.width * p.dx, size.height * p.dy);
+    canvas.drawCircle(
+      center,
+      size.shortestSide * 0.105,
+      Paint()..color = const Color(0xFFFFF7E8),
+    );
+    canvas.drawCircle(
+      center,
+      size.shortestSide * 0.07,
+      Paint()..color = const Color(0xFF8A5A22).withValues(alpha: 0.72),
+    );
+  }
+
+  void _drawBowl(Canvas canvas, Size size, Offset p) {
+    final rect = Rect.fromCenter(
+      center: Offset(size.width * p.dx, size.height * p.dy),
+      width: size.width * 0.17,
+      height: size.height * 0.13,
+    );
+    canvas.drawArc(
+      rect,
+      0,
+      math.pi,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4
+        ..strokeCap = StrokeCap.round
+        ..color = AppColors.accentPurple.withValues(alpha: 0.65),
+    );
+  }
+
+  void _drawDessert(Canvas canvas, Size size, Offset p) {
+    final center = Offset(size.width * p.dx, size.height * p.dy);
+    canvas.drawCircle(
+      center,
+      size.shortestSide * 0.07,
+      Paint()..color = const Color(0xFFFFE3EE),
+    );
+    canvas.drawCircle(
+      center + Offset(size.width * 0.016, -size.height * 0.018),
+      size.shortestSide * 0.024,
+      Paint()..color = AppColors.warningOrange,
+    );
+  }
+
+  void _drawPlant(Canvas canvas, Size size, Offset p) {
+    final center = Offset(size.width * p.dx, size.height * p.dy);
+    final paint = Paint()..color = const Color(0xFF2E7D32);
+    canvas.drawOval(
+      Rect.fromCenter(center: center + Offset(-10, -8), width: 22, height: 12),
+      paint,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: center + Offset(8, -10), width: 22, height: 12),
+      paint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: center + Offset(0, 14), width: 34, height: 28),
+        const Radius.circular(8),
+      ),
+      Paint()..color = const Color(0xFFFFF7E8),
+    );
+  }
+
+  void _drawGift(Canvas canvas, Size size, Offset p) {
+    final rect = Rect.fromCenter(
+      center: Offset(size.width * p.dx, size.height * p.dy),
+      width: size.width * 0.1,
+      height: size.height * 0.15,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(8)),
+      Paint()..color = const Color(0xFFEFE8FF),
+    );
+    canvas.drawLine(
+      rect.centerLeft,
+      rect.centerRight,
+      Paint()
+        ..strokeWidth = 2
+        ..color = AppColors.accentPurple.withValues(alpha: 0.5),
+    );
+  }
+
+  void _drawHiddenItem(Canvas canvas, Size size, _PuzzleItem item) {
+    final found = foundIds.contains(item.id);
+    final target = targetIds.contains(item.id);
+    final center = Offset(
+      size.width * item.position.dx,
+      size.height * item.position.dy,
+    );
+
+    if (found) {
+      canvas.drawCircle(
+        center,
+        18,
+        Paint()..color = AppColors.secondaryCyan.withValues(alpha: 0.28),
+      );
+      canvas.drawCircle(
+        center,
+        18,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = AppColors.deepTeal.withValues(alpha: 0.58),
+      );
+    }
+
+    final painter = TextPainter(
+      text: TextSpan(
+        text: item.code,
+        style: TextStyle(
+          color: item.color.withValues(
+            alpha: found ? 0.95 : (target ? 0.56 : 0.36),
+          ),
+          fontSize: found ? 14 : 12,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(
+      canvas,
+      center - Offset(painter.width / 2, painter.height / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _HiddenItemsScenePainter oldDelegate) {
+    return oldDelegate.foundIds != foundIds ||
+        oldDelegate.targetIds != targetIds;
+  }
+}
+
+class _PuzzleItem {
+  const _PuzzleItem({
+    required this.id,
+    required this.name,
+    required this.code,
+    required this.color,
+    required this.position,
+  });
+
+  final String id;
+  final String name;
+  final String code;
+  final Color color;
+  final Offset position;
+}
+
+const _sceneItems = [
+  _PuzzleItem(
+    id: 'spoon',
+    name: 'Spoon',
+    code: 'SP',
+    color: AppColors.deepTeal,
+    position: Offset(0.48, 0.29),
+  ),
+  _PuzzleItem(
+    id: 'coffee',
+    name: 'Coffee',
+    code: 'CF',
+    color: Color(0xFF7C5A39),
+    position: Offset(0.73, 0.35),
+  ),
+  _PuzzleItem(
+    id: 'cake',
+    name: 'Cake',
+    code: 'CK',
+    color: AppColors.warningOrange,
+    position: Offset(0.69, 0.67),
+  ),
+  _PuzzleItem(
+    id: 'rice',
+    name: 'Bowl',
+    code: 'BW',
+    color: AppColors.accentPurple,
+    position: Offset(0.36, 0.71),
+  ),
+  _PuzzleItem(
+    id: 'tea',
+    name: 'Tea',
+    code: 'TE',
+    color: Color(0xFF0F7B83),
+    position: Offset(0.77, 0.46),
+  ),
+  _PuzzleItem(
+    id: 'leaf',
+    name: 'Leaf',
+    code: 'LF',
+    color: Color(0xFF2E7D32),
+    position: Offset(0.16, 0.62),
+  ),
+  _PuzzleItem(
+    id: 'pizza',
+    name: 'Slice',
+    code: 'SL',
+    color: Color(0xFFD86A2A),
+    position: Offset(0.56, 0.50),
+  ),
+  _PuzzleItem(
+    id: 'icecream',
+    name: 'Dessert',
+    code: 'DS',
+    color: Color(0xFFB45386),
+    position: Offset(0.64, 0.73),
+  ),
+  _PuzzleItem(
+    id: 'menu',
+    name: 'Menu',
+    code: 'MN',
+    color: AppColors.inkBlue,
+    position: Offset(0.25, 0.35),
+  ),
+  _PuzzleItem(
+    id: 'table',
+    name: 'Table',
+    code: 'TB',
+    color: AppColors.deepTeal,
+    position: Offset(0.49, 0.83),
+  ),
+  _PuzzleItem(
+    id: 'star',
+    name: 'Star',
+    code: 'ST',
+    color: Color(0xFFE7A500),
+    position: Offset(0.54, 0.24),
+  ),
+  _PuzzleItem(
+    id: 'gift',
+    name: 'Gift',
+    code: 'GF',
+    color: AppColors.accentPurple,
+    position: Offset(0.84, 0.70),
+  ),
+];
+
+class _QueueStatusCard extends StatelessWidget {
+  const _QueueStatusCard({required this.entry});
+
+  final QueueEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const RestaurantLogo(size: 42),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'The Spice House',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.navyText,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${entry.customerName} · Party of ${entry.partySize}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF607D8B),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _TokenPill(tokenCode: entry.tokenCode),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3FAFE),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0x1A006687)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _MetricBlock(
+                    label: 'Ahead',
+                    value: '${entry.queuePosition}',
+                    suffix: entry.queuePosition == 1 ? 'person' : 'people',
+                  ),
+                ),
+                Container(width: 1, height: 46, color: const Color(0x1A006687)),
+                Expanded(child: _RemainingWaitMetric(entry: entry)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: _progressValue(entry),
+              minHeight: 8,
+              backgroundColor: const Color(0xFFE8F2F9),
+              valueColor: const AlwaysStoppedAnimation(AppColors.primaryTeal),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: const Color(0x1A006687)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Icon(
+                  Icons.info_outline_rounded,
+                  color: AppColors.deepTeal,
+                  size: 18,
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Stay nearby. We will update this screen when your table is ready.',
+                    style: TextStyle(
+                      color: AppColors.inkBlue,
+                      fontSize: 14,
+                      height: 19 / 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  double _progressValue(QueueEntry entry) {
+    final position = entry.queuePosition.clamp(0, 12);
+    return (1 - (position / 12)).clamp(0.08, 0.92);
+  }
+}
+
+class _RemainingWaitMetric extends StatefulWidget {
+  const _RemainingWaitMetric({required this.entry});
+
+  final QueueEntry entry;
+
+  @override
+  State<_RemainingWaitMetric> createState() => _RemainingWaitMetricState();
+}
+
+class _RemainingWaitMetricState extends State<_RemainingWaitMetric> {
+  Timer? _timer;
+  late DateTime _targetTime;
+  late int _remainingMinutes;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetCountdown();
+    _timer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _refreshRemainingMinutes(),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _RemainingWaitMetric oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.entry.id != widget.entry.id ||
+        oldWidget.entry.estimatedWaitMinutes !=
+            widget.entry.estimatedWaitMinutes ||
+        oldWidget.entry.joinedAt != widget.entry.joinedAt) {
+      _resetCountdown();
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _resetCountdown() {
+    final estimate = widget.entry.estimatedWaitMinutes.clamp(0, 240);
+    final now = DateTime.now();
+    final storedTarget = widget.entry.joinedAt.add(Duration(minutes: estimate));
+    final targetIsUseful = storedTarget.isAfter(now);
+    _targetTime = targetIsUseful
+        ? storedTarget
+        : now.add(Duration(minutes: estimate));
+    _remainingMinutes = _minutesUntil(_targetTime);
+  }
+
+  void _refreshRemainingMinutes() {
+    final nextValue = _minutesUntil(_targetTime);
+    if (nextValue == _remainingMinutes || !mounted) return;
+    setState(() => _remainingMinutes = nextValue);
+  }
+
+  int _minutesUntil(DateTime target) {
+    final seconds = target.difference(DateTime.now()).inSeconds;
+    if (seconds <= 0) return 0;
+    return (seconds / 60).ceil();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _MetricBlock(
+      label: 'Remaining wait',
+      value: '$_remainingMinutes',
+      suffix: _remainingMinutes == 1 ? 'min' : 'mins',
+      alignEnd: true,
+      showHourglass: true,
+    );
+  }
+}
+
+class _TokenPill extends StatelessWidget {
+  const _TokenPill({required this.tokenCode});
+
+  final String tokenCode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFECF4FF),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x24006687)),
+      ),
+      child: Text(
+        tokenCode,
+        style: const TextStyle(
+          color: AppColors.deepTeal,
+          fontFamily: 'JetBrains Mono',
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _MetricBlock extends StatelessWidget {
+  const _MetricBlock({
+    required this.label,
+    required this.value,
+    required this.suffix,
+    this.alignEnd = false,
+    this.showHourglass = false,
+  });
+
+  final String label;
+  final String value;
+  final String suffix;
+  final bool alignEnd;
+  final bool showHourglass;
+
+  @override
+  Widget build(BuildContext context) {
+    final alignment = alignEnd
+        ? CrossAxisAlignment.end
+        : CrossAxisAlignment.start;
+    return Column(
+      crossAxisAlignment: alignment,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Color(0xFF607D8B),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 3),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (showHourglass) ...[
+                const _HourglassPulse(size: 20),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                value,
+                style: const TextStyle(
+                  color: AppColors.deepTeal,
+                  fontFamily: 'JetBrains Mono',
+                  fontSize: 30,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                suffix,
+                style: const TextStyle(
+                  color: AppColors.navyText,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HourglassPulse extends StatefulWidget {
+  const _HourglassPulse({this.size = 16});
+
+  final double size;
+
+  @override
+  State<_HourglassPulse> createState() => _HourglassPulseState();
+}
+
+class _HourglassPulseState extends State<_HourglassPulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final progress = _controller.value;
+          final turn = progress < 0.56
+              ? 0.0
+              : progress < 0.84
+              ? Curves.easeInOut.transform((progress - 0.56) / 0.28)
+              : 1.0;
+          return SizedBox(
+            width: widget.size,
+            height: widget.size,
+            child: CustomPaint(
+              painter: _HourglassPainter(
+                progress: progress,
+                angle: math.pi * turn,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _HourglassPainter extends CustomPainter {
+  const _HourglassPainter({required this.progress, required this.angle});
+
+  final double progress;
+  final double angle;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    canvas
+      ..save()
+      ..translate(center.dx, center.dy)
+      ..rotate(angle)
+      ..translate(-center.dx, -center.dy);
+
+    final pulse = 0.18 + 0.08 * math.sin(progress * math.pi * 2).abs();
+    canvas.drawCircle(
+      center,
+      size.width * 0.48,
+      Paint()..color = AppColors.warningOrange.withValues(alpha: pulse),
+    );
+
+    final outline = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.08
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = AppColors.deepTeal;
+
+    final left = size.width * 0.28;
+    final right = size.width * 0.72;
+    final top = size.height * 0.18;
+    final bottom = size.height * 0.82;
+    final waist = Offset(size.width * 0.5, size.height * 0.5);
+
+    canvas.drawLine(Offset(left, top), Offset(right, top), outline);
+    canvas.drawLine(Offset(left, bottom), Offset(right, bottom), outline);
+    canvas.drawPath(
+      Path()
+        ..moveTo(left, top)
+        ..lineTo(right, top)
+        ..lineTo(waist.dx, waist.dy)
+        ..close()
+        ..moveTo(left, bottom)
+        ..lineTo(right, bottom)
+        ..lineTo(waist.dx, waist.dy)
+        ..close(),
+      outline,
+    );
+
+    final sandProgress = (progress / 0.56).clamp(0.0, 1.0);
+    final sand = Paint()
+      ..style = PaintingStyle.fill
+      ..color = AppColors.warningOrange;
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.width * (0.38 + sandProgress * 0.04), top + 3)
+        ..lineTo(size.width * (0.62 - sandProgress * 0.04), top + 3)
+        ..lineTo(waist.dx, size.height * (0.43 + sandProgress * 0.04))
+        ..close(),
+      sand,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.width * 0.36, bottom - 3)
+        ..lineTo(size.width * 0.64, bottom - 3)
+        ..lineTo(waist.dx, size.height * (0.66 - sandProgress * 0.08))
+        ..close(),
+      sand,
+    );
+    canvas.drawCircle(
+      Offset(waist.dx, size.height * (0.48 + sandProgress * 0.08)),
+      size.width * 0.035,
+      sand,
+    );
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _HourglassPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.angle != angle;
+  }
+}
+
+class _InlineReadyCard extends ConsumerWidget {
+  const _InlineReadyCard({required this.entry});
+
+  final QueueEntry entry;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _Card(
+      child: Column(
+        children: [
+          Container(
+            width: 96,
+            height: 96,
+            decoration: const BoxDecoration(
+              gradient: AppColors.brandGradient,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.notifications_active,
+              color: Colors.white,
+              size: 40,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Your table is ready!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.deepTeal,
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Please proceed to ${entry.assignedTableNumber ?? 'the seating desk'}.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Color(0xFF3E484F), fontSize: 16),
+          ),
+          const SizedBox(height: 24),
+          EzqButton(
+            label: "I'm on my way",
+            onPressed: () async {
+              await ref
+                  .read(customerQueueRepositoryProvider)
+                  .markOnTheWay(
+                    restaurantId: 'the-spice-house',
+                    branchId: 'indiranagar',
+                    queueEntryId: entry.id,
+                    phone: entry.phone,
+                  );
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Hostess notified you're on the way"),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: () => context.go('/customer/install'),
+            child: const Text('Need 5 more minutes'),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'If you do not arrive in time, your place may be moved back in queue.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.warningOrange),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineSeatedCard extends StatelessWidget {
+  const _InlineSeatedCard({required this.entry});
+
+  final QueueEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Card(
+      child: Column(
+        children: [
+          const Icon(
+            Icons.check_circle,
+            color: AppColors.successGreen,
+            size: 96,
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Enjoy your meal!',
+            style: TextStyle(
+              color: AppColors.navyText,
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'You have been seated at ${entry.assignedTableNumber ?? 'your table'} at The Spice House.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Color(0xFF3E484F), fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Card extends StatelessWidget {
+  const _Card({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.98),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0x1FBDC8D0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1012A9DC),
+            blurRadius: 18,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1066151489638",
+    "project_id": "ezq-dev-cubiquitous",
+    "storage_bucket": "ezq-dev-cubiquitous.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1066151489638:android:fe06ef713f4c93ea8c7da7",
+        "android_client_info": {
+          "package_name": "com.example.ezq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAD7IVeF2oAwDcTVkiWad4qZ4qj3nAp2sg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
