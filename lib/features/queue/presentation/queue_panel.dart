@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/utils/date_time_utils.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../tables/domain/restaurant_table.dart';
 import '../domain/queue_entry.dart';
@@ -85,6 +86,11 @@ class _QueueEntryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final compact = Responsive.isCompact(context);
     final canReserve = entry.status == QueueStatus.waiting;
+    final waitedMinutes = DateTime.now()
+        .difference(entry.joinedAt)
+        .inMinutes
+        .clamp(0, 24 * 60);
+    final joinedTime = DateTimeUtils.shortTime(entry.joinedAt);
     return Container(
       padding: EdgeInsets.all(compact ? 12 : 16),
       decoration: BoxDecoration(
@@ -120,9 +126,28 @@ class _QueueEntryCard extends StatelessWidget {
             ],
           ),
           SizedBox(height: compact ? 6 : 8),
-          Text(
-            '${entry.estimatedWaitMinutes} min wait • ${entry.status.wireName}',
-            style: TextStyle(fontSize: compact ? 12 : 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _QueueMetaPill(
+                icon: Icons.timer_outlined,
+                label: 'Waiting $waitedMinutes min',
+              ),
+              _QueueMetaPill(
+                icon: Icons.login_rounded,
+                label: 'Joined $joinedTime',
+              ),
+              Text(
+                entry.status.wireName,
+                style: TextStyle(
+                  color: AppColors.mutedText,
+                  fontSize: compact ? 12 : 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
           SizedBox(height: compact ? 10 : 12),
           if (compact)
@@ -160,6 +185,44 @@ class _QueueEntryCard extends StatelessWidget {
                 ),
               ],
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QueueMetaPill extends StatelessWidget {
+  const _QueueMetaPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = Responsive.isCompact(context);
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 9,
+        vertical: compact ? 4 : 5,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.softSurface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.line.withValues(alpha: 0.72)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: compact ? 13 : 14, color: AppColors.deepTeal),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: AppColors.navyText,
+              fontSize: compact ? 11 : 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );

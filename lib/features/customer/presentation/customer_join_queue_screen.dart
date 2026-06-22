@@ -228,6 +228,27 @@ class _JoinQueueCard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: OutlinedButton.icon(
+                onPressed: () => context.go('/admin/login'),
+                icon: const Icon(Icons.admin_panel_settings_outlined),
+                label: const Text('Manager Login'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.deepTeal,
+                  side: const BorderSide(color: AppColors.line),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
