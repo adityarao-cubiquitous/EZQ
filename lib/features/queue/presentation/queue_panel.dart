@@ -15,12 +15,14 @@ class QueuePanel extends StatelessWidget {
     required this.availableTables,
     required this.onReserve,
     required this.onSkip,
+    this.onEntryTapped,
   });
 
   final List<QueueEntry> queue;
   final List<RestaurantTable> availableTables;
   final void Function(QueueEntry entry) onReserve;
   final void Function(QueueEntry entry) onSkip;
+  final void Function(QueueEntry entry)? onEntryTapped;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +69,9 @@ class QueuePanel extends StatelessWidget {
               availableTables: availableTables,
               onReserve: () => onReserve(entry),
               onSkip: () => onSkip(entry),
+              onTap: onEntryTapped != null
+                  ? () => onEntryTapped!(entry)
+                  : null,
             ),
             const SizedBox(height: 12),
           ],
@@ -82,12 +87,14 @@ class _QueueEntryCard extends StatelessWidget {
     required this.availableTables,
     required this.onReserve,
     required this.onSkip,
+    this.onTap,
   });
 
   final QueueEntry entry;
   final List<RestaurantTable> availableTables;
   final VoidCallback onReserve;
   final VoidCallback onSkip;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -98,7 +105,9 @@ class _QueueEntryCard extends StatelessWidget {
         .inMinutes
         .clamp(0, 24 * 60);
     final joinedTime = DateTimeUtils.shortTime(entry.joinedAt);
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       padding: EdgeInsets.all(compact ? 12 : 16),
       decoration: BoxDecoration(
         color: const Color(0xFFF7F9FF),
@@ -194,6 +203,7 @@ class _QueueEntryCard extends StatelessWidget {
             ),
         ],
       ),
+    ),
     );
   }
 }

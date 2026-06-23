@@ -14,7 +14,7 @@ import '../../tables/domain/table_status.dart';
 import '../../tables/presentation/table_grid.dart';
 import '../../queue/presentation/queue_panel.dart';
 
-class AdminDashboardScreen extends ConsumerWidget {
+class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({
     super.key,
     required this.restaurantId,
@@ -25,13 +25,72 @@ class AdminDashboardScreen extends ConsumerWidget {
   final String branchId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AdminDashboardScreen> createState() =>
+      _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
+  QueueEntry? _selectedQueueEntry;
+
+  void _handleQueueEntryTap(
+    QueueEntry entry,
+    List<RestaurantTable> availableTables,
+    int Function(RestaurantTable) occupiedCountFor,
+  ) {
+    final isDeselecting = _selectedQueueEntry?.id == entry.id;
+
+    setState(() {
+      _selectedQueueEntry = isDeselecting ? null : entry;
+    });
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+
+    if (!isDeselecting) {
+      final matching = _tablesForParty(
+        tables: availableTables,
+        partySize: entry.partySize,
+        occupiedCountFor: occupiedCountFor,
+      );
+      if (matching.isNotEmpty) {
+        final tableNumbers = matching.map((t) => t.tableNumber).join(', ');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Best fit tables for ${entry.tokenCode}: $tableNumbers',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Set<String> _matchingTableIds(
+    List<RestaurantTable> availableTables,
+    int Function(RestaurantTable) occupiedCountFor,
+  ) {
+    final selected = _selectedQueueEntry;
+    if (selected == null) return const {};
+    return _tablesForParty(
+      tables: availableTables,
+      partySize: selected.partySize,
+      occupiedCountFor: occupiedCountFor,
+    ).map((t) => t.id).toSet();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final tablesStream = ref
         .watch(tableRepositoryProvider)
-        .watchTables(restaurantId: restaurantId, branchId: branchId);
+        .watchTables(
+          restaurantId: widget.restaurantId,
+          branchId: widget.branchId,
+        );
     final queueStream = ref
         .watch(queueRepositoryProvider)
-        .watchTodayQueue(restaurantId: restaurantId, branchId: branchId);
+        .watchTodayQueue(
+          restaurantId: widget.restaurantId,
+          branchId: widget.branchId,
+        );
 
     return Scaffold(
       backgroundColor: AppColors.softerSurface,
@@ -47,6 +106,11 @@ class AdminDashboardScreen extends ConsumerWidget {
                   .where((entry) => entry.status.isLiveQueueVisible)
                   .toList();
               final queueById = {for (final entry in queue) entry.id: entry};
+              int occupiedFor(RestaurantTable t) =>
+                  t.currentQueueEntryId == null
+                      ? 0
+                      : queueById[t.currentQueueEntryId]?.partySize ??
+                          t.capacity;
               final free = tables
                   .where((table) => table.status == TableStatus.available)
                   .length;
@@ -56,6 +120,7 @@ class AdminDashboardScreen extends ConsumerWidget {
               final occupied = tables
                   .where((table) => table.status == TableStatus.occupied)
                   .length;
+              final matchingIds = _matchingTableIds(availableTables, occupiedFor);
 
               return SafeArea(
                 bottom: false,
@@ -66,8 +131,9 @@ class AdminDashboardScreen extends ConsumerWidget {
                       freeTables: free,
                       occupiedTables: occupied,
                       waitingCount: liveQueue.length,
-                      onReports: () =>
-                          context.go('/admin/$restaurantId/$branchId/reports'),
+                      onReports: () => context.go(
+                        '/admin/${widget.restaurantId}/${widget.branchId}/reports',
+                      ),
                     ),
                     Expanded(
                       child: LayoutBuilder(
@@ -82,6 +148,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                               children: [
                                 TableGrid(
                                   tables: tables,
+                                  matchingTableIds: matchingIds,
                                   completedPartySizeFor: (table) =>
                                       queueById[table.currentQueueEntryId]
                                           ?.partySize ??
@@ -89,7 +156,6 @@ class AdminDashboardScreen extends ConsumerWidget {
                                   onMealFinished: (table, initialPartySize) =>
                                       _completeMeal(
                                         context: context,
-                                        ref: ref,
                                         table: table,
                                         queueEntry:
                                             queueById[table
@@ -103,15 +169,20 @@ class AdminDashboardScreen extends ConsumerWidget {
                                   availableTables: availableTables,
                                   onReserve: (entry) => _reserveQueueEntry(
                                     context: context,
-                                    ref: ref,
                                     entry: entry,
                                     availableTables: availableTables,
+                                    occupiedCountFor: occupiedFor,
                                   ),
                                   onSkip: (entry) => _skipQueueEntry(
                                     context: context,
-                                    ref: ref,
                                     entry: entry,
                                   ),
+                                  onEntryTapped: (entry) =>
+                                      _handleQueueEntryTap(
+                                        entry,
+                                        availableTables,
+                                        occupiedFor,
+                                      ),
                                 ),
                               ],
                             );
@@ -123,40 +194,50 @@ class AdminDashboardScreen extends ConsumerWidget {
                               children: [
                                 Expanded(
                                   flex: 7,
-                                  child: TableGrid(
-                                    tables: tables,
-                                    completedPartySizeFor: (table) =>
-                                        queueById[table.currentQueueEntryId]
-                                            ?.partySize ??
-                                        table.capacity,
-                                    onMealFinished: (table, initialPartySize) =>
-                                        _completeMeal(
-                                          context: context,
-                                          ref: ref,
-                                          table: table,
-                                          queueEntry:
-                                              queueById[table
-                                                  .currentQueueEntryId],
-                                          initialPartySize: initialPartySize,
-                                        ),
+                                  child: SingleChildScrollView(
+                                    child: TableGrid(
+                                      tables: tables,
+                                      matchingTableIds: matchingIds,
+                                      completedPartySizeFor: (table) =>
+                                          queueById[table.currentQueueEntryId]
+                                              ?.partySize ??
+                                          table.capacity,
+                                      onMealFinished:
+                                          (table, initialPartySize) =>
+                                              _completeMeal(
+                                                context: context,
+                                                table: table,
+                                                queueEntry:
+                                                    queueById[table
+                                                        .currentQueueEntryId],
+                                                initialPartySize: initialPartySize,
+                                              ),
+                                    ),
                                   ),
                                 ),
                                 SizedBox(width: pagePadding),
                                 SizedBox(
                                   width: 390,
-                                  child: QueuePanel(
-                                    queue: liveQueue,
-                                    availableTables: availableTables,
-                                    onReserve: (entry) => _reserveQueueEntry(
-                                      context: context,
-                                      ref: ref,
-                                      entry: entry,
+                                  child: SingleChildScrollView(
+                                    child: QueuePanel(
+                                      queue: liveQueue,
                                       availableTables: availableTables,
-                                    ),
-                                    onSkip: (entry) => _skipQueueEntry(
-                                      context: context,
-                                      ref: ref,
-                                      entry: entry,
+                                      onReserve: (entry) => _reserveQueueEntry(
+                                        context: context,
+                                        entry: entry,
+                                        availableTables: availableTables,
+                                        occupiedCountFor: occupiedFor,
+                                      ),
+                                      onSkip: (entry) => _skipQueueEntry(
+                                        context: context,
+                                        entry: entry,
+                                      ),
+                                      onEntryTapped: (entry) =>
+                                          _handleQueueEntryTap(
+                                            entry,
+                                            availableTables,
+                                            occupiedFor,
+                                          ),
                                     ),
                                   ),
                                 ),
@@ -178,14 +259,17 @@ class AdminDashboardScreen extends ConsumerWidget {
 
   Future<void> _reserveQueueEntry({
     required BuildContext context,
-    required WidgetRef ref,
     required QueueEntry entry,
     required List<RestaurantTable> availableTables,
+    required int Function(RestaurantTable) occupiedCountFor,
   }) async {
     final selectedTable = await showDialog<RestaurantTable>(
       context: context,
-      builder: (context) =>
-          _ReserveTableDialog(entry: entry, availableTables: availableTables),
+      builder: (context) => _ReserveTableDialog(
+        entry: entry,
+        availableTables: availableTables,
+        occupiedCountFor: occupiedCountFor,
+      ),
     );
     if (selectedTable == null || !context.mounted) return;
 
@@ -193,8 +277,8 @@ class AdminDashboardScreen extends ConsumerWidget {
       await ref
           .read(tableRepositoryProvider)
           .reserveTable(
-            restaurantId: restaurantId,
-            branchId: branchId,
+            restaurantId: widget.restaurantId,
+            branchId: widget.branchId,
             queueEntryId: entry.id,
             tableId: selectedTable.id,
           );
@@ -216,14 +300,13 @@ class AdminDashboardScreen extends ConsumerWidget {
 
   Future<void> _skipQueueEntry({
     required BuildContext context,
-    required WidgetRef ref,
     required QueueEntry entry,
   }) async {
     await ref
         .read(queueRepositoryProvider)
         .skipCustomer(
-          restaurantId: restaurantId,
-          branchId: branchId,
+          restaurantId: widget.restaurantId,
+          branchId: widget.branchId,
           queueEntryId: entry.id,
         );
     if (!context.mounted) return;
@@ -234,7 +317,6 @@ class AdminDashboardScreen extends ConsumerWidget {
 
   Future<void> _completeMeal({
     required BuildContext context,
-    required WidgetRef ref,
     required RestaurantTable table,
     required QueueEntry? queueEntry,
     required int initialPartySize,
@@ -246,7 +328,8 @@ class AdminDashboardScreen extends ConsumerWidget {
       context: context,
       builder: (context) => _MealFinishedDialog(
         tableNumber: table.tableNumber,
-        tokenCode: table.currentTokenCode ?? queueEntry?.tokenCode ?? 'Token',
+        tokenCode:
+            table.currentTokenCode ?? queueEntry?.tokenCode ?? 'Token',
         initialPartySize: initialPartySize,
         maxPartySize: [
           table.capacity,
@@ -260,8 +343,8 @@ class AdminDashboardScreen extends ConsumerWidget {
     await ref
         .read(tableRepositoryProvider)
         .completeMeal(
-          restaurantId: restaurantId,
-          branchId: branchId,
+          restaurantId: widget.restaurantId,
+          branchId: widget.branchId,
           tableId: table.id,
           queueEntryId: queueEntryId,
           completedPartySize: completedPartySize,
@@ -281,10 +364,12 @@ class _ReserveTableDialog extends StatefulWidget {
   const _ReserveTableDialog({
     required this.entry,
     required this.availableTables,
+    required this.occupiedCountFor,
   });
 
   final QueueEntry entry;
   final List<RestaurantTable> availableTables;
+  final int Function(RestaurantTable) occupiedCountFor;
 
   @override
   State<_ReserveTableDialog> createState() => _ReserveTableDialogState();
@@ -296,18 +381,11 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
   late RestaurantTable? _selectedTable = _bestInitialTable();
 
   List<RestaurantTable> _sortedTablesForParty() {
-    final partySize = widget.entry.partySize;
-    final tables = widget.availableTables
-        .where((table) => table.capacity >= partySize)
-        .toList();
-    tables.sort((a, b) {
-      final capacity = a.capacity.compareTo(b.capacity);
-      if (capacity != 0) return capacity;
-      final sortOrder = a.sortOrder.compareTo(b.sortOrder);
-      if (sortOrder != 0) return sortOrder;
-      return a.tableNumber.compareTo(b.tableNumber);
-    });
-    return tables;
+    return _tablesForParty(
+      tables: widget.availableTables,
+      partySize: widget.entry.partySize,
+      occupiedCountFor: widget.occupiedCountFor,
+    );
   }
 
   RestaurantTable? _bestInitialTable() {
@@ -361,7 +439,8 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.primaryTeal),
+                    borderSide:
+                        const BorderSide(color: AppColors.primaryTeal),
                   ),
                 ),
                 items: [
@@ -398,9 +477,8 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
   }
 
   String _tableOptionLabel(RestaurantTable table) {
-    final fitLabel = table.capacity == widget.entry.partySize
-        ? 'exact fit'
-        : 'fits';
+    final fitLabel =
+        table.capacity == widget.entry.partySize ? 'exact fit' : 'fits';
     return '${table.tableNumber} · ${table.capacity} seats · $fitLabel';
   }
 }
@@ -450,9 +528,8 @@ class _MealFinishedDialog extends StatefulWidget {
 }
 
 class _MealFinishedDialogState extends State<_MealFinishedDialog> {
-  late int _completedPartySize = widget.initialPartySize
-      .clamp(1, widget.maxPartySize)
-      .toInt();
+  late int _completedPartySize =
+      widget.initialPartySize.clamp(1, widget.maxPartySize).toInt();
 
   @override
   Widget build(BuildContext context) {
@@ -746,6 +823,28 @@ double _dialogWidth(BuildContext context, double maxWidth) {
   final availableWidth = screenWidth - 48;
   if (availableWidth < 280) return availableWidth;
   return availableWidth < maxWidth ? availableWidth : maxWidth;
+}
+
+List<RestaurantTable> _tablesForParty({
+  required List<RestaurantTable> tables,
+  required int partySize,
+  required int Function(RestaurantTable) occupiedCountFor,
+}) {
+  return tables
+      .where((t) {
+        final remaining = t.capacity - occupiedCountFor(t);
+        return remaining >= partySize;
+      })
+      .toList()
+    ..sort((a, b) {
+      final ra = a.capacity - occupiedCountFor(a);
+      final rb = b.capacity - occupiedCountFor(b);
+      final c = ra.compareTo(rb);
+      if (c != 0) return c;
+      final s = a.sortOrder.compareTo(b.sortOrder);
+      if (s != 0) return s;
+      return a.tableNumber.compareTo(b.tableNumber);
+    });
 }
 
 class _TopMetric extends StatelessWidget {

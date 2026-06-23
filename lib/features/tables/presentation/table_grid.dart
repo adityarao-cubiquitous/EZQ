@@ -11,12 +11,14 @@ class TableGrid extends StatelessWidget {
     required this.tables,
     this.completedPartySizeFor,
     this.onMealFinished,
+    this.matchingTableIds = const {},
   });
 
   final List<RestaurantTable> tables;
   final int Function(RestaurantTable table)? completedPartySizeFor;
   final void Function(RestaurantTable table, int initialPartySize)?
   onMealFinished;
+  final Set<String> matchingTableIds;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +70,7 @@ class TableGrid extends StatelessWidget {
                 return _TableCard(
                   table: table,
                   initialPartySize: completedPartySizeFor?.call(table),
+                  isHighlighted: matchingTableIds.contains(table.id),
                   onMealFinished: onMealFinished == null
                       ? null
                       : () => onMealFinished!(
@@ -164,11 +167,13 @@ class _TableCard extends StatelessWidget {
     required this.table,
     required this.initialPartySize,
     required this.onMealFinished,
+    this.isHighlighted = false,
   });
 
   final RestaurantTable table;
   final int? initialPartySize;
   final VoidCallback? onMealFinished;
+  final bool isHighlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +193,12 @@ class _TableCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
+        border: Border.all(
+          color: isHighlighted
+              ? AppColors.accentPurple
+              : color.withValues(alpha: 0.35),
+          width: isHighlighted ? 2 : 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
