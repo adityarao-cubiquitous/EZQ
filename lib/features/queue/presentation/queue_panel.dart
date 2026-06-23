@@ -12,12 +12,18 @@ class QueuePanel extends StatelessWidget {
   const QueuePanel({
     super.key,
     required this.queue,
+    this.spotlightEntryId,
+    this.spotlightLabel,
+    this.autoScrollSpotlight = false,
     required this.availableTables,
     required this.onReserve,
     required this.onSkip,
   });
 
   final List<QueueEntry> queue;
+  final String? spotlightEntryId;
+  final String? spotlightLabel;
+  final bool autoScrollSpotlight;
   final List<RestaurantTable> availableTables;
   final void Function(QueueEntry entry) onReserve;
   final void Function(QueueEntry entry) onSkip;
@@ -62,11 +68,34 @@ class QueuePanel extends StatelessWidget {
           ),
           SizedBox(height: compact ? 12 : 16),
           for (final entry in queue) ...[
-            _QueueEntryCard(
-              entry: entry,
-              availableTables: availableTables,
-              onReserve: () => onReserve(entry),
-              onSkip: () => onSkip(entry),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SizeTransition(
+                    sizeFactor: animation,
+                    alignment: Alignment.topCenter,
+                    child: child,
+                  ),
+                );
+              },
+              child: _SpotlightAutoScroller(
+                key: ValueKey('${entry.id}-${entry.status.wireName}'),
+                enabled: autoScrollSpotlight && entry.id == spotlightEntryId,
+                child: _QueueEntryCard(
+                  entry: entry,
+                  spotlight: entry.id == spotlightEntryId,
+                  spotlightLabel: entry.id == spotlightEntryId
+                      ? spotlightLabel
+                      : null,
+                  availableTables: availableTables,
+                  onReserve: () => onReserve(entry),
+                  onSkip: () => onSkip(entry),
+                ),
+              ),
             ),
             const SizedBox(height: 12),
           ],
@@ -76,15 +105,65 @@ class QueuePanel extends StatelessWidget {
   }
 }
 
+class _SpotlightAutoScroller extends StatefulWidget {
+  const _SpotlightAutoScroller({
+    super.key,
+    required this.enabled,
+    required this.child,
+  });
+
+  final bool enabled;
+  final Widget child;
+
+  @override
+  State<_SpotlightAutoScroller> createState() => _SpotlightAutoScrollerState();
+}
+
+class _SpotlightAutoScrollerState extends State<_SpotlightAutoScroller> {
+  @override
+  void initState() {
+    super.initState();
+    _scheduleScrollIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SpotlightAutoScroller oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.enabled && !oldWidget.enabled) {
+      _scheduleScrollIfNeeded();
+    }
+  }
+
+  void _scheduleScrollIfNeeded() {
+    if (!widget.enabled) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.enabled) return;
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 560),
+        curve: Curves.easeInOutCubic,
+        alignment: 0.22,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 class _QueueEntryCard extends StatelessWidget {
   const _QueueEntryCard({
     required this.entry,
+    required this.spotlight,
+    required this.spotlightLabel,
     required this.availableTables,
     required this.onReserve,
     required this.onSkip,
   });
 
   final QueueEntry entry;
+  final bool spotlight;
+  final String? spotlightLabel;
   final List<RestaurantTable> availableTables;
   final VoidCallback onReserve;
   final VoidCallback onSkip;
@@ -98,16 +177,69 @@ class _QueueEntryCard extends StatelessWidget {
         .inMinutes
         .clamp(0, 24 * 60);
     final joinedTime = DateTimeUtils.shortTime(entry.joinedAt);
-    return Container(
-      padding: EdgeInsets.all(compact ? 12 : 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F9FF),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x1ABDC8D0)),
-      ),
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: spotlight ? 1 : 0),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutBack,
+      builder: (context, glow, child) {
+        return AnimatedScale(
+          duration: const Duration(milliseconds: 380),
+          curve: Curves.easeOutBack,
+          scale: spotlight ? 1.025 : 1,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 360),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.all(compact ? 12 : 16),
+            decoration: BoxDecoration(
+              gradient: spotlight
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppColors.primaryTeal.withValues(alpha: 0.11),
+                        AppColors.accentPurple.withValues(alpha: 0.10),
+                        Colors.white.withValues(alpha: 0.96),
+                      ],
+                    )
+                  : null,
+              color: spotlight ? null : const Color(0xFFF7F9FF),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: spotlight
+                    ? AppColors.accentPurple.withValues(alpha: 0.36)
+                    : const Color(0x1ABDC8D0),
+                width: spotlight ? 1.4 : 1,
+              ),
+              boxShadow: [
+                if (spotlight)
+                  BoxShadow(
+                    color: AppColors.accentPurple.withValues(
+                      alpha: 0.16 + (glow * 0.08),
+                    ),
+                    blurRadius: 24 + (glow * 8),
+                    offset: const Offset(0, 12),
+                  ),
+              ],
+            ),
+            child: child,
+          ),
+        );
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            child: spotlight
+                ? Padding(
+                    key: const ValueKey('spotlight-chip'),
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _NextUpChip(
+                      label: spotlightLabel ?? '${entry.tokenCode} is next',
+                    ),
+                  )
+                : const SizedBox.shrink(key: ValueKey('no-spotlight-chip')),
+          ),
           Row(
             children: [
               Text(
@@ -168,10 +300,7 @@ class _QueueEntryCard extends StatelessWidget {
                   onReserve: onReserve,
                 ),
                 const SizedBox(height: 8),
-                OutlinedButton(
-                  onPressed: canReserve ? onSkip : null,
-                  child: const Text('Skip'),
-                ),
+                _SkipAction(canSkip: canReserve, onSkip: onSkip),
               ],
             )
           else
@@ -186,10 +315,7 @@ class _QueueEntryCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: canReserve ? onSkip : null,
-                  child: const Text('Skip'),
-                ),
+                _SkipAction(canSkip: canReserve, onSkip: onSkip),
               ],
             ),
         ],
@@ -231,6 +357,89 @@ class _QueueMetaPill extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NextUpChip extends StatelessWidget {
+  const _NextUpChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          gradient: AppColors.primaryGradient,
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x246A40D7),
+              blurRadius: 14,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.auto_awesome_rounded,
+              size: 14,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SkipAction extends StatelessWidget {
+  const _SkipAction({required this.canSkip, required this.onSkip});
+
+  final bool canSkip;
+  final VoidCallback onSkip;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = Responsive.isCompact(context);
+    return SizedBox(
+      height: 46,
+      width: compact ? double.infinity : 92,
+      child: OutlinedButton.icon(
+        onPressed: canSkip ? onSkip : null,
+        icon: const Icon(Icons.keyboard_double_arrow_right_rounded, size: 18),
+        label: const Text('Skip'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.accentPurple,
+          side: BorderSide(
+            color: canSkip
+                ? AppColors.accentPurple.withValues(alpha: 0.34)
+                : AppColors.line,
+          ),
+          backgroundColor: canSkip
+              ? AppColors.accentPurple.withValues(alpha: 0.06)
+              : null,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+        ),
       ),
     );
   }

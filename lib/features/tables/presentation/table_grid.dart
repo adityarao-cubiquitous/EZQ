@@ -10,11 +10,13 @@ class TableGrid extends StatelessWidget {
     super.key,
     required this.tables,
     this.completedPartySizeFor,
+    this.onAvailableTableTap,
     this.onMealFinished,
   });
 
   final List<RestaurantTable> tables;
   final int Function(RestaurantTable table)? completedPartySizeFor;
+  final void Function(RestaurantTable table)? onAvailableTableTap;
   final void Function(RestaurantTable table, int initialPartySize)?
   onMealFinished;
 
@@ -68,6 +70,9 @@ class TableGrid extends StatelessWidget {
                 return _TableCard(
                   table: table,
                   initialPartySize: completedPartySizeFor?.call(table),
+                  onAvailableTableTap: onAvailableTableTap == null
+                      ? null
+                      : () => onAvailableTableTap!(table),
                   onMealFinished: onMealFinished == null
                       ? null
                       : () => onMealFinished!(
@@ -163,11 +168,13 @@ class _TableCard extends StatelessWidget {
   const _TableCard({
     required this.table,
     required this.initialPartySize,
+    required this.onAvailableTableTap,
     required this.onMealFinished,
   });
 
   final RestaurantTable table;
   final int? initialPartySize;
+  final VoidCallback? onAvailableTableTap;
   final VoidCallback? onMealFinished;
 
   @override
@@ -182,8 +189,12 @@ class _TableCard extends StatelessWidget {
         table.status == TableStatus.occupied &&
         table.currentQueueEntryId != null &&
         onMealFinished != null;
+    final canSuggestParty =
+        table.status == TableStatus.available && onAvailableTableTap != null;
 
-    return Container(
+    final card = AnimatedContainer(
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutCubic,
       padding: EdgeInsets.all(compact ? 12 : 14),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
@@ -290,6 +301,20 @@ class _TableCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+
+    if (!canSuggestParty) return card;
+
+    return Tooltip(
+      message: 'Highlight best-fitting party',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onAvailableTableTap,
+          borderRadius: BorderRadius.circular(14),
+          child: card,
+        ),
       ),
     );
   }

@@ -8,13 +8,14 @@ import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../queue/data/queue_repository.dart';
 import '../../queue/domain/queue_entry.dart';
+import '../../queue/domain/queue_status.dart';
 import '../../tables/data/table_repository.dart';
 import '../../tables/domain/restaurant_table.dart';
 import '../../tables/domain/table_status.dart';
 import '../../tables/presentation/table_grid.dart';
 import '../../queue/presentation/queue_panel.dart';
 
-class AdminDashboardScreen extends ConsumerWidget {
+class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({
     super.key,
     required this.restaurantId,
@@ -25,13 +26,29 @@ class AdminDashboardScreen extends ConsumerWidget {
   final String branchId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AdminDashboardScreen> createState() =>
+      _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
+  String? _spotlightQueueEntryId;
+  String? _spotlightLabel;
+  int _spotlightGeneration = 0;
+
+  @override
+  Widget build(BuildContext context) {
     final tablesStream = ref
         .watch(tableRepositoryProvider)
-        .watchTables(restaurantId: restaurantId, branchId: branchId);
+        .watchTables(
+          restaurantId: widget.restaurantId,
+          branchId: widget.branchId,
+        );
     final queueStream = ref
         .watch(queueRepositoryProvider)
-        .watchTodayQueue(restaurantId: restaurantId, branchId: branchId);
+        .watchTodayQueue(
+          restaurantId: widget.restaurantId,
+          branchId: widget.branchId,
+        );
 
     return Scaffold(
       backgroundColor: AppColors.softerSurface,
@@ -66,8 +83,9 @@ class AdminDashboardScreen extends ConsumerWidget {
                       freeTables: free,
                       occupiedTables: occupied,
                       waitingCount: liveQueue.length,
-                      onReports: () =>
-                          context.go('/admin/$restaurantId/$branchId/reports'),
+                      onReports: () => context.go(
+                        '/admin/${widget.restaurantId}/${widget.branchId}/reports',
+                      ),
                     ),
                     Expanded(
                       child: LayoutBuilder(
@@ -86,6 +104,12 @@ class AdminDashboardScreen extends ConsumerWidget {
                                       queueById[table.currentQueueEntryId]
                                           ?.partySize ??
                                       table.capacity,
+                                  onAvailableTableTap: (table) =>
+                                      _spotlightBestPartyForTable(
+                                        context: context,
+                                        table: table,
+                                        liveQueue: liveQueue,
+                                      ),
                                   onMealFinished: (table, initialPartySize) =>
                                       _completeMeal(
                                         context: context,
@@ -100,17 +124,22 @@ class AdminDashboardScreen extends ConsumerWidget {
                                 SizedBox(height: gap),
                                 QueuePanel(
                                   queue: liveQueue,
+                                  spotlightEntryId: _spotlightQueueEntryId,
+                                  spotlightLabel: _spotlightLabel,
+                                  autoScrollSpotlight: true,
                                   availableTables: availableTables,
                                   onReserve: (entry) => _reserveQueueEntry(
                                     context: context,
-                                    ref: ref,
                                     entry: entry,
                                     availableTables: availableTables,
                                   ),
                                   onSkip: (entry) => _skipQueueEntry(
                                     context: context,
-                                    ref: ref,
                                     entry: entry,
+                                    nextEntry: _nextQueueEntry(
+                                      liveQueue,
+                                      entry,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -123,40 +152,57 @@ class AdminDashboardScreen extends ConsumerWidget {
                               children: [
                                 Expanded(
                                   flex: 7,
-                                  child: TableGrid(
-                                    tables: tables,
-                                    completedPartySizeFor: (table) =>
-                                        queueById[table.currentQueueEntryId]
-                                            ?.partySize ??
-                                        table.capacity,
-                                    onMealFinished: (table, initialPartySize) =>
-                                        _completeMeal(
-                                          context: context,
-                                          ref: ref,
-                                          table: table,
-                                          queueEntry:
-                                              queueById[table
-                                                  .currentQueueEntryId],
-                                          initialPartySize: initialPartySize,
-                                        ),
+                                  child: SingleChildScrollView(
+                                    child: TableGrid(
+                                      tables: tables,
+                                      completedPartySizeFor: (table) =>
+                                          queueById[table.currentQueueEntryId]
+                                              ?.partySize ??
+                                          table.capacity,
+                                      onAvailableTableTap: (table) =>
+                                          _spotlightBestPartyForTable(
+                                            context: context,
+                                            table: table,
+                                            liveQueue: liveQueue,
+                                          ),
+                                      onMealFinished:
+                                          (table, initialPartySize) =>
+                                              _completeMeal(
+                                                context: context,
+                                                ref: ref,
+                                                table: table,
+                                                queueEntry:
+                                                    queueById[table
+                                                        .currentQueueEntryId],
+                                                initialPartySize:
+                                                    initialPartySize,
+                                              ),
+                                    ),
                                   ),
                                 ),
                                 SizedBox(width: pagePadding),
                                 SizedBox(
                                   width: 390,
-                                  child: QueuePanel(
-                                    queue: liveQueue,
-                                    availableTables: availableTables,
-                                    onReserve: (entry) => _reserveQueueEntry(
-                                      context: context,
-                                      ref: ref,
-                                      entry: entry,
+                                  child: SingleChildScrollView(
+                                    child: QueuePanel(
+                                      queue: liveQueue,
+                                      spotlightEntryId: _spotlightQueueEntryId,
+                                      spotlightLabel: _spotlightLabel,
+                                      autoScrollSpotlight: false,
                                       availableTables: availableTables,
-                                    ),
-                                    onSkip: (entry) => _skipQueueEntry(
-                                      context: context,
-                                      ref: ref,
-                                      entry: entry,
+                                      onReserve: (entry) => _reserveQueueEntry(
+                                        context: context,
+                                        entry: entry,
+                                        availableTables: availableTables,
+                                      ),
+                                      onSkip: (entry) => _skipQueueEntry(
+                                        context: context,
+                                        entry: entry,
+                                        nextEntry: _nextQueueEntry(
+                                          liveQueue,
+                                          entry,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -178,7 +224,6 @@ class AdminDashboardScreen extends ConsumerWidget {
 
   Future<void> _reserveQueueEntry({
     required BuildContext context,
-    required WidgetRef ref,
     required QueueEntry entry,
     required List<RestaurantTable> availableTables,
   }) async {
@@ -193,11 +238,37 @@ class AdminDashboardScreen extends ConsumerWidget {
       await ref
           .read(tableRepositoryProvider)
           .reserveTable(
-            restaurantId: restaurantId,
-            branchId: branchId,
+            restaurantId: widget.restaurantId,
+            branchId: widget.branchId,
             queueEntryId: entry.id,
             tableId: selectedTable.id,
           );
+      if (!context.mounted) return;
+      await showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        barrierLabel: 'Seating confirmed',
+        barrierColor: Colors.black.withValues(alpha: 0.18),
+        transitionDuration: const Duration(milliseconds: 420),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return _SeatingTransitionOverlay(
+            tokenCode: entry.tokenCode,
+            customerName: entry.customerName,
+            tableNumber: selectedTable.tableNumber,
+          );
+        },
+        transitionBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutBack,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(scale: curved, child: child),
+          );
+        },
+      );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -216,16 +287,48 @@ class AdminDashboardScreen extends ConsumerWidget {
 
   Future<void> _skipQueueEntry({
     required BuildContext context,
-    required WidgetRef ref,
     required QueueEntry entry,
+    required QueueEntry? nextEntry,
   }) async {
     await ref
         .read(queueRepositoryProvider)
         .skipCustomer(
-          restaurantId: restaurantId,
-          branchId: branchId,
+          restaurantId: widget.restaurantId,
+          branchId: widget.branchId,
           queueEntryId: entry.id,
         );
+    if (!context.mounted) return;
+    _spotlightQueueEntry(nextEntry, label: _spotlightLabelForNext(nextEntry));
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'Queue skipped',
+      barrierColor: Colors.black.withValues(alpha: 0.14),
+      transitionDuration: const Duration(milliseconds: 360),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return _SkipTransitionOverlay(
+          tokenCode: entry.tokenCode,
+          customerName: entry.customerName,
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.08, 0),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
     if (!context.mounted) return;
     ScaffoldMessenger.of(
       context,
@@ -260,8 +363,8 @@ class AdminDashboardScreen extends ConsumerWidget {
     await ref
         .read(tableRepositoryProvider)
         .completeMeal(
-          restaurantId: restaurantId,
-          branchId: branchId,
+          restaurantId: widget.restaurantId,
+          branchId: widget.branchId,
           tableId: table.id,
           queueEntryId: queueEntryId,
           completedPartySize: completedPartySize,
@@ -274,6 +377,637 @@ class AdminDashboardScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  QueueEntry? _nextQueueEntry(List<QueueEntry> liveQueue, QueueEntry entry) {
+    final index = liveQueue.indexWhere((candidate) => candidate.id == entry.id);
+    if (index == -1) return null;
+    if (index + 1 >= liveQueue.length) return null;
+    return liveQueue[index + 1];
+  }
+
+  void _spotlightBestPartyForTable({
+    required BuildContext context,
+    required RestaurantTable table,
+    required List<QueueEntry> liveQueue,
+  }) {
+    final bestEntry = _bestQueueEntryForTable(table, liveQueue);
+    if (bestEntry == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'No waiting party fits ${table.tableNumber} right now.',
+          ),
+        ),
+      );
+      return;
+    }
+    _spotlightQueueEntry(
+      bestEntry,
+      label: '${bestEntry.tokenCode} fits ${table.tableNumber}',
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Best fit: ${bestEntry.tokenCode} for ${table.tableNumber}',
+        ),
+        duration: const Duration(milliseconds: 1800),
+      ),
+    );
+  }
+
+  QueueEntry? _bestQueueEntryForTable(
+    RestaurantTable table,
+    List<QueueEntry> liveQueue,
+  ) {
+    final candidates = liveQueue
+        .where(
+          (entry) =>
+              entry.status == QueueStatus.waiting &&
+              entry.partySize <= table.capacity,
+        )
+        .toList();
+    if (candidates.isEmpty) return null;
+    candidates.sort((a, b) {
+      final aWaste = table.capacity - a.partySize;
+      final bWaste = table.capacity - b.partySize;
+      final waste = aWaste.compareTo(bWaste);
+      if (waste != 0) return waste;
+      return a.queuePosition.compareTo(b.queuePosition);
+    });
+    return candidates.first;
+  }
+
+  String? _spotlightLabelForNext(QueueEntry? nextEntry) {
+    if (nextEntry == null) return null;
+    return '${nextEntry.tokenCode} is next';
+  }
+
+  void _spotlightQueueEntry(QueueEntry? entry, {required String? label}) {
+    if (entry == null || !mounted) return;
+    final generation = ++_spotlightGeneration;
+    setState(() {
+      _spotlightQueueEntryId = entry.id;
+      _spotlightLabel = label;
+    });
+    Future<void>.delayed(const Duration(milliseconds: 2800), () {
+      if (!mounted || generation != _spotlightGeneration) return;
+      setState(() {
+        _spotlightQueueEntryId = null;
+        _spotlightLabel = null;
+      });
+    });
+  }
+}
+
+class _SkipTransitionOverlay extends StatefulWidget {
+  const _SkipTransitionOverlay({
+    required this.tokenCode,
+    required this.customerName,
+  });
+
+  final String tokenCode;
+  final String customerName;
+
+  @override
+  State<_SkipTransitionOverlay> createState() => _SkipTransitionOverlayState();
+}
+
+class _SkipTransitionOverlayState extends State<_SkipTransitionOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _sweep;
+  late final Animation<double> _badgeScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1250),
+    )..forward();
+    _sweep = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.05, 0.72, curve: Curves.easeInOutCubic),
+    );
+    _badgeScale = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.48, 0.92, curve: Curves.elasticOut),
+    );
+    Future<void>.delayed(const Duration(milliseconds: 1450), () {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dialogWidth = _dialogWidth(context, 360);
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: dialogWidth,
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.98),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: AppColors.accentPurple.withValues(alpha: 0.18),
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x246A40D7),
+                blurRadius: 34,
+                offset: Offset(0, 18),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 116,
+                child: AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, child) {
+                    return CustomPaint(
+                      painter: _SkipSweepPainter(progress: _sweep.value),
+                      child: Stack(
+                        children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: _SkipTokenChip(tokenCode: widget.tokenCode),
+                          ),
+                          Positioned.fill(
+                            child: Align(
+                              alignment: Alignment(
+                                -0.72 + (_sweep.value * 1.44),
+                                -0.02,
+                              ),
+                              child: Transform.rotate(
+                                angle: -0.16 + (_sweep.value * 0.32),
+                                child: Container(
+                                  width: 46,
+                                  height: 46,
+                                  decoration: BoxDecoration(
+                                    gradient: AppColors.brandGradient,
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x246A40D7),
+                                        blurRadius: 18,
+                                        offset: Offset(0, 8),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.keyboard_double_arrow_right_rounded,
+                                    color: Colors.white,
+                                    size: 26,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 2,
+                            top: 28,
+                            child: ScaleTransition(
+                              scale: _badgeScale,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.softSurface,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: AppColors.line),
+                                ),
+                                child: const Text(
+                                  'Next up',
+                                  style: TextStyle(
+                                    color: AppColors.deepTeal,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Skipped for now',
+                style: TextStyle(
+                  color: AppColors.navyText,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${widget.customerName} moved out of the active queue',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.mutedText,
+                  fontSize: 14,
+                  height: 19 / 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SkipTokenChip extends StatelessWidget {
+  const _SkipTokenChip({required this.tokenCode});
+
+  final String tokenCode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 82,
+      height: 62,
+      decoration: BoxDecoration(
+        color: AppColors.softSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Center(
+        child: Text(
+          tokenCode,
+          style: const TextStyle(
+            color: AppColors.deepTeal,
+            fontFamily: 'JetBrains Mono',
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SkipSweepPainter extends CustomPainter {
+  const _SkipSweepPainter({required this.progress});
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centerY = size.height * 0.5;
+    final start = Offset(size.width * 0.22, centerY);
+    final end = Offset(size.width * 0.74, centerY);
+    final path = Path()
+      ..moveTo(start.dx, start.dy)
+      ..cubicTo(
+        size.width * 0.34,
+        size.height * 0.2,
+        size.width * 0.58,
+        size.height * 0.8,
+        end.dx,
+        end.dy,
+      );
+
+    final basePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round
+      ..color = AppColors.line.withValues(alpha: 0.5);
+    canvas.drawPath(path, basePaint);
+
+    final metric = path.computeMetrics().first;
+    final activePath = metric.extractPath(0, metric.length * progress);
+    final activePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round
+      ..shader = AppColors.progressGradient.createShader(Offset.zero & size);
+    canvas.drawPath(activePath, activePaint);
+
+    final sparklePaint = Paint()
+      ..color = AppColors.accentPurple.withValues(alpha: 0.15)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+    for (final offset in const [
+      Offset(0.42, 0.28),
+      Offset(0.52, 0.68),
+      Offset(0.64, 0.34),
+    ]) {
+      canvas.drawCircle(
+        Offset(size.width * offset.dx, size.height * offset.dy),
+        8 + (progress * 5),
+        sparklePaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SkipSweepPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
+class _SeatingTransitionOverlay extends StatefulWidget {
+  const _SeatingTransitionOverlay({
+    required this.tokenCode,
+    required this.customerName,
+    required this.tableNumber,
+  });
+
+  final String tokenCode;
+  final String customerName;
+  final String tableNumber;
+
+  @override
+  State<_SeatingTransitionOverlay> createState() =>
+      _SeatingTransitionOverlayState();
+}
+
+class _SeatingTransitionOverlayState extends State<_SeatingTransitionOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _pathProgress;
+  late final Animation<double> _checkScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1450),
+    )..forward();
+    _pathProgress = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.06, 0.66, curve: Curves.easeInOutCubic),
+    );
+    _checkScale = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.58, 0.9, curve: Curves.elasticOut),
+    );
+    Future<void>.delayed(const Duration(milliseconds: 1650), () {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dialogWidth = _dialogWidth(context, 380);
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: dialogWidth,
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.98),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.line.withValues(alpha: 0.55)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x2A006687),
+                blurRadius: 34,
+                offset: Offset(0, 18),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 138,
+                child: AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, child) {
+                    return CustomPaint(
+                      painter: _SeatingPathPainter(
+                        progress: _pathProgress.value,
+                        glow: _controller.value,
+                      ),
+                      child: Stack(
+                        children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: _SeatingNode(
+                              label: widget.tokenCode,
+                              icon: Icons.groups_rounded,
+                              gradient: AppColors.primaryGradient,
+                            ),
+                          ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: _SeatingNode(
+                              label: widget.tableNumber,
+                              icon: Icons.event_seat_rounded,
+                              gradient: AppColors.brandGradient,
+                            ),
+                          ),
+                          Positioned.fill(
+                            child: Align(
+                              alignment: Alignment(
+                                -0.8 + (_pathProgress.value * 1.6),
+                                -0.02,
+                              ),
+                              child: Transform.scale(
+                                scale: 0.92 + (_controller.value * 0.12),
+                                child: Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.primaryTeal.withValues(
+                                          alpha: 0.28,
+                                        ),
+                                        blurRadius: 18,
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.arrow_forward_rounded,
+                                    color: AppColors.deepTeal,
+                                    size: 22,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 4,
+                            left: 0,
+                            right: 0,
+                            child: ScaleTransition(
+                              scale: _checkScale,
+                              child: Container(
+                                width: 48,
+                                height: 48,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.successGreen,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.check_rounded,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Party seated',
+                style: TextStyle(
+                  color: AppColors.navyText,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${widget.customerName} is heading to ${widget.tableNumber}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.mutedText,
+                  fontSize: 14,
+                  height: 19 / 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SeatingNode extends StatelessWidget {
+  const _SeatingNode({
+    required this.label,
+    required this.icon,
+    required this.gradient,
+  });
+
+  final String label;
+  final IconData icon;
+  final Gradient gradient;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 78,
+      height: 78,
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x246A40D7),
+            blurRadius: 20,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.white, size: 24),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontFamily: 'JetBrains Mono',
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SeatingPathPainter extends CustomPainter {
+  const _SeatingPathPainter({required this.progress, required this.glow});
+
+  final double progress;
+  final double glow;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final start = Offset(size.width * 0.24, size.height * 0.46);
+    final end = Offset(size.width * 0.76, size.height * 0.46);
+    final control = Offset(size.width * 0.5, size.height * 0.04);
+    final path = Path()
+      ..moveTo(start.dx, start.dy)
+      ..quadraticBezierTo(control.dx, control.dy, end.dx, end.dy);
+
+    final basePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round
+      ..color = AppColors.line.withValues(alpha: 0.55);
+    canvas.drawPath(path, basePaint);
+
+    final metric = path.computeMetrics().first;
+    final activePath = metric.extractPath(0, metric.length * progress);
+    final activePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6
+      ..strokeCap = StrokeCap.round
+      ..shader = AppColors.progressGradient.createShader(Offset.zero & size);
+    canvas.drawPath(activePath, activePaint);
+
+    final pulsePaint = Paint()
+      ..color = AppColors.primaryTeal.withValues(alpha: 0.08 + glow * 0.08)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+    canvas.drawCircle(
+      Offset(size.width * 0.5, size.height * 0.46),
+      42,
+      pulsePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SeatingPathPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.glow != glow;
   }
 }
 
