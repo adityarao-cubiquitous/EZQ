@@ -14,6 +14,8 @@ class QueuePanel extends StatelessWidget {
     required this.queue,
     this.spotlightEntryId,
     this.spotlightLabel,
+    this.secondarySpotlightEntryId,
+    this.secondarySpotlightLabel,
     this.autoScrollSpotlight = false,
     required this.availableTables,
     required this.onReserve,
@@ -24,6 +26,8 @@ class QueuePanel extends StatelessWidget {
   final List<QueueEntry> queue;
   final String? spotlightEntryId;
   final String? spotlightLabel;
+  final String? secondarySpotlightEntryId;
+  final String? secondarySpotlightLabel;
   final bool autoScrollSpotlight;
   final List<RestaurantTable> availableTables;
   final void Function(QueueEntry entry) onReserve;
@@ -70,37 +74,41 @@ class QueuePanel extends StatelessWidget {
           ),
           SizedBox(height: compact ? 12 : 16),
           for (final entry in queue) ...[
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 280),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: SizeTransition(
-                    sizeFactor: animation,
-                    alignment: Alignment.topCenter,
-                    child: child,
+            Builder(
+              builder: (context) {
+                final spotlightTone = _spotlightToneFor(entry.id);
+                final isSpotlighted = spotlightTone != null;
+                return AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 280),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SizeTransition(
+                        sizeFactor: animation,
+                        alignment: Alignment.topCenter,
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: _SpotlightAutoScroller(
+                    key: ValueKey('${entry.id}-${entry.status.wireName}'),
+                    enabled: autoScrollSpotlight && isSpotlighted,
+                    child: _QueueEntryCard(
+                      entry: entry,
+                      spotlightTone: spotlightTone,
+                      spotlightLabel: _spotlightLabelFor(entry.id),
+                      availableTables: availableTables,
+                      onReserve: () => onReserve(entry),
+                      onSkip: () => onSkip(entry),
+                      onTap: onEntryTapped != null
+                          ? () => onEntryTapped!(entry)
+                          : null,
+                    ),
                   ),
                 );
               },
-              child: _SpotlightAutoScroller(
-                key: ValueKey('${entry.id}-${entry.status.wireName}'),
-                enabled: autoScrollSpotlight && entry.id == spotlightEntryId,
-                child: _QueueEntryCard(
-                  entry: entry,
-                  spotlight: entry.id == spotlightEntryId,
-                  spotlightLabel: entry.id == spotlightEntryId
-                      ? spotlightLabel
-                      : null,
-                  availableTables: availableTables,
-                  onReserve: () => onReserve(entry),
-                  onSkip: () => onSkip(entry),
-                  onTap: onEntryTapped != null
-                      ? () => onEntryTapped!(entry)
-                      : null,
-                ),
-              ),
             ),
             const SizedBox(height: 12),
           ],
@@ -108,7 +116,23 @@ class QueuePanel extends StatelessWidget {
       ),
     );
   }
+
+  _QueueSpotlightTone? _spotlightToneFor(String entryId) {
+    if (entryId == spotlightEntryId) return _QueueSpotlightTone.best;
+    if (entryId == secondarySpotlightEntryId) {
+      return _QueueSpotlightTone.nextBest;
+    }
+    return null;
+  }
+
+  String? _spotlightLabelFor(String entryId) {
+    if (entryId == spotlightEntryId) return spotlightLabel;
+    if (entryId == secondarySpotlightEntryId) return secondarySpotlightLabel;
+    return null;
+  }
 }
+
+enum _QueueSpotlightTone { best, nextBest }
 
 class _SpotlightAutoScroller extends StatefulWidget {
   const _SpotlightAutoScroller({
@@ -159,7 +183,7 @@ class _SpotlightAutoScrollerState extends State<_SpotlightAutoScroller> {
 class _QueueEntryCard extends StatelessWidget {
   const _QueueEntryCard({
     required this.entry,
-    required this.spotlight,
+    required this.spotlightTone,
     required this.spotlightLabel,
     required this.availableTables,
     required this.onReserve,
@@ -168,7 +192,7 @@ class _QueueEntryCard extends StatelessWidget {
   });
 
   final QueueEntry entry;
-  final bool spotlight;
+  final _QueueSpotlightTone? spotlightTone;
   final String? spotlightLabel;
   final List<RestaurantTable> availableTables;
   final VoidCallback onReserve;
@@ -179,6 +203,7 @@ class _QueueEntryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final compact = Responsive.isCompact(context);
     final canReserve = entry.status == QueueStatus.waiting;
+    final spotlight = spotlightTone != null;
     final waitedMinutes = DateTime.now()
         .difference(entry.joinedAt)
         .inMinutes
@@ -193,8 +218,9 @@ class _QueueEntryCard extends StatelessWidget {
               ? Padding(
                   key: const ValueKey('spotlight-chip'),
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: _NextUpChip(
+                  child: _RecommendationChip(
                     label: spotlightLabel ?? '${entry.tokenCode} is next',
+                    tone: spotlightTone!,
                   ),
                 )
               : const SizedBox.shrink(key: ValueKey('no-spotlight-chip')),
@@ -284,6 +310,7 @@ class _QueueEntryCard extends StatelessWidget {
       duration: const Duration(milliseconds: 520),
       curve: Curves.easeOutBack,
       builder: (context, glow, child) {
+        final toneColor = _spotlightColor(spotlightTone);
         return AnimatedScale(
           duration: const Duration(milliseconds: 380),
           curve: Curves.easeOutBack,
@@ -299,7 +326,7 @@ class _QueueEntryCard extends StatelessWidget {
                       end: Alignment.bottomRight,
                       colors: [
                         AppColors.primaryTeal.withValues(alpha: 0.11),
-                        AppColors.accentPurple.withValues(alpha: 0.10),
+                        toneColor.withValues(alpha: 0.13),
                         Colors.white.withValues(alpha: 0.96),
                       ],
                     )
@@ -308,16 +335,14 @@ class _QueueEntryCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: spotlight
-                    ? AppColors.accentPurple.withValues(alpha: 0.36)
+                    ? toneColor.withValues(alpha: 0.46)
                     : const Color(0x1ABDC8D0),
                 width: spotlight ? 1.4 : 1,
               ),
               boxShadow: [
                 if (spotlight)
                   BoxShadow(
-                    color: AppColors.accentPurple.withValues(
-                      alpha: 0.16 + (glow * 0.08),
-                    ),
+                    color: toneColor.withValues(alpha: 0.16 + (glow * 0.08)),
                     blurRadius: 24 + (glow * 8),
                     offset: const Offset(0, 12),
                   ),
@@ -337,6 +362,14 @@ class _QueueEntryCard extends StatelessWidget {
         child: animatedCard,
       ),
     );
+  }
+
+  Color _spotlightColor(_QueueSpotlightTone? tone) {
+    return switch (tone) {
+      _QueueSpotlightTone.best => AppColors.successGreen,
+      _QueueSpotlightTone.nextBest => AppColors.warningOrange,
+      null => AppColors.accentPurple,
+    };
   }
 }
 
@@ -378,25 +411,30 @@ class _QueueMetaPill extends StatelessWidget {
   }
 }
 
-class _NextUpChip extends StatelessWidget {
-  const _NextUpChip({required this.label});
+class _RecommendationChip extends StatelessWidget {
+  const _RecommendationChip({required this.label, required this.tone});
 
   final String label;
+  final _QueueSpotlightTone tone;
 
   @override
   Widget build(BuildContext context) {
+    final color = switch (tone) {
+      _QueueSpotlightTone.best => AppColors.successGreen,
+      _QueueSpotlightTone.nextBest => AppColors.warningOrange,
+    };
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          gradient: AppColors.primaryGradient,
+          color: color,
           borderRadius: BorderRadius.circular(999),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x246A40D7),
+              color: color.withValues(alpha: 0.22),
               blurRadius: 14,
-              offset: Offset(0, 6),
+              offset: const Offset(0, 6),
             ),
           ],
         ),

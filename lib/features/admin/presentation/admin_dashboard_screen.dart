@@ -33,6 +33,8 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   String? _spotlightQueueEntryId;
   String? _spotlightLabel;
+  String? _secondarySpotlightQueueEntryId;
+  String? _secondarySpotlightLabel;
   int _spotlightGeneration = 0;
   QueueEntry? _selectedQueueEntry;
 
@@ -182,6 +184,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   queue: liveQueue,
                                   spotlightEntryId: _spotlightQueueEntryId,
                                   spotlightLabel: _spotlightLabel,
+                                  secondarySpotlightEntryId:
+                                      _secondarySpotlightQueueEntryId,
+                                  secondarySpotlightLabel:
+                                      _secondarySpotlightLabel,
                                   autoScrollSpotlight: true,
                                   availableTables: availableTables,
                                   onReserve: (entry) => _reserveQueueEntry(
@@ -256,6 +262,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       queue: liveQueue,
                                       spotlightEntryId: _spotlightQueueEntryId,
                                       spotlightLabel: _spotlightLabel,
+                                      secondarySpotlightEntryId:
+                                          _secondarySpotlightQueueEntryId,
+                                      secondarySpotlightLabel:
+                                          _secondarySpotlightLabel,
                                       autoScrollSpotlight: false,
                                       availableTables: availableTables,
                                       onReserve: (entry) => _reserveQueueEntry(
@@ -480,8 +490,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required RestaurantTable table,
     required List<QueueEntry> liveQueue,
   }) {
-    final bestEntry = _bestQueueEntryForTable(table, liveQueue);
-    if (bestEntry == null) {
+    final recommendations = _bestQueueEntriesForTable(table, liveQueue);
+    if (recommendations.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -491,21 +501,27 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       );
       return;
     }
-    _spotlightQueueEntry(
-      bestEntry,
-      label: '${bestEntry.tokenCode} fits ${table.tableNumber}',
+
+    final bestEntry = recommendations.first;
+    final nextEntry = recommendations.length > 1 ? recommendations[1] : null;
+    _spotlightQueueEntries(
+      bestEntry: bestEntry,
+      bestLabel: 'Best fit for ${table.tableNumber}',
+      nextEntry: nextEntry,
+      nextLabel: 'Next best for ${table.tableNumber}',
     );
+    final nextText = nextEntry == null ? '' : ' · Next: ${nextEntry.tokenCode}';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Best fit: ${bestEntry.tokenCode} for ${table.tableNumber}',
+          'Best: ${bestEntry.tokenCode} for ${table.tableNumber}$nextText',
         ),
         duration: const Duration(milliseconds: 1800),
       ),
     );
   }
 
-  QueueEntry? _bestQueueEntryForTable(
+  List<QueueEntry> _bestQueueEntriesForTable(
     RestaurantTable table,
     List<QueueEntry> liveQueue,
   ) {
@@ -516,7 +532,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               entry.partySize <= table.capacity,
         )
         .toList();
-    if (candidates.isEmpty) return null;
     candidates.sort((a, b) {
       final aWaste = table.capacity - a.partySize;
       final bWaste = table.capacity - b.partySize;
@@ -524,7 +539,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       if (waste != 0) return waste;
       return a.queuePosition.compareTo(b.queuePosition);
     });
-    return candidates.first;
+    return candidates.take(2).toList();
   }
 
   String? _spotlightLabelForNext(QueueEntry? nextEntry) {
@@ -538,12 +553,41 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     setState(() {
       _spotlightQueueEntryId = entry.id;
       _spotlightLabel = label;
+      _secondarySpotlightQueueEntryId = null;
+      _secondarySpotlightLabel = null;
     });
     Future<void>.delayed(const Duration(milliseconds: 2800), () {
       if (!mounted || generation != _spotlightGeneration) return;
       setState(() {
         _spotlightQueueEntryId = null;
         _spotlightLabel = null;
+        _secondarySpotlightQueueEntryId = null;
+        _secondarySpotlightLabel = null;
+      });
+    });
+  }
+
+  void _spotlightQueueEntries({
+    required QueueEntry bestEntry,
+    required String bestLabel,
+    required QueueEntry? nextEntry,
+    required String? nextLabel,
+  }) {
+    if (!mounted) return;
+    final generation = ++_spotlightGeneration;
+    setState(() {
+      _spotlightQueueEntryId = bestEntry.id;
+      _spotlightLabel = bestLabel;
+      _secondarySpotlightQueueEntryId = nextEntry?.id;
+      _secondarySpotlightLabel = nextEntry == null ? null : nextLabel;
+    });
+    Future<void>.delayed(const Duration(milliseconds: 5000), () {
+      if (!mounted || generation != _spotlightGeneration) return;
+      setState(() {
+        _spotlightQueueEntryId = null;
+        _spotlightLabel = null;
+        _secondarySpotlightQueueEntryId = null;
+        _secondarySpotlightLabel = null;
       });
     });
   }
