@@ -37,8 +37,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   String? _secondarySpotlightLabel;
   int _spotlightGeneration = 0;
   QueueEntry? _selectedQueueEntry;
-  List<String> _suggestedQueueEntryIds = const [];
-  String? _suggestedQueueTitle;
 
   void _handleQueueEntryTap(
     QueueEntry entry,
@@ -53,8 +51,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _spotlightLabel = null;
       _secondarySpotlightQueueEntryId = null;
       _secondarySpotlightLabel = null;
-      _suggestedQueueEntryIds = const [];
-      _suggestedQueueTitle = null;
       _spotlightGeneration++;
     });
 
@@ -140,14 +136,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 availableTables,
                 occupiedFor,
               );
-              final suggestedQueue = _suggestedQueue(
-                liveQueue,
-                _suggestedQueueEntryIds,
-              );
-              final queuePanelEntries = _suggestedQueueEntryIds.isEmpty
-                  ? liveQueue
-                  : suggestedQueue;
-              final isShowingSuggestions = _suggestedQueueEntryIds.isNotEmpty;
 
               return SafeArea(
                 bottom: false,
@@ -202,12 +190,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 ),
                                 SizedBox(height: gap),
                                 QueuePanel(
-                                  queue: queuePanelEntries,
-                                  title: isShowingSuggestions
-                                      ? _suggestedQueueTitle ??
-                                            'Suggested parties'
-                                      : 'Live Queue',
-                                  showSearch: !isShowingSuggestions,
+                                  queue: liveQueue,
                                   spotlightEntryId: _spotlightQueueEntryId,
                                   spotlightLabel: _spotlightLabel,
                                   secondarySpotlightEntryId:
@@ -287,12 +270,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   width: 390,
                                   child: SingleChildScrollView(
                                     child: QueuePanel(
-                                      queue: queuePanelEntries,
-                                      title: isShowingSuggestions
-                                          ? _suggestedQueueTitle ??
-                                                'Suggested parties'
-                                          : 'Live Queue',
-                                      showSearch: !isShowingSuggestions,
+                                      queue: liveQueue,
                                       spotlightEntryId: _spotlightQueueEntryId,
                                       spotlightLabel: _spotlightLabel,
                                       secondarySpotlightEntryId:
@@ -531,8 +509,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _spotlightLabel = null;
       _secondarySpotlightQueueEntryId = null;
       _secondarySpotlightLabel = null;
-      _suggestedQueueEntryIds = const [];
-      _suggestedQueueTitle = null;
       _spotlightGeneration++;
     });
     ScaffoldMessenger.of(context).clearSnackBars();
@@ -563,11 +539,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
     final bestEntry = recommendations.first;
     final nextEntry = recommendations.length > 1 ? recommendations[1] : null;
-    _showTableSuggestions(
-      table: table,
-      openSeats: openSeats,
+    _spotlightQueueEntries(
       bestEntry: bestEntry,
+      bestLabel: 'Best fit for ${table.tableNumber}',
       nextEntry: nextEntry,
+      nextLabel: 'Next best for ${table.tableNumber}',
     );
     final nextText = nextEntry == null ? '' : ' · Next: ${nextEntry.tokenCode}';
     ScaffoldMessenger.of(context).showSnackBar(
@@ -616,43 +592,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     return a.queuePosition.compareTo(b.queuePosition);
   }
 
-  List<QueueEntry> _suggestedQueue(
-    List<QueueEntry> liveQueue,
-    List<String> entryIds,
-  ) {
-    if (entryIds.isEmpty) return liveQueue;
-    final byId = {for (final entry in liveQueue) entry.id: entry};
-    return [
-      for (final id in entryIds)
-        if (byId[id] != null) byId[id]!,
-    ];
-  }
-
-  void _showTableSuggestions({
-    required RestaurantTable table,
-    required int openSeats,
-    required QueueEntry bestEntry,
-    required QueueEntry? nextEntry,
-  }) {
-    if (!mounted) return;
-    setState(() {
-      _selectedQueueEntry = null;
-      _spotlightQueueEntryId = bestEntry.id;
-      _spotlightLabel = 'Best fit for ${table.tableNumber}';
-      _secondarySpotlightQueueEntryId = nextEntry?.id;
-      _secondarySpotlightLabel = nextEntry == null
-          ? null
-          : 'Next best for ${table.tableNumber}';
-      _suggestedQueueEntryIds = [
-        bestEntry.id,
-        if (nextEntry != null) nextEntry.id,
-      ];
-      _suggestedQueueTitle =
-          '${table.tableNumber} suggestions ($openSeats open ${openSeats == 1 ? 'seat' : 'seats'})';
-      _spotlightGeneration++;
-    });
-  }
-
   String? _spotlightLabelForNext(QueueEntry? nextEntry) {
     if (nextEntry == null) return null;
     return '${nextEntry.tokenCode} is next';
@@ -662,14 +601,38 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     if (entry == null || !mounted) return;
     final generation = ++_spotlightGeneration;
     setState(() {
-      _suggestedQueueEntryIds = const [];
-      _suggestedQueueTitle = null;
       _spotlightQueueEntryId = entry.id;
       _spotlightLabel = label;
       _secondarySpotlightQueueEntryId = null;
       _secondarySpotlightLabel = null;
     });
     Future<void>.delayed(const Duration(milliseconds: 2800), () {
+      if (!mounted || generation != _spotlightGeneration) return;
+      setState(() {
+        _spotlightQueueEntryId = null;
+        _spotlightLabel = null;
+        _secondarySpotlightQueueEntryId = null;
+        _secondarySpotlightLabel = null;
+      });
+    });
+  }
+
+  void _spotlightQueueEntries({
+    required QueueEntry bestEntry,
+    required String bestLabel,
+    required QueueEntry? nextEntry,
+    required String? nextLabel,
+  }) {
+    if (!mounted) return;
+    final generation = ++_spotlightGeneration;
+    setState(() {
+      _selectedQueueEntry = null;
+      _spotlightQueueEntryId = bestEntry.id;
+      _spotlightLabel = bestLabel;
+      _secondarySpotlightQueueEntryId = nextEntry?.id;
+      _secondarySpotlightLabel = nextEntry == null ? null : nextLabel;
+    });
+    Future<void>.delayed(const Duration(milliseconds: 5000), () {
       if (!mounted || generation != _spotlightGeneration) return;
       setState(() {
         _spotlightQueueEntryId = null;
