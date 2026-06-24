@@ -117,9 +117,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             builder: (context, queueSnapshot) {
               final tables = tablesSnapshot.data ?? const [];
               final queue = queueSnapshot.data ?? const [];
-              final liveQueue = queue
-                  .where((entry) => entry.status.isLiveQueueVisible)
-                  .toList();
+              final liveQueue =
+                  queue
+                      .where((entry) => entry.status.isLiveQueueVisible)
+                      .toList()
+                    ..sort(_compareQueueByNumberThenWait);
               final queueById = {for (final entry in queue) entry.id: entry};
               int occupiedFor(RestaurantTable t) =>
                   t.currentQueueEntryId == null
@@ -601,9 +603,17 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       final bWaste = openSeats - b.partySize;
       final waste = aWaste.compareTo(bWaste);
       if (waste != 0) return waste;
-      return a.queuePosition.compareTo(b.queuePosition);
+      return _compareQueueByNumberThenWait(a, b);
     });
     return candidates.take(2).toList();
+  }
+
+  int _compareQueueByNumberThenWait(QueueEntry a, QueueEntry b) {
+    final tokenNumber = a.tokenNumber.compareTo(b.tokenNumber);
+    if (tokenNumber != 0) return tokenNumber;
+    final joinedAt = a.joinedAt.compareTo(b.joinedAt);
+    if (joinedAt != 0) return joinedAt;
+    return a.queuePosition.compareTo(b.queuePosition);
   }
 
   List<QueueEntry> _suggestedQueue(
