@@ -18,6 +18,7 @@ class QueuePanel extends StatelessWidget {
     required this.availableTables,
     required this.onReserve,
     required this.onSkip,
+    this.onEntryTapped,
   });
 
   final List<QueueEntry> queue;
@@ -27,6 +28,7 @@ class QueuePanel extends StatelessWidget {
   final List<RestaurantTable> availableTables;
   final void Function(QueueEntry entry) onReserve;
   final void Function(QueueEntry entry) onSkip;
+  final void Function(QueueEntry entry)? onEntryTapped;
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +96,9 @@ class QueuePanel extends StatelessWidget {
                   availableTables: availableTables,
                   onReserve: () => onReserve(entry),
                   onSkip: () => onSkip(entry),
+                  onTap: onEntryTapped != null
+                      ? () => onEntryTapped!(entry)
+                      : null,
                 ),
               ),
             ),
@@ -159,6 +164,7 @@ class _QueueEntryCard extends StatelessWidget {
     required this.availableTables,
     required this.onReserve,
     required this.onSkip,
+    this.onTap,
   });
 
   final QueueEntry entry;
@@ -167,6 +173,7 @@ class _QueueEntryCard extends StatelessWidget {
   final List<RestaurantTable> availableTables;
   final VoidCallback onReserve;
   final VoidCallback onSkip;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +184,102 @@ class _QueueEntryCard extends StatelessWidget {
         .inMinutes
         .clamp(0, 24 * 60);
     final joinedTime = DateTimeUtils.shortTime(entry.joinedAt);
-    return TweenAnimationBuilder<double>(
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 260),
+          child: spotlight
+              ? Padding(
+                  key: const ValueKey('spotlight-chip'),
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _NextUpChip(
+                    label: spotlightLabel ?? '${entry.tokenCode} is next',
+                  ),
+                )
+              : const SizedBox.shrink(key: ValueKey('no-spotlight-chip')),
+        ),
+        Row(
+          children: [
+            Text(
+              entry.tokenCode,
+              style: TextStyle(
+                color: AppColors.deepTeal,
+                fontFamily: 'JetBrains Mono',
+                fontSize: compact ? 18 : 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            SizedBox(width: compact ? 8 : 12),
+            Expanded(
+              child: Text(
+                entry.customerName,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            Text(
+              'Party ${entry.partySize}',
+              style: TextStyle(fontSize: compact ? 12 : 14),
+            ),
+          ],
+        ),
+        SizedBox(height: compact ? 6 : 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _QueueMetaPill(
+              icon: Icons.timer_outlined,
+              label: 'Waiting $waitedMinutes min',
+            ),
+            _QueueMetaPill(
+              icon: Icons.login_rounded,
+              label: 'Joined $joinedTime',
+            ),
+            Text(
+              entry.status.wireName,
+              style: TextStyle(
+                color: AppColors.mutedText,
+                fontSize: compact ? 12 : 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: compact ? 10 : 12),
+        if (compact)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _ReserveAction(
+                canReserve: canReserve,
+                availableTables: availableTables,
+                statusLabel: entry.status.wireName,
+                onReserve: onReserve,
+              ),
+              const SizedBox(height: 8),
+              _SkipAction(canSkip: canReserve, onSkip: onSkip),
+            ],
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: _ReserveAction(
+                  canReserve: canReserve,
+                  availableTables: availableTables,
+                  statusLabel: entry.status.wireName,
+                  onReserve: onReserve,
+                ),
+              ),
+              const SizedBox(width: 8),
+              _SkipAction(canSkip: canReserve, onSkip: onSkip),
+            ],
+          ),
+      ],
+    );
+    final animatedCard = TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: spotlight ? 1 : 0),
       duration: const Duration(milliseconds: 520),
       curve: Curves.easeOutBack,
@@ -221,104 +323,18 @@ class _QueueEntryCard extends StatelessWidget {
                   ),
               ],
             ),
-            child: child,
+            child: content,
           ),
         );
       },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 260),
-            child: spotlight
-                ? Padding(
-                    key: const ValueKey('spotlight-chip'),
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _NextUpChip(
-                      label: spotlightLabel ?? '${entry.tokenCode} is next',
-                    ),
-                  )
-                : const SizedBox.shrink(key: ValueKey('no-spotlight-chip')),
-          ),
-          Row(
-            children: [
-              Text(
-                entry.tokenCode,
-                style: TextStyle(
-                  color: AppColors.deepTeal,
-                  fontFamily: 'JetBrains Mono',
-                  fontSize: compact ? 18 : 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              SizedBox(width: compact ? 8 : 12),
-              Expanded(
-                child: Text(
-                  entry.customerName,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-              Text(
-                'Party ${entry.partySize}',
-                style: TextStyle(fontSize: compact ? 12 : 14),
-              ),
-            ],
-          ),
-          SizedBox(height: compact ? 6 : 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _QueueMetaPill(
-                icon: Icons.timer_outlined,
-                label: 'Waiting $waitedMinutes min',
-              ),
-              _QueueMetaPill(
-                icon: Icons.login_rounded,
-                label: 'Joined $joinedTime',
-              ),
-              Text(
-                entry.status.wireName,
-                style: TextStyle(
-                  color: AppColors.mutedText,
-                  fontSize: compact ? 12 : 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: compact ? 10 : 12),
-          if (compact)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _ReserveAction(
-                  canReserve: canReserve,
-                  availableTables: availableTables,
-                  statusLabel: entry.status.wireName,
-                  onReserve: onReserve,
-                ),
-                const SizedBox(height: 8),
-                _SkipAction(canSkip: canReserve, onSkip: onSkip),
-              ],
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: _ReserveAction(
-                    canReserve: canReserve,
-                    availableTables: availableTables,
-                    statusLabel: entry.status.wireName,
-                    onReserve: onReserve,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _SkipAction(canSkip: canReserve, onSkip: onSkip),
-              ],
-            ),
-        ],
+    );
+    if (onTap == null) return animatedCard;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: animatedCard,
       ),
     );
   }

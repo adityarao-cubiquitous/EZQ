@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -5,13 +7,14 @@ import '../../../core/utils/responsive.dart';
 import '../domain/restaurant_table.dart';
 import '../domain/table_status.dart';
 
-class TableGrid extends StatelessWidget {
+class TableGrid extends StatefulWidget {
   const TableGrid({
     super.key,
     required this.tables,
     this.completedPartySizeFor,
     this.onAvailableTableTap,
     this.onMealFinished,
+    this.matchingTableIds = const {},
   });
 
   final List<RestaurantTable> tables;
@@ -19,10 +22,37 @@ class TableGrid extends StatelessWidget {
   final void Function(RestaurantTable table)? onAvailableTableTap;
   final void Function(RestaurantTable table, int initialPartySize)?
   onMealFinished;
+  final Set<String> matchingTableIds;
+
+  @override
+  State<TableGrid> createState() => _TableGridState();
+}
+
+class _TableGridState extends State<TableGrid> {
+  late DateTime _now;
+  Timer? _minuteTicker;
+
+  @override
+  void initState() {
+    super.initState();
+    _now = DateTime.now();
+    _minuteTicker = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _now = DateTime.now();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _minuteTicker?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final capacityGroups = _groupTablesByCapacity(tables);
+    final capacityGroups = _groupTablesByCapacity(widget.tables);
     final compact = Responsive.isCompact(context);
     return Container(
       padding: EdgeInsets.all(compact ? 14 : 24),
@@ -61,7 +91,7 @@ class TableGrid extends StatelessWidget {
               itemCount: group.tables.length,
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: compact ? 180 : 220,
-                childAspectRatio: compact ? 1.2 : 1.3,
+                childAspectRatio: compact ? 0.9 : 1,
                 crossAxisSpacing: compact ? 8 : 12,
                 mainAxisSpacing: compact ? 8 : 12,
               ),
@@ -69,15 +99,18 @@ class TableGrid extends StatelessWidget {
                 final table = group.tables[index];
                 return _TableCard(
                   table: table,
-                  initialPartySize: completedPartySizeFor?.call(table),
-                  onAvailableTableTap: onAvailableTableTap == null
+                  now: _now,
+                  initialPartySize: widget.completedPartySizeFor?.call(table),
+                  onAvailableTableTap: widget.onAvailableTableTap == null
                       ? null
-                      : () => onAvailableTableTap!(table),
-                  onMealFinished: onMealFinished == null
+                      : () => widget.onAvailableTableTap!(table),
+                  isHighlighted: widget.matchingTableIds.contains(table.id),
+                  onMealFinished: widget.onMealFinished == null
                       ? null
-                      : () => onMealFinished!(
+                      : () => widget.onMealFinished!(
                           table,
-                          completedPartySizeFor?.call(table) ?? table.capacity,
+                          widget.completedPartySizeFor?.call(table) ??
+                              table.capacity,
                         ),
                 );
               },
@@ -167,15 +200,19 @@ class _CapacityHeader extends StatelessWidget {
 class _TableCard extends StatelessWidget {
   const _TableCard({
     required this.table,
+    required this.now,
     required this.initialPartySize,
     required this.onAvailableTableTap,
     required this.onMealFinished,
+    this.isHighlighted = false,
   });
 
   final RestaurantTable table;
+  final DateTime now;
   final int? initialPartySize;
   final VoidCallback? onAvailableTableTap;
   final VoidCallback? onMealFinished;
+  final bool isHighlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -185,6 +222,7 @@ class _TableCard extends StatelessWidget {
         : initialPartySize ?? table.capacity;
     final color = _tableColor(occupiedCount);
     final statusLabel = _statusLabel(occupiedCount);
+    final minutesSpent = _minutesSpent();
     final canFinishMeal =
         table.status == TableStatus.occupied &&
         table.currentQueueEntryId != null &&
@@ -195,11 +233,16 @@ class _TableCard extends StatelessWidget {
     final card = AnimatedContainer(
       duration: const Duration(milliseconds: 360),
       curve: Curves.easeOutCubic,
-      padding: EdgeInsets.all(compact ? 12 : 14),
+      padding: EdgeInsets.all(compact ? 10 : 14),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
+        border: Border.all(
+          color: isHighlighted
+              ? AppColors.accentPurple
+              : color.withValues(alpha: 0.35),
+          width: isHighlighted ? 2 : 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,12 +267,21 @@ class _TableCard extends StatelessWidget {
                     value: table.capacity,
                     color: color,
                   ),
-                  const SizedBox(height: 5),
+                  SizedBox(height: compact ? 4 : 5),
                   _TableMetricPill(
                     label: 'Occ',
                     value: occupiedCount,
                     color: color,
                   ),
+                  if (minutesSpent != null) ...[
+                    SizedBox(height: compact ? 4 : 5),
+                    _TableMetricPill(
+                      label: 'Time',
+                      value: minutesSpent,
+                      suffix: 'm',
+                      color: color,
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -340,17 +392,27 @@ class _TableCard extends StatelessWidget {
       TableStatus.blocked => 'blocked',
     };
   }
+
+  int? _minutesSpent() {
+    if (table.status != TableStatus.occupied) return null;
+    final startedAt = table.currentCycleStartAt ?? table.occupiedAt;
+    if (startedAt == null) return null;
+    final minutes = now.difference(startedAt).inMinutes;
+    return minutes < 0 ? 0 : minutes;
+  }
 }
 
 class _TableMetricPill extends StatelessWidget {
   const _TableMetricPill({
     required this.label,
     required this.value,
+    this.suffix = '',
     required this.color,
   });
 
   final String label;
   final int value;
+  final String suffix;
   final Color color;
 
   @override
@@ -363,7 +425,7 @@ class _TableMetricPill extends StatelessWidget {
         border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Text(
-        '$label $value',
+        '$label $value$suffix',
         style: const TextStyle(
           color: AppColors.navyText,
           fontSize: 11,
