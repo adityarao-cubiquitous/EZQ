@@ -37,6 +37,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   String? _secondarySpotlightLabel;
   int _spotlightGeneration = 0;
   QueueEntry? _selectedQueueEntry;
+  String? _queueSliceEndEntryId;
 
   void _handleQueueEntryTap(
     QueueEntry entry,
@@ -51,6 +52,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _spotlightLabel = null;
       _secondarySpotlightQueueEntryId = null;
       _secondarySpotlightLabel = null;
+      _queueSliceEndEntryId = null;
       _spotlightGeneration++;
     });
 
@@ -118,6 +120,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       .where((entry) => entry.status.isLiveQueueVisible)
                       .toList()
                     ..sort(_compareQueueByNumberThenWait);
+              final visibleQueue = _queueVisibleThroughSuggestion(liveQueue);
               final queueById = {for (final entry in queue) entry.id: entry};
               int occupiedFor(RestaurantTable t) =>
                   t.currentQueueEntryId == null
@@ -190,7 +193,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 ),
                                 SizedBox(height: gap),
                                 QueuePanel(
-                                  queue: liveQueue,
+                                  queue: visibleQueue,
                                   spotlightEntryId: _spotlightQueueEntryId,
                                   spotlightLabel: _spotlightLabel,
                                   secondarySpotlightEntryId:
@@ -270,7 +273,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   width: 390,
                                   child: SingleChildScrollView(
                                     child: QueuePanel(
-                                      queue: liveQueue,
+                                      queue: visibleQueue,
                                       spotlightEntryId: _spotlightQueueEntryId,
                                       spotlightLabel: _spotlightLabel,
                                       secondarySpotlightEntryId:
@@ -510,6 +513,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _spotlightLabel = null;
       _secondarySpotlightQueueEntryId = null;
       _secondarySpotlightLabel = null;
+      _queueSliceEndEntryId = null;
       _spotlightGeneration++;
     });
     ScaffoldMessenger.of(context).clearSnackBars();
@@ -545,6 +549,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       bestLabel: 'Best fit for ${table.tableNumber}',
       nextEntry: nextEntry,
       nextLabel: 'Next best for ${table.tableNumber}',
+      queueSliceEndEntryId: _queueSliceEndEntryIdFor(
+        liveQueue: liveQueue,
+        bestEntry: bestEntry,
+        nextEntry: nextEntry,
+      ),
     );
     final nextText = nextEntry == null ? '' : ' · Next: ${nextEntry.tokenCode}';
     ScaffoldMessenger.of(context).showSnackBar(
@@ -593,6 +602,28 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     return a.queuePosition.compareTo(b.queuePosition);
   }
 
+  String? _queueSliceEndEntryIdFor({
+    required List<QueueEntry> liveQueue,
+    required QueueEntry bestEntry,
+    required QueueEntry? nextEntry,
+  }) {
+    final bestIndex = liveQueue.indexWhere((entry) => entry.id == bestEntry.id);
+    final nextIndex = nextEntry == null
+        ? -1
+        : liveQueue.indexWhere((entry) => entry.id == nextEntry.id);
+    final endIndex = bestIndex > nextIndex ? bestIndex : nextIndex;
+    if (endIndex < 0 || endIndex >= liveQueue.length) return null;
+    return liveQueue[endIndex].id;
+  }
+
+  List<QueueEntry> _queueVisibleThroughSuggestion(List<QueueEntry> liveQueue) {
+    final endEntryId = _queueSliceEndEntryId;
+    if (endEntryId == null) return liveQueue;
+    final endIndex = liveQueue.indexWhere((entry) => entry.id == endEntryId);
+    if (endIndex < 0) return liveQueue;
+    return liveQueue.take(endIndex + 1).toList();
+  }
+
   String? _spotlightLabelForNext(QueueEntry? nextEntry) {
     if (nextEntry == null) return null;
     return '${nextEntry.tokenCode} is next';
@@ -623,6 +654,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required String bestLabel,
     required QueueEntry? nextEntry,
     required String? nextLabel,
+    required String? queueSliceEndEntryId,
   }) {
     if (!mounted) return;
     _spotlightGeneration++;
@@ -632,6 +664,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _spotlightLabel = bestLabel;
       _secondarySpotlightQueueEntryId = nextEntry?.id;
       _secondarySpotlightLabel = nextEntry == null ? null : nextLabel;
+      _queueSliceEndEntryId = queueSliceEndEntryId;
     });
   }
 }
