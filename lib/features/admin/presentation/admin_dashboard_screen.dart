@@ -164,10 +164,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   occupiedSinceFor: (table) =>
                                       _occupiedSinceForTable(table, queueById),
                                   onEmptySpaceTap: _clearTableGridSelection,
-                                  onAvailableTableTap: (table) =>
+                                  onTableRecommendationTap: (table) =>
                                       _spotlightBestPartyForTable(
                                         context: context,
                                         table: table,
+                                        occupiedCount: occupiedFor(table),
                                         liveQueue: liveQueue,
                                       ),
                                   onMealFinished: (table, initialPartySize) =>
@@ -236,10 +237,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                             queueById,
                                           ),
                                       onEmptySpaceTap: _clearTableGridSelection,
-                                      onAvailableTableTap: (table) =>
+                                      onTableRecommendationTap: (table) =>
                                           _spotlightBestPartyForTable(
                                             context: context,
                                             table: table,
+                                            occupiedCount: occupiedFor(table),
                                             liveQueue: liveQueue,
                                           ),
                                       onMealFinished:
@@ -508,14 +510,19 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   void _spotlightBestPartyForTable({
     required BuildContext context,
     required RestaurantTable table,
+    required int occupiedCount,
     required List<QueueEntry> liveQueue,
   }) {
-    final recommendations = _bestQueueEntriesForTable(table, liveQueue);
+    final openSeats = _openSeatsForTable(table, occupiedCount);
+    final recommendations = _bestQueueEntriesForTable(
+      openSeats: openSeats,
+      liveQueue: liveQueue,
+    );
     if (recommendations.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'No waiting party fits ${table.tableNumber} right now.',
+            'No waiting party fits the $openSeats open ${openSeats == 1 ? 'seat' : 'seats'} at ${table.tableNumber}.',
           ),
         ),
       );
@@ -534,27 +541,34 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Best: ${bestEntry.tokenCode} for ${table.tableNumber}$nextText',
+          'Best: ${bestEntry.tokenCode} for ${table.tableNumber} ($openSeats open ${openSeats == 1 ? 'seat' : 'seats'})$nextText',
         ),
         duration: const Duration(milliseconds: 1800),
       ),
     );
   }
 
-  List<QueueEntry> _bestQueueEntriesForTable(
-    RestaurantTable table,
-    List<QueueEntry> liveQueue,
-  ) {
+  int _openSeatsForTable(RestaurantTable table, int occupiedCount) {
+    if (table.status == TableStatus.available) return table.capacity;
+    if (table.status != TableStatus.occupied) return 0;
+    final openSeats = table.capacity - occupiedCount;
+    return openSeats < 0 ? 0 : openSeats;
+  }
+
+  List<QueueEntry> _bestQueueEntriesForTable({
+    required int openSeats,
+    required List<QueueEntry> liveQueue,
+  }) {
     final candidates = liveQueue
         .where(
           (entry) =>
               entry.status == QueueStatus.waiting &&
-              entry.partySize <= table.capacity,
+              entry.partySize <= openSeats,
         )
         .toList();
     candidates.sort((a, b) {
-      final aWaste = table.capacity - a.partySize;
-      final bWaste = table.capacity - b.partySize;
+      final aWaste = openSeats - a.partySize;
+      final bWaste = openSeats - b.partySize;
       final waste = aWaste.compareTo(bWaste);
       if (waste != 0) return waste;
       return a.queuePosition.compareTo(b.queuePosition);

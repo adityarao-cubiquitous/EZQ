@@ -13,7 +13,7 @@ class TableGrid extends StatefulWidget {
     required this.tables,
     this.completedPartySizeFor,
     this.occupiedSinceFor,
-    this.onAvailableTableTap,
+    this.onTableRecommendationTap,
     this.onEmptySpaceTap,
     this.onMealFinished,
     this.matchingTableIds = const {},
@@ -22,7 +22,7 @@ class TableGrid extends StatefulWidget {
   final List<RestaurantTable> tables;
   final int Function(RestaurantTable table)? completedPartySizeFor;
   final DateTime? Function(RestaurantTable table)? occupiedSinceFor;
-  final void Function(RestaurantTable table)? onAvailableTableTap;
+  final void Function(RestaurantTable table)? onTableRecommendationTap;
   final VoidCallback? onEmptySpaceTap;
   final void Function(RestaurantTable table, int initialPartySize)?
   onMealFinished;
@@ -114,9 +114,10 @@ class _TableGridState extends State<TableGrid> {
                         table,
                       ),
                       occupiedSince: widget.occupiedSinceFor?.call(table),
-                      onAvailableTableTap: widget.onAvailableTableTap == null
+                      onTableRecommendationTap:
+                          widget.onTableRecommendationTap == null
                           ? null
-                          : () => widget.onAvailableTableTap!(table),
+                          : () => widget.onTableRecommendationTap!(table),
                       isHighlighted: widget.matchingTableIds.contains(table.id),
                       onMealFinished: widget.onMealFinished == null
                           ? null
@@ -218,7 +219,7 @@ class _TableCard extends StatelessWidget {
     required this.now,
     required this.initialPartySize,
     required this.occupiedSince,
-    required this.onAvailableTableTap,
+    required this.onTableRecommendationTap,
     required this.onMealFinished,
     this.isHighlighted = false,
   });
@@ -227,7 +228,7 @@ class _TableCard extends StatelessWidget {
   final DateTime now;
   final int? initialPartySize;
   final DateTime? occupiedSince;
-  final VoidCallback? onAvailableTableTap;
+  final VoidCallback? onTableRecommendationTap;
   final VoidCallback? onMealFinished;
   final bool isHighlighted;
 
@@ -244,8 +245,12 @@ class _TableCard extends StatelessWidget {
         table.status == TableStatus.occupied &&
         table.currentQueueEntryId != null &&
         onMealFinished != null;
+    final remainingSeats = table.capacity - occupiedCount;
     final canSuggestParty =
-        table.status == TableStatus.available && onAvailableTableTap != null;
+        onTableRecommendationTap != null &&
+        remainingSeats > 0 &&
+        (table.status == TableStatus.available ||
+            table.status == TableStatus.occupied);
 
     final card = AnimatedContainer(
       duration: const Duration(milliseconds: 360),
@@ -380,7 +385,7 @@ class _TableCard extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onAvailableTableTap,
+          onTap: onTableRecommendationTap,
           borderRadius: BorderRadius.circular(14),
           child: card,
         ),
