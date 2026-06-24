@@ -14,6 +14,7 @@ class TableGrid extends StatefulWidget {
     this.completedPartySizeFor,
     this.occupiedSinceFor,
     this.onAvailableTableTap,
+    this.onEmptySpaceTap,
     this.onMealFinished,
     this.matchingTableIds = const {},
   });
@@ -22,6 +23,7 @@ class TableGrid extends StatefulWidget {
   final int Function(RestaurantTable table)? completedPartySizeFor;
   final DateTime? Function(RestaurantTable table)? occupiedSinceFor;
   final void Function(RestaurantTable table)? onAvailableTableTap;
+  final VoidCallback? onEmptySpaceTap;
   final void Function(RestaurantTable table, int initialPartySize)?
   onMealFinished;
   final Set<String> matchingTableIds;
@@ -56,72 +58,82 @@ class _TableGridState extends State<TableGrid> {
   Widget build(BuildContext context) {
     final capacityGroups = _groupTablesByCapacity(widget.tables);
     final compact = Responsive.isCompact(context);
-    return Container(
-      padding: EdgeInsets.all(compact ? 14 : 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x1ABDC8D0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0F006687),
-            blurRadius: 20,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Tables by Capacity',
-            style: TextStyle(
-              fontSize: compact ? 20 : 24,
-              fontWeight: FontWeight.w800,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onEmptySpaceTap,
+      child: Container(
+        padding: EdgeInsets.all(compact ? 14 : 24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0x1ABDC8D0)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0F006687),
+              blurRadius: 20,
+              offset: Offset(0, 10),
             ),
-          ),
-          SizedBox(height: compact ? 14 : 16),
-          for (final group in capacityGroups) ...[
-            _CapacityHeader(
-              capacity: group.capacity,
-              count: group.tables.length,
-            ),
-            SizedBox(height: compact ? 8 : 10),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: group.tables.length,
-              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: compact ? 180 : 220,
-                childAspectRatio: compact ? 0.9 : 1,
-                crossAxisSpacing: compact ? 8 : 12,
-                mainAxisSpacing: compact ? 8 : 12,
-              ),
-              itemBuilder: (context, index) {
-                final table = group.tables[index];
-                return _TableCard(
-                  table: table,
-                  now: _now,
-                  initialPartySize: widget.completedPartySizeFor?.call(table),
-                  occupiedSince: widget.occupiedSinceFor?.call(table),
-                  onAvailableTableTap: widget.onAvailableTableTap == null
-                      ? null
-                      : () => widget.onAvailableTableTap!(table),
-                  isHighlighted: widget.matchingTableIds.contains(table.id),
-                  onMealFinished: widget.onMealFinished == null
-                      ? null
-                      : () => widget.onMealFinished!(
-                          table,
-                          widget.completedPartySizeFor?.call(table) ??
-                              table.capacity,
-                        ),
-                );
-              },
-            ),
-            if (group != capacityGroups.last)
-              SizedBox(height: compact ? 14 : 18),
           ],
-        ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tables by Capacity',
+              style: TextStyle(
+                fontSize: compact ? 20 : 24,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            SizedBox(height: compact ? 14 : 16),
+            for (final group in capacityGroups) ...[
+              _CapacityHeader(
+                capacity: group.capacity,
+                count: group.tables.length,
+              ),
+              SizedBox(height: compact ? 8 : 10),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: group.tables.length,
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: compact ? 180 : 220,
+                  childAspectRatio: compact ? 0.9 : 1,
+                  crossAxisSpacing: compact ? 8 : 12,
+                  mainAxisSpacing: compact ? 8 : 12,
+                ),
+                itemBuilder: (context, index) {
+                  final table = group.tables[index];
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {},
+                    child: _TableCard(
+                      table: table,
+                      now: _now,
+                      initialPartySize: widget.completedPartySizeFor?.call(
+                        table,
+                      ),
+                      occupiedSince: widget.occupiedSinceFor?.call(table),
+                      onAvailableTableTap: widget.onAvailableTableTap == null
+                          ? null
+                          : () => widget.onAvailableTableTap!(table),
+                      isHighlighted: widget.matchingTableIds.contains(table.id),
+                      onMealFinished: widget.onMealFinished == null
+                          ? null
+                          : () => widget.onMealFinished!(
+                              table,
+                              widget.completedPartySizeFor?.call(table) ??
+                                  table.capacity,
+                            ),
+                    ),
+                  );
+                },
+              ),
+              if (group != capacityGroups.last)
+                SizedBox(height: compact ? 14 : 18),
+            ],
+          ],
+        ),
       ),
     );
   }

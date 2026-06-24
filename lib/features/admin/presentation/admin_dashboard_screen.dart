@@ -163,6 +163,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       table.capacity,
                                   occupiedSinceFor: (table) =>
                                       _occupiedSinceForTable(table, queueById),
+                                  onEmptySpaceTap: _clearTableGridSelection,
                                   onAvailableTableTap: (table) =>
                                       _spotlightBestPartyForTable(
                                         context: context,
@@ -234,6 +235,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                             table,
                                             queueById,
                                           ),
+                                      onEmptySpaceTap: _clearTableGridSelection,
                                       onAvailableTableTap: (table) =>
                                           _spotlightBestPartyForTable(
                                             context: context,
@@ -483,6 +485,24 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         entry?.seatedAt ??
         entry?.reservedAt ??
         entry?.joinedAt;
+  }
+
+  void _clearTableGridSelection() {
+    if (_selectedQueueEntry == null &&
+        _spotlightQueueEntryId == null &&
+        _secondarySpotlightQueueEntryId == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedQueueEntry = null;
+      _spotlightQueueEntryId = null;
+      _spotlightLabel = null;
+      _secondarySpotlightQueueEntryId = null;
+      _secondarySpotlightLabel = null;
+      _spotlightGeneration++;
+    });
+    ScaffoldMessenger.of(context).clearSnackBars();
   }
 
   void _spotlightBestPartyForTable({
