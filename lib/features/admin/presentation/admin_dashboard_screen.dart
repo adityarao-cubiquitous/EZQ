@@ -370,6 +370,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         },
       );
       if (!context.mounted) return;
+      _clearTableGridSelection();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -624,22 +625,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required String? nextLabel,
   }) {
     if (!mounted) return;
-    final generation = ++_spotlightGeneration;
+    _spotlightGeneration++;
     setState(() {
       _selectedQueueEntry = null;
       _spotlightQueueEntryId = bestEntry.id;
       _spotlightLabel = bestLabel;
       _secondarySpotlightQueueEntryId = nextEntry?.id;
       _secondarySpotlightLabel = nextEntry == null ? null : nextLabel;
-    });
-    Future<void>.delayed(const Duration(milliseconds: 5000), () {
-      if (!mounted || generation != _spotlightGeneration) return;
-      setState(() {
-        _spotlightQueueEntryId = null;
-        _spotlightLabel = null;
-        _secondarySpotlightQueueEntryId = null;
-        _secondarySpotlightLabel = null;
-      });
     });
   }
 }
