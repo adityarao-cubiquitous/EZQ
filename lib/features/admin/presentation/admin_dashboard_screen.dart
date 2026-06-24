@@ -159,6 +159,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       queueById[table.currentQueueEntryId]
                                           ?.partySize ??
                                       table.capacity,
+                                  occupiedSinceFor: (table) =>
+                                      _occupiedSinceForTable(table, queueById),
                                   onAvailableTableTap: (table) =>
                                       _spotlightBestPartyForTable(
                                         context: context,
@@ -221,6 +223,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                           queueById[table.currentQueueEntryId]
                                               ?.partySize ??
                                           table.capacity,
+                                      occupiedSinceFor: (table) =>
+                                          _occupiedSinceForTable(
+                                            table,
+                                            queueById,
+                                          ),
                                       onAvailableTableTap: (table) =>
                                           _spotlightBestPartyForTable(
                                             context: context,
@@ -455,6 +462,17 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     if (index == -1) return null;
     if (index + 1 >= liveQueue.length) return null;
     return liveQueue[index + 1];
+  }
+
+  DateTime? _occupiedSinceForTable(
+    RestaurantTable table,
+    Map<String, QueueEntry> queueById,
+  ) {
+    final entry = queueById[table.currentQueueEntryId];
+    return entry?.tableCycleStartAt ??
+        entry?.seatedAt ??
+        entry?.reservedAt ??
+        entry?.joinedAt;
   }
 
   void _spotlightBestPartyForTable({

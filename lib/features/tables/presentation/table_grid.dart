@@ -12,6 +12,7 @@ class TableGrid extends StatefulWidget {
     super.key,
     required this.tables,
     this.completedPartySizeFor,
+    this.occupiedSinceFor,
     this.onAvailableTableTap,
     this.onMealFinished,
     this.matchingTableIds = const {},
@@ -19,6 +20,7 @@ class TableGrid extends StatefulWidget {
 
   final List<RestaurantTable> tables;
   final int Function(RestaurantTable table)? completedPartySizeFor;
+  final DateTime? Function(RestaurantTable table)? occupiedSinceFor;
   final void Function(RestaurantTable table)? onAvailableTableTap;
   final void Function(RestaurantTable table, int initialPartySize)?
   onMealFinished;
@@ -101,6 +103,7 @@ class _TableGridState extends State<TableGrid> {
                   table: table,
                   now: _now,
                   initialPartySize: widget.completedPartySizeFor?.call(table),
+                  occupiedSince: widget.occupiedSinceFor?.call(table),
                   onAvailableTableTap: widget.onAvailableTableTap == null
                       ? null
                       : () => widget.onAvailableTableTap!(table),
@@ -202,6 +205,7 @@ class _TableCard extends StatelessWidget {
     required this.table,
     required this.now,
     required this.initialPartySize,
+    required this.occupiedSince,
     required this.onAvailableTableTap,
     required this.onMealFinished,
     this.isHighlighted = false,
@@ -210,6 +214,7 @@ class _TableCard extends StatelessWidget {
   final RestaurantTable table;
   final DateTime now;
   final int? initialPartySize;
+  final DateTime? occupiedSince;
   final VoidCallback? onAvailableTableTap;
   final VoidCallback? onMealFinished;
   final bool isHighlighted;
@@ -396,7 +401,10 @@ class _TableCard extends StatelessWidget {
   int? _minutesSpent() {
     if (table.status != TableStatus.occupied) return null;
     final startedAt =
-        table.currentCycleStartAt ?? table.occupiedAt ?? table.reservedAt;
+        table.currentCycleStartAt ??
+        table.occupiedAt ??
+        table.reservedAt ??
+        occupiedSince;
     if (startedAt == null) return null;
     final minutes = now.difference(startedAt).inMinutes;
     return minutes < 0 ? 0 : minutes;
