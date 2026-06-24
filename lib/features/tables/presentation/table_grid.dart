@@ -395,7 +395,8 @@ class _TableCard extends StatelessWidget {
 
   int? _minutesSpent() {
     if (table.status != TableStatus.occupied) return null;
-    final startedAt = table.currentCycleStartAt ?? table.occupiedAt;
+    final startedAt =
+        table.currentCycleStartAt ?? table.occupiedAt ?? table.reservedAt;
     if (startedAt == null) return null;
     final minutes = now.difference(startedAt).inMinutes;
     return minutes < 0 ? 0 : minutes;
