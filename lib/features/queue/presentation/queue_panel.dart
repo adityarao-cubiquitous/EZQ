@@ -12,6 +12,8 @@ class QueuePanel extends StatelessWidget {
   const QueuePanel({
     super.key,
     required this.queue,
+    this.title = 'Live Queue',
+    this.showSearch = true,
     this.spotlightEntryId,
     this.spotlightLabel,
     this.secondarySpotlightEntryId,
@@ -24,6 +26,8 @@ class QueuePanel extends StatelessWidget {
   });
 
   final List<QueueEntry> queue;
+  final String title;
+  final bool showSearch;
   final String? spotlightEntryId;
   final String? spotlightLabel;
   final String? secondarySpotlightEntryId;
@@ -55,23 +59,25 @@ class QueuePanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Live Queue',
+            title,
             style: TextStyle(
               fontSize: compact ? 20 : 24,
               fontWeight: FontWeight.w800,
             ),
           ),
-          SizedBox(height: compact ? 12 : 16),
-          TextField(
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.search),
-              hintText: 'Search token or name',
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+          if (showSearch) ...[
+            SizedBox(height: compact ? 12 : 16),
+            TextField(
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: 'Search token or name',
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
-          ),
+          ],
           SizedBox(height: compact ? 12 : 16),
           for (final entry in queue) ...[
             Builder(
