@@ -1,6 +1,8 @@
 import '../../recommendation/domain/customer_preferences.dart';
 import 'queue_status.dart';
 
+const queueAutoExpiryMinutes = 90;
+
 class QueueEntry {
   const QueueEntry({
     required this.id,
@@ -28,6 +30,7 @@ class QueueEntry {
     this.skippedAt,
     this.cancelledAt,
     this.noShowAt,
+    this.expiredAt,
     this.completedAt,
     this.completedPartySize,
     this.tableCycleStartAt,
@@ -61,12 +64,20 @@ class QueueEntry {
   final DateTime? skippedAt;
   final DateTime? cancelledAt;
   final DateTime? noShowAt;
+  final DateTime? expiredAt;
   final DateTime? completedAt;
   final int? completedPartySize;
   final DateTime? tableCycleStartAt;
   final DateTime? tableCycleEndAt;
   final String? tableCycleSource;
   final CustomerPreferences? customerPreferences;
+
+  int waitingMinutesSince(DateTime now) =>
+      now.difference(joinedAt).inMinutes.clamp(0, 24 * 60);
+
+  bool hasExceededAutoExpiryAt(DateTime now) =>
+      status == QueueStatus.waiting &&
+      waitingMinutesSince(now) > queueAutoExpiryMinutes;
 
   factory QueueEntry.fromMap(String id, Map<String, dynamic> data) {
     DateTime? readDate(String key) {
@@ -98,24 +109,24 @@ class QueueEntry {
       estimatedWaitMinutes: data['estimatedWaitMinutes'] as int? ?? 5,
       queuePosition: data['queuePosition'] as int? ?? 1,
       extensionUsed: data['extensionUsed'] as bool? ?? false,
-      joinedAt: readDate('joinedAt') ?? DateTime.now(),
+      joinedAt: readDate('joinedAt') ?? readDate('createdAt') ?? DateTime.now(),
       reservedAt: readDate('reservedAt'),
       onTheWayAt: readDate('onTheWayAt'),
       seatedAt: readDate('seatedAt'),
       skippedAt: readDate('skippedAt'),
       cancelledAt: readDate('cancelledAt'),
       noShowAt: readDate('noShowAt'),
+      expiredAt: readDate('expiredAt'),
       completedAt: readDate('completedAt'),
       completedPartySize: data['completedPartySize'] as int?,
       tableCycleStartAt: readDate('tableCycleStartAt'),
       tableCycleEndAt: readDate('tableCycleEndAt'),
       tableCycleSource: data['tableCycleSource'] as String?,
-      customerPreferences:
-          data['customerPreferences'] is Map<String, dynamic>
-              ? CustomerPreferences.fromMap(
-                  data['customerPreferences'] as Map<String, dynamic>,
-                )
-              : null,
+      customerPreferences: data['customerPreferences'] is Map<String, dynamic>
+          ? CustomerPreferences.fromMap(
+              data['customerPreferences'] as Map<String, dynamic>,
+            )
+          : null,
     );
   }
 
@@ -144,6 +155,7 @@ class QueueEntry {
     'skippedAt': skippedAt?.toIso8601String(),
     'cancelledAt': cancelledAt?.toIso8601String(),
     'noShowAt': noShowAt?.toIso8601String(),
+    'expiredAt': expiredAt?.toIso8601String(),
     'completedAt': completedAt?.toIso8601String(),
     'completedPartySize': completedPartySize,
     'tableCycleStartAt': tableCycleStartAt?.toIso8601String(),
@@ -185,6 +197,7 @@ class QueueEntry {
       skippedAt: skippedAt,
       cancelledAt: cancelledAt,
       noShowAt: noShowAt,
+      expiredAt: expiredAt,
       completedAt: completedAt,
       completedPartySize: completedPartySize,
       tableCycleStartAt: tableCycleStartAt,
@@ -193,4 +206,20 @@ class QueueEntry {
       customerPreferences: customerPreferences,
     );
   }
+}
+
+int compareQueueEntriesByFifo(QueueEntry a, QueueEntry b) {
+  final joinedAt = a.joinedAt.compareTo(b.joinedAt);
+  if (joinedAt != 0) return joinedAt;
+
+  final tokenNumber = a.tokenNumber.compareTo(b.tokenNumber);
+  if (tokenNumber != 0) return tokenNumber;
+
+  final queuePosition = a.queuePosition.compareTo(b.queuePosition);
+  if (queuePosition != 0) return queuePosition;
+
+  final tokenCode = a.tokenCode.compareTo(b.tokenCode);
+  if (tokenCode != 0) return tokenCode;
+
+  return a.id.compareTo(b.id);
 }

@@ -6,7 +6,8 @@ enum QueueStatus {
   completed,
   skipped,
   cancelled,
-  noShow;
+  noShow,
+  expired;
 
   String get wireName => switch (this) {
     QueueStatus.waiting => 'waiting',
@@ -17,6 +18,7 @@ enum QueueStatus {
     QueueStatus.skipped => 'skipped',
     QueueStatus.cancelled => 'cancelled',
     QueueStatus.noShow => 'no_show',
+    QueueStatus.expired => 'expired',
   };
 
   static QueueStatus fromWireName(String? value) {
@@ -33,6 +35,7 @@ enum QueueStatus {
         QueueStatus.seated,
         QueueStatus.skipped,
         QueueStatus.cancelled,
+        QueueStatus.expired,
       }.contains(next),
       QueueStatus.reserved => {
         QueueStatus.onTheWay,
@@ -49,7 +52,8 @@ enum QueueStatus {
       QueueStatus.completed ||
       QueueStatus.skipped ||
       QueueStatus.cancelled ||
-      QueueStatus.noShow => false,
+      QueueStatus.noShow ||
+      QueueStatus.expired => false,
     };
   }
 
@@ -61,6 +65,7 @@ enum QueueStatus {
     QueueStatus.completed ||
     QueueStatus.skipped ||
     QueueStatus.cancelled ||
-    QueueStatus.noShow => false,
+    QueueStatus.noShow ||
+    QueueStatus.expired => false,
   };
 }

@@ -16,7 +16,8 @@ type QueueStatus =
   | "seated"
   | "skipped"
   | "cancelled"
-  | "no_show";
+  | "no_show"
+  | "expired";
 
 type TableStatus = "available" | "reserved" | "occupied" | "blocked";
 
@@ -187,6 +188,8 @@ async function createQueueEntry(input: JoinQueueInput, sessionType: string) {
       seatedAt: null,
       skippedAt: null,
       cancelledAt: null,
+      expiredAt: null,
+      autoExpiredReason: null,
       noShowAt: null,
       updatedAt: FieldValue.serverTimestamp(),
     });

@@ -45,6 +45,30 @@ class CustomerQueueStatusScreen extends ConsumerWidget {
       queueEntryId: queueEntryId,
       child: queueEntry.when(
         data: (entry) {
+          final expired =
+              entry.status == QueueStatus.expired ||
+              entry.hasExceededAutoExpiryAt(DateTime.now());
+          if (entry.hasExceededAutoExpiryAt(DateTime.now())) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ref
+                  .read(customerQueueRepositoryProvider)
+                  .expireQueueEntry(
+                    restaurantId: restaurantId,
+                    branchId: branchId,
+                    queueEntryId: queueEntryId,
+                    phone: entry.phone,
+                  );
+            });
+          }
+          if (expired) {
+            return _StatusContent(
+              restaurantId: restaurantId,
+              branchId: branchId,
+              queueEntryId: queueEntryId,
+              entry: entry,
+              expired: true,
+            );
+          }
           if (entry.status == QueueStatus.reserved ||
               entry.status == QueueStatus.onTheWay) {
             return _StatusContent(
@@ -86,6 +110,7 @@ class _StatusContent extends ConsumerWidget {
     required this.entry,
     this.ready = false,
     this.seated = false,
+    this.expired = false,
   });
 
   final String restaurantId;
@@ -94,6 +119,7 @@ class _StatusContent extends ConsumerWidget {
   final QueueEntry entry;
   final bool ready;
   final bool seated;
+  final bool expired;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -105,15 +131,28 @@ class _StatusContent extends ConsumerWidget {
             _InlineReadyCard(entry: entry)
           else if (seated)
             _InlineSeatedCard(entry: entry)
+          else if (expired)
+            _AutoExpiredCard(entry: entry)
           else
             _QueueStatusCard(entry: entry),
-          const SizedBox(height: 14),
-          _StatusActions(
-            restaurantId: restaurantId,
-            branchId: branchId,
-            queueEntryId: queueEntryId,
-            entry: entry,
-          ),
+          if (!expired) ...[
+            const SizedBox(height: 14),
+            _StatusActions(
+              restaurantId: restaurantId,
+              branchId: branchId,
+              queueEntryId: queueEntryId,
+              entry: entry,
+            ),
+          ] else ...[
+            const SizedBox(height: 14),
+            EzqButton(
+              label: 'Join Queue Again',
+              icon: Icons.refresh_rounded,
+              onPressed: () => context.go('/customer/$restaurantId/$branchId'),
+            ),
+            const SizedBox(height: 14),
+            const _InlinePoweredBy(),
+          ],
           const SizedBox(height: 116),
         ],
       ),
@@ -183,6 +222,89 @@ class _StatusActions extends ConsumerWidget {
         const SizedBox(height: 14),
         _HiddenObjectImageCard(restaurantId: restaurantId, branchId: branchId),
       ],
+    );
+  }
+}
+
+class _AutoExpiredCard extends StatelessWidget {
+  const _AutoExpiredCard({required this.entry});
+
+  final QueueEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final waitedMinutes = entry.waitingMinutesSince(DateTime.now());
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x26BA1A1A)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1412A9DC),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF1F1),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              Icons.timer_off_rounded,
+              color: Color(0xFFBA1A1A),
+              size: 32,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '${entry.tokenCode} exited the queue',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.navyText,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              height: 1.15,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'You have exited the queue automatically because your waiting time exceeded $queueAutoExpiryMinutes minutes.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF607D8B),
+              fontSize: 15,
+              height: 1.45,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.softSurface,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: const Color(0x1A006687)),
+            ),
+            child: Text(
+              'Waited $waitedMinutes min',
+              style: const TextStyle(
+                color: AppColors.deepTeal,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

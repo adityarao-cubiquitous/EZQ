@@ -17,6 +17,7 @@ class TableGrid extends StatefulWidget {
     this.onEmptySpaceTap,
     this.onMealFinished,
     this.matchingTableIds = const {},
+    this.tableHighlightTones = const {},
   });
 
   final List<RestaurantTable> tables;
@@ -27,6 +28,7 @@ class TableGrid extends StatefulWidget {
   final void Function(RestaurantTable table, int initialPartySize)?
   onMealFinished;
   final Set<String> matchingTableIds;
+  final Map<String, TableHighlightTone> tableHighlightTones;
 
   @override
   State<TableGrid> createState() => _TableGridState();
@@ -118,7 +120,11 @@ class _TableGridState extends State<TableGrid> {
                           widget.onTableRecommendationTap == null
                           ? null
                           : () => widget.onTableRecommendationTap!(table),
-                      isHighlighted: widget.matchingTableIds.contains(table.id),
+                      highlightTone:
+                          widget.tableHighlightTones[table.id] ??
+                          (widget.matchingTableIds.contains(table.id)
+                              ? TableHighlightTone.best
+                              : null),
                       onMealFinished: widget.onMealFinished == null
                           ? null
                           : () => widget.onMealFinished!(
@@ -159,6 +165,8 @@ class _TableGridState extends State<TableGrid> {
     return groups;
   }
 }
+
+enum TableHighlightTone { best, nextBest }
 
 class _CapacityGroup {
   _CapacityGroup({required this.capacity, required this.tables});
@@ -221,7 +229,7 @@ class _TableCard extends StatelessWidget {
     required this.occupiedSince,
     required this.onTableRecommendationTap,
     required this.onMealFinished,
-    this.isHighlighted = false,
+    this.highlightTone,
   });
 
   final RestaurantTable table;
@@ -230,7 +238,7 @@ class _TableCard extends StatelessWidget {
   final DateTime? occupiedSince;
   final VoidCallback? onTableRecommendationTap;
   final VoidCallback? onMealFinished;
-  final bool isHighlighted;
+  final TableHighlightTone? highlightTone;
 
   @override
   Widget build(BuildContext context) {
@@ -239,6 +247,8 @@ class _TableCard extends StatelessWidget {
         ? 0
         : initialPartySize ?? table.capacity;
     final color = _tableColor(occupiedCount);
+    final highlightColor = _highlightColor();
+    final highlightLabel = _highlightLabel();
     final statusLabel = _statusLabel(occupiedCount);
     final minutesSpent = _minutesSpent();
     final canFinishMeal =
@@ -255,15 +265,13 @@ class _TableCard extends StatelessWidget {
     final card = AnimatedContainer(
       duration: const Duration(milliseconds: 360),
       curve: Curves.easeOutCubic,
-      padding: EdgeInsets.all(compact ? 10 : 14),
+      padding: EdgeInsets.all(compact ? 8 : 10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isHighlighted
-              ? AppColors.accentPurple
-              : color.withValues(alpha: 0.35),
-          width: isHighlighted ? 2 : 1,
+          color: highlightColor ?? color.withValues(alpha: 0.35),
+          width: highlightTone == null ? 1 : 2,
         ),
       ),
       child: Column(
@@ -284,19 +292,26 @@ class _TableCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  if (highlightLabel != null) ...[
+                    _TableHighlightPill(
+                      label: highlightLabel,
+                      color: highlightColor!,
+                    ),
+                    SizedBox(height: compact ? 3 : 4),
+                  ],
                   _TableMetricPill(
                     label: 'Cap',
                     value: table.capacity,
                     color: color,
                   ),
-                  SizedBox(height: compact ? 4 : 5),
+                  SizedBox(height: compact ? 3 : 4),
                   _TableMetricPill(
                     label: 'Occ',
                     value: occupiedCount,
                     color: color,
                   ),
                   if (minutesSpent != null) ...[
-                    SizedBox(height: compact ? 4 : 5),
+                    SizedBox(height: compact ? 3 : 4),
                     _TableMetricPill(
                       label: 'Time',
                       value: minutesSpent,
@@ -405,6 +420,22 @@ class _TableCard extends StatelessWidget {
     };
   }
 
+  Color? _highlightColor() {
+    return switch (highlightTone) {
+      TableHighlightTone.best => AppColors.successGreen,
+      TableHighlightTone.nextBest => AppColors.accentPurple,
+      null => null,
+    };
+  }
+
+  String? _highlightLabel() {
+    return switch (highlightTone) {
+      TableHighlightTone.best => 'Best',
+      TableHighlightTone.nextBest => 'Next',
+      null => null,
+    };
+  }
+
   String _statusLabel(int occupiedCount) {
     return switch (table.status) {
       TableStatus.available => 'available',
@@ -425,6 +456,33 @@ class _TableCard extends StatelessWidget {
     if (startedAt == null) return null;
     final minutes = now.difference(startedAt).inMinutes;
     return minutes < 0 ? 0 : minutes;
+  }
+}
+
+class _TableHighlightPill extends StatelessWidget {
+  const _TableHighlightPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
   }
 }
 

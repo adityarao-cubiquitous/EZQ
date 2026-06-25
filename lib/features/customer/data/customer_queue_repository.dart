@@ -76,6 +76,13 @@ abstract class CustomerQueueRepository {
     required String queueEntryId,
     required String phone,
   });
+
+  Future<void> expireQueueEntry({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+    required String phone,
+  });
 }
 
 class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
@@ -233,6 +240,37 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     );
   }
 
+  @override
+  Future<void> expireQueueEntry({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+    required String phone,
+  }) async {
+    final entryRef = _firestore.doc(
+      FirestorePaths.queueEntry(restaurantId, branchId, queueEntryId),
+    );
+    await _firestore.runTransaction<void>((transaction) async {
+      final snapshot = await transaction.get(entryRef);
+      if (!snapshot.exists) {
+        throw StateError('Queue entry not found.');
+      }
+      if (snapshot.data()?['phone'] != PhoneUtils.normalizeIndiaMobile(phone)) {
+        throw StateError('Phone number does not match this queue entry.');
+      }
+      if (QueueStatus.fromWireName(snapshot.data()?['status'] as String?) !=
+          QueueStatus.waiting) {
+        return;
+      }
+      transaction.update(entryRef, {
+        'status': QueueStatus.expired.wireName,
+        'expiredAt': FieldValue.serverTimestamp(),
+        'autoExpiredReason': 'WAIT_EXCEEDED_90_MINUTES',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
   Future<void> _updateOwnedQueueEntry({
     required String restaurantId,
     required String branchId,
@@ -344,13 +382,25 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
     _entry = _entry.copyWith(status: QueueStatus.cancelled);
     _controller.add(_entry);
   }
+
+  @override
+  Future<void> expireQueueEntry({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+    required String phone,
+  }) async {
+    _entry = _entry.copyWith(status: QueueStatus.expired);
+    _controller.add(_entry);
+  }
 }
 
 final customerQueueRepositoryProvider = Provider<CustomerQueueRepository>((
   ref,
 ) {
   const useFirebase = bool.fromEnvironment('USE_FIREBASE');
-  if (useFirebase) {
+  const useEmulator = bool.fromEnvironment('USE_EMULATOR');
+  if (useFirebase || useEmulator) {
     return FirebaseCustomerQueueRepository();
   }
   return MockCustomerQueueRepository();
