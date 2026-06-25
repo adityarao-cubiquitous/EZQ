@@ -85,6 +85,36 @@ Table color coding:
 - Partially occupied tables use warning/amber.
 - Fully occupied tables use red.
 
+## Built Feature Snapshot
+
+Customer-facing features currently documented as built:
+
+- Guest queue join from `/customer/:restaurantSlug/:branchSlug`.
+- Join form with name, phone, exact party size, and optional notes.
+- Live queue status with token, party size, queue position, and remaining wait.
+- Customer seated/table-assigned status after manager seating.
+- Customer cancellation while waiting.
+- Menu PDF viewing from branch configuration.
+- Customer support screen.
+- Customer shell with EZQ header, app install shortcut, bottom tabs, powered-by branding, sponsored ad slot, and waiting-game placeholder.
+
+Manager/admin features currently documented as built:
+
+- Firebase email/password manager login.
+- Branch dashboard with live Firestore-backed tables and queue.
+- Tables grouped/sorted by capacity with capacity, occupied count, status, and token display.
+- Queue cards with token, customer, party size, wait duration, joined time, reserve, and skip actions.
+- Reserve flow with fitting available-table picker and direct queue `seated` / table `occupied` update.
+- Occupied table finish-meal flow with completed party size capture and lifecycle timestamp recording.
+- Walk-in queue entry dialog.
+- Daily summary/report entry point from the dashboard.
+
+Platform/backend features currently documented as built:
+
+- Firebase Hosting, Auth, Firestore rules, indexes, and Cloud Functions source are present.
+- Demo seed data and Firestore smoke test scripts live in `tool/`.
+- Cloud Functions remain the production-hardening path even where current app flows use direct Firestore transactions.
+
 ## Repository Shape
 
 - `lib/`: Flutter app source.
@@ -98,6 +128,8 @@ Table color coding:
 - `tool/`: local scripts for seeding, smoke tests, PDF generation, and local SPA serving.
 - `web/`: Flutter web shell and public web assets.
 - `assets/brand/`: bundled brand assets.
+- `docs/EZQ_UI_DESIGN_HANDOUT.md`: current product/UI handout source, including built features, functional requirements, and user stories.
+- `docs/EZQ_UI_DESIGN_HANDOUT.pdf`: generated shareable version of the handout.
 
 ## Common Commands
 
@@ -126,6 +158,22 @@ Run Firestore smoke test:
 ```sh
 node tool/e2e_firestore_smoke.mjs ezq-dev-cubiquitous
 ```
+
+Regenerate the UI design handout PDF after editing `docs/EZQ_UI_DESIGN_HANDOUT.md`:
+
+```sh
+python3 tool/generate_ui_design_handout_pdf.py
+```
+
+When working inside Codex desktop, prefer the bundled Python runtime if local Python is missing PDF dependencies.
+
+## Product Documentation Notes
+
+- Keep `docs/EZQ_UI_DESIGN_HANDOUT.md` aligned with implemented behavior when changing customer, manager, routing, table lifecycle, or reporting behavior.
+- The handout includes the current feature list, functional requirements, and user stories; update those sections when adding or removing meaningful product capabilities.
+- Regenerate `docs/EZQ_UI_DESIGN_HANDOUT.pdf` from the Markdown source after handout edits.
+- The PDF generator is `tool/generate_ui_design_handout_pdf.py` and uses ReportLab plus screenshot assets under `docs/screenshots/`.
+- Do not hand-edit generated PDF bytes; change the Markdown and rerun the generator.
 
 ## Local App Notes
 

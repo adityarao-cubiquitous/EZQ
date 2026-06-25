@@ -1,13 +1,13 @@
 # EZQ UI Design Handout
 
-Last updated: June 22, 2026
+Last updated: June 25, 2026
 
 ## 1. Product Experience
 
 EZQ is a mobile-first restaurant queue management experience for two audiences:
 
-- Customers: join a queue from a QR/web link, track their place, view the menu, get notified when the table is ready, and stay engaged while waiting.
-- Managers: view table availability, reserve the right table for a party, monitor wait duration, mark meals finished, and track daily flow.
+- Customers: join a queue from a QR/web link, track their place, see remaining wait, view the uploaded menu PDF, use support, and stay engaged while waiting.
+- Managers: view table availability, seat the right table for a party, monitor wait duration, finish meals, and track table lifecycle timestamps.
 
 The design direction is clean, calm, and iOS-inspired: high clarity, restrained surfaces, soft depth, compact spacing, large touch targets, and a small number of meaningful status colors.
 
@@ -64,7 +64,7 @@ The manager dashboard uses a capacity-first table grid and a live queue panel. Q
 | Cubiquitous Mint | `#CDFFD8` | Soft progress, gentle backgrounds |
 | Cubiquitous Aqua | `#B0DCEB` | Borders, dividers, soft surfaces |
 | Cubiquitous Sky | `#94B9FF` | Subtle progress and secondary accents |
-| Tracura Purple | `#8461F4` | Waiting metric, reserved/tertiary accent |
+| Tracura Purple | `#8461F4` | Waiting metric and tertiary accent |
 | Tracura Cyan | `#81D8E5` | Secondary accent, light active surfaces |
 | Primary Teal | `#18AFC5` | Primary action, available tables |
 | Deep Teal | `#006B7A` | Strong text accent, icon emphasis |
@@ -85,9 +85,9 @@ The manager dashboard uses a capacity-first table grid and a live queue panel. Q
 | State | Color Rule |
 | --- | --- |
 | Available table | Primary teal |
-| Reserved table | Accent purple |
 | Partially occupied table | Warning orange |
 | Fully occupied table | Error red |
+| Legacy reserved table | Accent purple, compatibility only |
 | Blocked table | Grey |
 | Waiting queue count | Accent purple |
 | Free table count | Primary teal |
@@ -202,9 +202,9 @@ Primary job: clearly show where the customer stands.
 Core states:
 
 - Waiting.
-- Reserved/table ready.
 - Seated.
 - Cancelled.
+- Legacy reserved/table ready.
 
 Waiting state content:
 
@@ -226,7 +226,7 @@ Wait display rules:
 - Use an hourglass icon/animation treatment near estimated wait.
 - Keep this card compact; avoid using excessive vertical space for small metadata.
 
-Table ready state:
+Legacy table ready state:
 
 - Make the readiness message prominent.
 - Show assigned table number when available.
@@ -333,10 +333,10 @@ Table statuses:
 - `available`: empty table.
 - `partial`: occupied below capacity.
 - `full`: occupied at capacity.
-- `reserved`: reserved state exists in model but the live seating flow now moves directly to occupied.
+- `reserved`: legacy compatibility state only; the live seating flow moves directly to occupied.
 - `blocked`: non-service table.
 
-Cleaning is intentionally removed from the workflow.
+Cleaning is intentionally removed from the workflow. Legacy `cleaning` data should be treated as available.
 
 ### Live Queue
 
@@ -358,8 +358,8 @@ Reserve behavior:
 - Manager clicks `Reserve`.
 - App asks for table selection from a picklist of fitting available tables.
 - Free-text table entry is avoided to reduce manual errors.
-- Once selected, the queue entry is updated and the table becomes occupied directly.
-- Customer status updates to their turn/table-ready flow.
+- Once selected, the queue entry becomes seated and the table becomes occupied directly.
+- Customer status updates to the seated/table-assigned flow.
 
 Skip behavior:
 
@@ -402,7 +402,6 @@ Current reporting concepts:
 - Total seated.
 - Waiting now.
 - Skipped.
-- No-show.
 - Cancelled.
 - Peak queue size.
 
@@ -527,16 +526,16 @@ Recommended Figma component set:
 
 Customer:
 
-- `/customer/:restaurantId/:branchId`
-- `/customer/:restaurantId/:branchId/status/:queueEntryId`
-- `/customer/:restaurantId/:branchId/menu?queueEntryId=:queueEntryId`
-- `/customer/:restaurantId/:branchId/support`
+- `/customer/:restaurantSlug/:branchSlug`
+- `/customer/:restaurantSlug/:branchSlug/status/:queueEntryId`
+- `/customer/:restaurantSlug/:branchSlug/menu?queueEntryId=:queueEntryId`
+- `/customer/:restaurantSlug/:branchSlug/support`
 - `/customer/install`
 
 Manager:
 
 - `/admin/login`
-- `/admin/:restaurantId/:branchId/dashboard`
+- `/admin/:restaurantSlug/:branchSlug/dashboard`
 - Daily summary from dashboard reports icon.
 
 ## 14. Design Decisions Already Made
@@ -544,15 +543,140 @@ Manager:
 - Customer web app does not require email authentication.
 - Manager login is email/password based.
 - Reserve flow uses table picklist, not free-text input.
-- Reserve moves directly to occupied; mark seated step is removed.
-- Cleaning state is removed.
+- Reserve seats the party immediately, sets the table to occupied, and records assignment timestamps.
+- Mark seated step is removed.
+- Active table statuses are `available` and `occupied`; `reserved` remains legacy-compatible and `cleaning` maps to available.
 - Table cards show capacity and occupied count.
 - Tables are sorted and grouped by capacity.
+- Finishing a meal captures completed party size and records table cycle timestamps.
 - Queue cards show how long the party has waited and what time they joined.
 - Customer status includes ad space and hidden-object puzzle placeholder.
 - Cubiquitous branding appears in powered-by placement.
 
-## 15. Open UI Backlog
+## 15. Feature List Built So Far
+
+Customer features:
+
+- Guest join queue from restaurant branch URL.
+- Customer join form with name, mobile number, party size, and optional notes.
+- Exact party size selection from 1 to 20.
+- Live customer status screen with token, party size, queue position, and remaining wait.
+- Customer seated/table-assigned state after manager seating.
+- Customer cancellation action while waiting.
+- Uploaded menu PDF viewing from branch configuration.
+- Customer support screen.
+- Customer shell with EZQ header, app install shortcut, and bottom tabs after queue entry exists.
+- Powered by Cubiquitous branding.
+- Sponsored ad slot on the waiting status screen.
+- Hidden-object waiting-game image placeholder with backend-driven image URL.
+
+Manager features:
+
+- Firebase email/password manager login.
+- Branch dashboard route for a selected restaurant and branch.
+- Live table grid backed by Firestore streams.
+- Tables grouped and sorted by capacity.
+- Table tiles showing table number, status, capacity, occupied count, and token when linked.
+- Live queue panel backed by Firestore streams.
+- Queue cards showing token, customer, party size, wait duration, joined time, and actions.
+- Reserve action that opens a fitting available-table picker.
+- Direct seating flow that sets queue entry to seated and table to occupied.
+- Skip action for waiting queue entries.
+- Finish meal action on occupied tables.
+- Completed party size capture when finishing a meal.
+- Table lifecycle timestamp recording for cycle start and cycle end.
+- Walk-in dialog for manually adding a queue entry.
+- Daily summary/report entry point from dashboard.
+
+Platform and backend features:
+
+- Firebase Hosting configured for Flutter web.
+- Firestore data model for restaurants, branches, tables, queue entries, and daily counters.
+- Firebase Auth integrated for manager accounts.
+- Firestore rules and indexes maintained in the repository.
+- Seed script for demo restaurant data.
+- Firestore smoke test script for core queue/table flows.
+- Cloud Functions source present for production hardening path.
+- Flutter web build configured with Firebase runtime define.
+
+## 16. Functional Requirements Covered
+
+Customer flow:
+
+- The system shall allow a customer to join a restaurant branch queue without creating an account.
+- The system shall collect customer name, phone number, exact party size, and optional notes.
+- The system shall create a queue entry with waiting status and a token code.
+- The system shall show the customer their queue position and estimated remaining wait.
+- The system shall keep the active queue entry available across status, menu, and support navigation.
+- The system shall allow a waiting customer to cancel their queue entry.
+- The system shall show the assigned table once the manager seats the party.
+- The system shall show the restaurant menu PDF when the branch has a menu URL configured.
+- The system shall show a pending menu state when no menu PDF is configured.
+- The system shall display non-blocking waiting engagement content below the core status information.
+
+Manager flow:
+
+- The system shall require manager login before accessing the admin dashboard.
+- The system shall show live waiting queue entries for the selected branch.
+- The system shall show live table availability for the selected branch.
+- The system shall group tables by capacity and sort them for fast scanning.
+- The system shall allow a manager to reserve a waiting party only by selecting an available table that can fit the party.
+- The system shall avoid free-text table assignment in the reserve flow.
+- The system shall immediately mark the selected queue entry as seated and the selected table as occupied.
+- The system shall store assigned table details on the queue entry.
+- The system shall store current queue linkage on the occupied table.
+- The system shall allow a manager to skip a waiting party.
+- The system shall allow a manager to finish a meal from an occupied table.
+- The system shall capture completed party size when a meal is finished.
+- The system shall return the table to available after the meal is finished.
+- The system shall mark the queue entry completed after the meal is finished.
+- The system shall record table cycle timestamps for reporting.
+
+Operational requirements:
+
+- The system shall treat active table statuses as `available` and `occupied`.
+- The system shall keep `reserved` compatible as a legacy/transitional state.
+- The system shall treat legacy `cleaning` table data as available.
+- The system shall keep customer-facing flows safe-area aware on mobile devices.
+- The system shall keep manager dashboard layouts usable across phone, tablet, and desktop widths.
+- The system shall keep Cloud Functions source aligned with app behavior for future backend hardening.
+
+## 17. User Stories
+
+Customer user stories:
+
+- As a walk-in customer, I want to scan a QR link and join the queue without creating an account so I can start waiting quickly.
+- As a customer, I want to enter my party size exactly so the restaurant can assign a suitable table.
+- As a customer, I want to see my token and queue position so I know my place in line.
+- As a customer, I want to see my remaining wait time so I can decide whether to stay nearby.
+- As a customer, I want to open the menu while waiting so I can decide what to order before being seated.
+- As a customer, I want to cancel my queue entry if my plans change so the restaurant queue stays accurate.
+- As a customer, I want to see my assigned table when I am seated so I know where to go.
+- As a customer, I want support access during the wait so I can contact staff if I need help.
+- As a waiting customer, I want light engagement content so the waiting screen feels useful rather than empty.
+
+Manager user stories:
+
+- As a manager, I want to log in securely so only staff can manage the queue.
+- As a manager, I want to see all waiting parties live so I can decide who to seat next.
+- As a manager, I want to see tables grouped by capacity so I can quickly find a good fit.
+- As a manager, I want to assign a party from a list of available fitting tables so I avoid table-number mistakes.
+- As a manager, I want the reserve action to seat the party immediately so I do not need a second mark-seated step.
+- As a manager, I want occupied table tiles to show token and party occupancy so I can understand current floor usage.
+- As a manager, I want to finish a meal from the table tile so I can free the table for the next party.
+- As a manager, I want to record how many guests finished so reports match actual service.
+- As a manager, I want to skip a waiting customer so the live queue stays actionable when someone is unavailable.
+- As a manager, I want dashboard metrics for free, occupied, and waiting counts so I can monitor pressure at a glance.
+- As a manager, I want a walk-in dialog so staff can add guests who did not use the QR flow.
+
+Admin and operator user stories:
+
+- As an operator, I want seeded demo data so I can test the app without manually building a restaurant branch.
+- As an operator, I want smoke tests for Firestore flows so I can verify queue and table behavior after changes.
+- As a product owner, I want menu and waiting-game media fields in branch configuration so content can be managed per location.
+- As a product owner, I want lifecycle timestamps stored so future reports can measure seating and table turnover.
+
+## 18. Open UI Backlog
 
 - Add backend upload UI for menu PDF.
 - Add backend upload UI for hidden-object puzzle image.
