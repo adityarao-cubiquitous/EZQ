@@ -39,11 +39,37 @@ class FirebaseQueueRepository implements QueueRepository {
         .collection(FirestorePaths.queueEntries(restaurantId, branchId))
         .orderBy('joinedAt')
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
+        .map((snapshot) {
+          final entries = snapshot.docs
               .map((doc) => QueueEntry.fromMap(doc.id, doc.data()))
-              .toList(),
-        );
+              .toList();
+          _expireTimedOutEntries(
+            restaurantId: restaurantId,
+            branchId: branchId,
+            entries: entries,
+          );
+          entries.sort(compareQueueEntriesByFifo);
+          return entries;
+        });
+  }
+
+  void _expireTimedOutEntries({
+    required String restaurantId,
+    required String branchId,
+    required List<QueueEntry> entries,
+  }) {
+    final now = DateTime.now();
+    for (final entry in entries) {
+      if (!entry.hasExceededAutoExpiryAt(now)) continue;
+      _firestore
+          .doc(FirestorePaths.queueEntry(restaurantId, branchId, entry.id))
+          .update({
+            'status': QueueStatus.expired.wireName,
+            'expiredAt': FieldValue.serverTimestamp(),
+            'autoExpiredReason': 'WAIT_EXCEEDED_90_MINUTES',
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+    }
   }
 
   @override
@@ -115,7 +141,7 @@ class MockQueueRepository implements QueueRepository {
         extensionUsed: false,
         joinedAt: DateTime.now().subtract(const Duration(minutes: 24)),
       ),
-    ];
+    ]..sort(compareQueueEntriesByFifo);
   }
 
   @override

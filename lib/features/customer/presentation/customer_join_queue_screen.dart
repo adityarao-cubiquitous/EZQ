@@ -9,7 +9,10 @@ import '../../../core/widgets/ezq_button.dart';
 import '../../../core/widgets/ezq_text_field.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../core/utils/validators.dart';
+import '../../recommendation/domain/customer_preferences.dart';
+import '../../recommendation/domain/recommendation_types.dart';
 import '../data/customer_queue_repository.dart';
+import '../domain/seating_preference_service.dart';
 import 'customer_shell.dart';
 import 'restaurant_logo.dart';
 
@@ -35,7 +38,17 @@ class _CustomerJoinQueueScreenState
   final _phoneController = TextEditingController(text: '98765 43210');
   final _notesController = TextEditingController();
   int _partySize = 4;
+  bool _emptyTableOnly = false;
   bool _submitting = false;
+  late SeatingEta _eta;
+
+  @override
+  void initState() {
+    super.initState();
+    _eta = ref
+        .read(seatingPreferenceServiceProvider)
+        .computeEtaEstimate(partySize: _partySize);
+  }
 
   @override
   void dispose() {
@@ -45,8 +58,154 @@ class _CustomerJoinQueueScreenState
     super.dispose();
   }
 
+  void _onPartySizeChanged(int value) {
+    setState(() {
+      _partySize = value;
+      if (value > 6) _emptyTableOnly = false;
+      _eta = ref
+          .read(seatingPreferenceServiceProvider)
+          .computeEtaEstimate(partySize: value);
+    });
+  }
+
+  // Returns null if the user cancelled (do not join).
+  Future<CustomerPreferences?> _resolveSeatingPreference() async {
+    final now = DateTime.now();
+
+    final canChooseEmptyTable = _partySize <= 6;
+
+    if (!canChooseEmptyTable || !_emptyTableOnly) {
+      return CustomerPreferences(
+        seatingPreference: SeatingPreference.anyAvailable,
+        acceptedLongerWait: false,
+        etaShared: _eta.sharedMinutes,
+        etaEmptyTable: _eta.emptyTableMinutes,
+        selectedAt: now,
+      );
+    }
+
+    final confirmed = await _showEmptyTableConfirmDialog();
+    if (!mounted || confirmed == null) return null;
+
+    if (confirmed) {
+      return CustomerPreferences(
+        seatingPreference: SeatingPreference.emptyTableOnly,
+        acceptedLongerWait: true,
+        etaShared: _eta.sharedMinutes,
+        etaEmptyTable: _eta.emptyTableMinutes,
+        selectedAt: now,
+      );
+    }
+
+    // User chose "Allow Shared Seating" in the confirmation dialog.
+    setState(() => _emptyTableOnly = false);
+    return CustomerPreferences(
+      seatingPreference: SeatingPreference.anyAvailable,
+      acceptedLongerWait: false,
+      etaShared: _eta.sharedMinutes,
+      etaEmptyTable: _eta.emptyTableMinutes,
+      selectedAt: now,
+    );
+  }
+
+  // Returns true  → Wait for Empty Table
+  //         false → Allow Shared Seating
+  //         null  → Cancel
+  Future<bool?> _showEmptyTableConfirmDialog() {
+    final eta = _eta;
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+        contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        title: const Row(
+          children: [
+            Icon(
+              Icons.schedule_rounded,
+              color: AppColors.warningOrange,
+              size: 22,
+            ),
+            SizedBox(width: 8),
+            Text(
+              'You may wait longer',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        content: Text(
+          'Waiting for an exclusively empty table typically takes '
+          '~${eta.emptyTableMinutes} min, compared to ~${eta.sharedMinutes} min '
+          'for shared seating.',
+          style: const TextStyle(
+            fontSize: 14,
+            height: 1.55,
+            color: Color(0xFF3E484F),
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.start,
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.deepTeal,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Wait for Empty Table',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.deepTeal,
+                side: const BorderSide(color: AppColors.line),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Allow Shared Seating',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.mutedText,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+              child: const Text('Cancel'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _joinQueue() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final prefs = await _resolveSeatingPreference();
+    if (!mounted || prefs == null) return;
+
     setState(() => _submitting = true);
     final repository = ref.read(customerQueueRepositoryProvider);
     final result = await repository.joinQueue(
@@ -57,6 +216,7 @@ class _CustomerJoinQueueScreenState
         phone: _phoneController.text,
         partySize: _partySize,
         notes: _notesController.text,
+        customerPreferences: prefs,
       ),
     );
     if (!mounted) return;
@@ -85,7 +245,11 @@ class _CustomerJoinQueueScreenState
               phoneController: _phoneController,
               notesController: _notesController,
               partySize: _partySize,
-              onPartySizeChanged: (value) => setState(() => _partySize = value),
+              onPartySizeChanged: _onPartySizeChanged,
+              emptyTableOnly: _emptyTableOnly,
+              onEmptyTableOnlyChanged: (v) =>
+                  setState(() => _emptyTableOnly = v),
+              eta: _eta,
               onJoin: _submitting ? null : _joinQueue,
             ),
             const SizedBox(height: 18),
@@ -97,6 +261,8 @@ class _CustomerJoinQueueScreenState
     );
   }
 }
+
+// ─────────────────────────── Hero header ─────────────────────────────────────
 
 class _HeroHeader extends StatelessWidget {
   const _HeroHeader();
@@ -136,6 +302,8 @@ class _HeroHeader extends StatelessWidget {
   }
 }
 
+// ─────────────────────────── Join form card ───────────────────────────────────
+
 class _JoinQueueCard extends StatelessWidget {
   const _JoinQueueCard({
     required this.formKey,
@@ -144,6 +312,9 @@ class _JoinQueueCard extends StatelessWidget {
     required this.notesController,
     required this.partySize,
     required this.onPartySizeChanged,
+    required this.emptyTableOnly,
+    required this.onEmptyTableOnlyChanged,
+    required this.eta,
     required this.onJoin,
   });
 
@@ -153,6 +324,9 @@ class _JoinQueueCard extends StatelessWidget {
   final TextEditingController notesController;
   final int partySize;
   final ValueChanged<int> onPartySizeChanged;
+  final bool emptyTableOnly;
+  final ValueChanged<bool> onEmptyTableOnlyChanged;
+  final SeatingEta eta;
   final VoidCallback? onJoin;
 
   @override
@@ -193,6 +367,14 @@ class _JoinQueueCard extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             _PartySizeSelector(value: partySize, onChanged: onPartySizeChanged),
+            if (partySize <= 6) ...[
+              const SizedBox(height: 14),
+              _SeatingEtaRow(
+                eta: eta,
+                emptyTableOnly: emptyTableOnly,
+                onEmptyTableOnlyChanged: onEmptyTableOnlyChanged,
+              ),
+            ],
             const SizedBox(height: 18),
             EzqTextField(
               label: 'Special Notes (Optional)',
@@ -256,6 +438,8 @@ class _JoinQueueCard extends StatelessWidget {
   }
 }
 
+// ─────────────────────────── Party size selector ─────────────────────────────
+
 class _PartySizeSelector extends StatelessWidget {
   const _PartySizeSelector({required this.value, required this.onChanged});
 
@@ -265,12 +449,6 @@ class _PartySizeSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final options = List<int>.generate(20, (index) => index + 1);
-    final ranges = const [
-      (label: '1-2', value: 2),
-      (label: '3-4', value: 4),
-      (label: '5-6', value: 6),
-      (label: '7+', value: 8),
-    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -286,26 +464,6 @@ class _PartySizeSelector extends StatelessWidget {
             ),
           ),
         ),
-        Row(
-          children: [
-            for (final range in ranges) ...[
-              Expanded(
-                child: _PartyRangeButton(
-                  label: range.label,
-                  selected: switch (range.value) {
-                    2 => value <= 2,
-                    4 => value >= 3 && value <= 4,
-                    6 => value >= 5 && value <= 6,
-                    _ => value >= 7,
-                  },
-                  onTap: () => onChanged(range.value),
-                ),
-              ),
-              if (range != ranges.last) const SizedBox(width: 8),
-            ],
-          ],
-        ),
-        const SizedBox(height: 10),
         DropdownButtonFormField<int>(
           initialValue: value,
           icon: const Icon(Icons.keyboard_arrow_down_rounded),
@@ -354,15 +512,118 @@ class _PartySizeSelector extends StatelessWidget {
   }
 }
 
-class _PartyRangeButton extends StatelessWidget {
-  const _PartyRangeButton({
+// ─────────────────────────── F1: ETA row ─────────────────────────────────────
+
+class _SeatingEtaRow extends StatelessWidget {
+  const _SeatingEtaRow({
+    required this.eta,
+    required this.emptyTableOnly,
+    required this.onEmptyTableOnlyChanged,
+  });
+
+  final SeatingEta eta;
+  final bool emptyTableOnly;
+  final ValueChanged<bool> onEmptyTableOnlyChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SeatingChoiceTag(emptyTableOnly: emptyTableOnly),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _EtaCard(
+                label: 'Shared seating',
+                minutes: eta.sharedMinutes,
+                active: !emptyTableOnly,
+                onTap: () => onEmptyTableOnlyChanged(false),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _EtaCard(
+                label: 'Empty table only',
+                minutes: eta.emptyTableMinutes,
+                active: emptyTableOnly,
+                onTap: () => onEmptyTableOnlyChanged(true),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SeatingChoiceTag extends StatelessWidget {
+  const _SeatingChoiceTag({required this.emptyTableOnly});
+
+  final bool emptyTableOnly;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.softSurface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppColors.line.withValues(alpha: 0.6)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.touch_app_outlined,
+              size: 14,
+              color: emptyTableOnly
+                  ? AppColors.warningOrange
+                  : AppColors.deepTeal,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              'Choose one option',
+              style: TextStyle(
+                color: emptyTableOnly
+                    ? const Color(0xFF8A5A00)
+                    : AppColors.deepTeal,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              emptyTableOnly ? 'Empty selected' : 'Shared selected',
+              style: const TextStyle(
+                color: AppColors.mutedText,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EtaCard extends StatelessWidget {
+  const _EtaCard({
     required this.label,
-    required this.selected,
+    required this.minutes,
+    required this.active,
     required this.onTap,
   });
 
   final String label;
-  final bool selected;
+  final int minutes;
+  final bool active;
   final VoidCallback onTap;
 
   @override
@@ -371,44 +632,77 @@ class _PartyRangeButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          height: 42,
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            gradient: selected ? AppColors.primaryGradient : null,
-            color: selected ? null : AppColors.softSurface,
-            borderRadius: BorderRadius.circular(14),
+            color: active ? AppColors.softSurface : AppColors.softerSurface,
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: selected
-                  ? Colors.transparent
-                  : AppColors.line.withValues(alpha: 0.75),
+              color: active
+                  ? AppColors.primaryTeal.withValues(alpha: 0.55)
+                  : AppColors.line.withValues(alpha: 0.45),
+              width: active ? 1.5 : 1.0,
             ),
-            boxShadow: selected
+            boxShadow: active
                 ? const [
                     BoxShadow(
-                      color: Color(0x1F6A40D7),
-                      blurRadius: 14,
-                      offset: Offset(0, 7),
+                      color: Color(0x1712A9DC),
+                      blurRadius: 12,
+                      offset: Offset(0, 6),
                     ),
                   ]
                 : const [],
           ),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.white : AppColors.deepTeal,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    active
+                        ? Icons.check_circle_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    size: 14,
+                    color: active ? AppColors.primaryTeal : AppColors.mutedText,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: active
+                            ? AppColors.deepTeal
+                            : AppColors.mutedText,
+                        letterSpacing: 0,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
-            ),
+              const SizedBox(height: 3),
+              Text(
+                '~$minutes min',
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  color: active ? AppColors.navyText : AppColors.mutedText,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 }
+
+// ─────────────────────────── Featured wait card ───────────────────────────────
 
 class _FeaturedWaitCard extends StatefulWidget {
   const _FeaturedWaitCard();

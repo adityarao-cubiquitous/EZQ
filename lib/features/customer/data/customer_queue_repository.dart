@@ -9,6 +9,7 @@ import '../../../core/utils/phone_utils.dart';
 import '../../../core/utils/validators.dart';
 import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
+import '../../recommendation/domain/customer_preferences.dart';
 
 class JoinQueueRequest {
   const JoinQueueRequest({
@@ -19,6 +20,7 @@ class JoinQueueRequest {
     required this.partySize,
     this.notes,
     this.appSource = 'web',
+    this.customerPreferences,
   });
 
   final String restaurantId;
@@ -28,6 +30,7 @@ class JoinQueueRequest {
   final int partySize;
   final String? notes;
   final String appSource;
+  final CustomerPreferences? customerPreferences;
 }
 
 class JoinQueueResult {
@@ -68,6 +71,13 @@ abstract class CustomerQueueRepository {
   });
 
   Future<void> cancelQueueEntry({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+    required String phone,
+  });
+
+  Future<void> expireQueueEntry({
     required String restaurantId,
     required String branchId,
     required String queueEntryId,
@@ -140,6 +150,7 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
         'estimatedWaitMinutes': estimatedWaitMinutes,
         'queuePosition': nextToken,
         'extensionUsed': false,
+        'customerPreferences': request.customerPreferences?.toMap(),
         'joinedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -229,6 +240,37 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     );
   }
 
+  @override
+  Future<void> expireQueueEntry({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+    required String phone,
+  }) async {
+    final entryRef = _firestore.doc(
+      FirestorePaths.queueEntry(restaurantId, branchId, queueEntryId),
+    );
+    await _firestore.runTransaction<void>((transaction) async {
+      final snapshot = await transaction.get(entryRef);
+      if (!snapshot.exists) {
+        throw StateError('Queue entry not found.');
+      }
+      if (snapshot.data()?['phone'] != PhoneUtils.normalizeIndiaMobile(phone)) {
+        throw StateError('Phone number does not match this queue entry.');
+      }
+      if (QueueStatus.fromWireName(snapshot.data()?['status'] as String?) !=
+          QueueStatus.waiting) {
+        return;
+      }
+      transaction.update(entryRef, {
+        'status': QueueStatus.expired.wireName,
+        'expiredAt': FieldValue.serverTimestamp(),
+        'autoExpiredReason': 'WAIT_EXCEEDED_90_MINUTES',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
   Future<void> _updateOwnedQueueEntry({
     required String restaurantId,
     required String branchId,
@@ -290,6 +332,7 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
       queuePosition: 3,
       extensionUsed: false,
       joinedAt: DateTime.now(),
+      customerPreferences: request.customerPreferences,
     );
     _controller.add(_entry);
     return const JoinQueueResult(
@@ -339,13 +382,25 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
     _entry = _entry.copyWith(status: QueueStatus.cancelled);
     _controller.add(_entry);
   }
+
+  @override
+  Future<void> expireQueueEntry({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+    required String phone,
+  }) async {
+    _entry = _entry.copyWith(status: QueueStatus.expired);
+    _controller.add(_entry);
+  }
 }
 
 final customerQueueRepositoryProvider = Provider<CustomerQueueRepository>((
   ref,
 ) {
   const useFirebase = bool.fromEnvironment('USE_FIREBASE');
-  if (useFirebase) {
+  const useEmulator = bool.fromEnvironment('USE_EMULATOR');
+  if (useFirebase || useEmulator) {
     return FirebaseCustomerQueueRepository();
   }
   return MockCustomerQueueRepository();

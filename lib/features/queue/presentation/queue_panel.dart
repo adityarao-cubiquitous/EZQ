@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/utils/date_time_utils.dart';
 import '../../../core/widgets/ezq_button.dart';
+import '../../recommendation/domain/recommendation_types.dart';
 import '../../tables/domain/restaurant_table.dart';
 import '../domain/queue_entry.dart';
 import '../domain/queue_status.dart';
@@ -204,10 +205,7 @@ class _QueueEntryCard extends StatelessWidget {
     final compact = Responsive.isCompact(context);
     final canReserve = entry.status == QueueStatus.waiting;
     final spotlight = spotlightTone != null;
-    final waitedMinutes = DateTime.now()
-        .difference(entry.joinedAt)
-        .inMinutes
-        .clamp(0, 24 * 60);
+    final waitedMinutes = entry.waitingMinutesSince(DateTime.now());
     final joinedTime = DateTimeUtils.shortTime(entry.joinedAt);
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,9 +236,20 @@ class _QueueEntryCard extends StatelessWidget {
             ),
             SizedBox(width: compact ? 8 : 12),
             Expanded(
-              child: Text(
-                entry.customerName,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      entry.customerName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  if (_prefersSharedSeating(entry)) ...[
+                    const SizedBox(width: 6),
+                    const _SharedSeatingIndicator(),
+                  ],
+                ],
               ),
             ),
             Text(
@@ -370,6 +379,34 @@ class _QueueEntryCard extends StatelessWidget {
       _QueueSpotlightTone.nextBest => AppColors.warningOrange,
       null => AppColors.accentPurple,
     };
+  }
+}
+
+bool _prefersSharedSeating(QueueEntry entry) {
+  return entry.customerPreferences?.seatingPreference ==
+      SeatingPreference.anyAvailable;
+}
+
+class _SharedSeatingIndicator extends StatelessWidget {
+  const _SharedSeatingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 9,
+      height: 9,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFC8019),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFC8019).withValues(alpha: 0.28),
+            blurRadius: 6,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+    );
   }
 }
 

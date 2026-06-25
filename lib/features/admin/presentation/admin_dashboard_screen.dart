@@ -9,6 +9,7 @@ import '../../../core/widgets/ezq_button.dart';
 import '../../queue/data/queue_repository.dart';
 import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
+import '../../recommendation/domain/recommendation_types.dart';
 import '../../tables/data/table_repository.dart';
 import '../../tables/domain/restaurant_table.dart';
 import '../../tables/domain/table_status.dart';
@@ -41,7 +42,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   void _handleQueueEntryTap(
     QueueEntry entry,
-    List<RestaurantTable> availableTables,
+    List<RestaurantTable> tables,
     int Function(RestaurantTable) occupiedCountFor,
   ) {
     final isDeselecting = _selectedQueueEntry?.id == entry.id;
@@ -59,17 +60,21 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     ScaffoldMessenger.of(context).clearSnackBars();
 
     if (!isDeselecting) {
-      final matching = _tablesForParty(
-        tables: availableTables,
-        partySize: entry.partySize,
+      final highlights = _tableHighlightsForQueueEntry(
+        tables: tables,
+        entry: entry,
         occupiedCountFor: occupiedCountFor,
       );
-      if (matching.isNotEmpty) {
-        final tableNumbers = matching.map((t) => t.tableNumber).join(', ');
+      if (highlights.isNotEmpty) {
+        final highlightedById = {for (final table in tables) table.id: table};
+        final tableNumbers = highlights.keys
+            .map((id) => highlightedById[id]?.tableNumber)
+            .whereType<String>()
+            .join(', ');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Best fit tables for ${entry.tokenCode}: $tableNumbers',
+              '${_preferenceLabel(entry)} tables for ${entry.tokenCode}: $tableNumbers',
             ),
           ),
         );
@@ -77,17 +82,17 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }
   }
 
-  Set<String> _matchingTableIds(
-    List<RestaurantTable> availableTables,
+  Map<String, TableHighlightTone> _matchingTableHighlights(
+    List<RestaurantTable> tables,
     int Function(RestaurantTable) occupiedCountFor,
   ) {
     final selected = _selectedQueueEntry;
     if (selected == null) return const {};
-    return _tablesForParty(
-      tables: availableTables,
-      partySize: selected.partySize,
+    return _tableHighlightsForQueueEntry(
+      tables: tables,
+      entry: selected,
       occupiedCountFor: occupiedCountFor,
-    ).map((t) => t.id).toSet();
+    );
   }
 
   @override
@@ -115,11 +120,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             builder: (context, queueSnapshot) {
               final tables = tablesSnapshot.data ?? const [];
               final queue = queueSnapshot.data ?? const [];
+              final now = DateTime.now();
               final liveQueue =
                   queue
-                      .where((entry) => entry.status.isLiveQueueVisible)
+                      .where(
+                        (entry) =>
+                            entry.status.isLiveQueueVisible &&
+                            !entry.hasExceededAutoExpiryAt(now),
+                      )
                       .toList()
-                    ..sort(_compareQueueByNumberThenWait);
+                    ..sort(compareQueueEntriesByFifo);
               final visibleQueue = _queueVisibleThroughSuggestion(liveQueue);
               final queueById = {for (final entry in queue) entry.id: entry};
               int occupiedFor(RestaurantTable t) =>
@@ -135,8 +145,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               final occupied = tables
                   .where((table) => table.status == TableStatus.occupied)
                   .length;
-              final matchingIds = _matchingTableIds(
-                availableTables,
+              final matchingHighlights = _matchingTableHighlights(
+                tables,
                 occupiedFor,
               );
 
@@ -166,7 +176,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               children: [
                                 TableGrid(
                                   tables: tables,
-                                  matchingTableIds: matchingIds,
+                                  tableHighlightTones: matchingHighlights,
                                   completedPartySizeFor: (table) =>
                                       queueById[table.currentQueueEntryId]
                                           ?.partySize ??
@@ -219,7 +229,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   onEntryTapped: (entry) =>
                                       _handleQueueEntryTap(
                                         entry,
-                                        availableTables,
+                                        tables,
                                         occupiedFor,
                                       ),
                                 ),
@@ -236,7 +246,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   child: SingleChildScrollView(
                                     child: TableGrid(
                                       tables: tables,
-                                      matchingTableIds: matchingIds,
+                                      tableHighlightTones: matchingHighlights,
                                       completedPartySizeFor: (table) =>
                                           queueById[table.currentQueueEntryId]
                                               ?.partySize ??
@@ -299,7 +309,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       onEntryTapped: (entry) =>
                                           _handleQueueEntryTap(
                                             entry,
-                                            availableTables,
+                                            tables,
                                             occupiedFor,
                                           ),
                                     ),
@@ -546,9 +556,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final nextEntry = recommendations.length > 1 ? recommendations[1] : null;
     _spotlightQueueEntries(
       bestEntry: bestEntry,
-      bestLabel: 'Best fit for ${table.tableNumber}',
+      bestLabel: 'FIFO pick for ${table.tableNumber}',
       nextEntry: nextEntry,
-      nextLabel: 'Next best for ${table.tableNumber}',
+      nextLabel: 'Next FIFO fit for ${table.tableNumber}',
       queueSliceEndEntryId: _queueSliceEndEntryIdFor(
         liveQueue: liveQueue,
         bestEntry: bestEntry,
@@ -559,7 +569,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Best: ${bestEntry.tokenCode} for ${table.tableNumber} ($openSeats open ${openSeats == 1 ? 'seat' : 'seats'})$nextText',
+          'FIFO: ${bestEntry.tokenCode} for ${table.tableNumber} ($openSeats open ${openSeats == 1 ? 'seat' : 'seats'})$nextText',
         ),
         duration: const Duration(milliseconds: 1800),
       ),
@@ -584,22 +594,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               entry.partySize <= openSeats,
         )
         .toList();
-    candidates.sort((a, b) {
-      final aWaste = openSeats - a.partySize;
-      final bWaste = openSeats - b.partySize;
-      final waste = aWaste.compareTo(bWaste);
-      if (waste != 0) return waste;
-      return _compareQueueByNumberThenWait(a, b);
-    });
+    candidates.sort(compareQueueEntriesByFifo);
     return candidates.take(2).toList();
-  }
-
-  int _compareQueueByNumberThenWait(QueueEntry a, QueueEntry b) {
-    final tokenNumber = a.tokenNumber.compareTo(b.tokenNumber);
-    if (tokenNumber != 0) return tokenNumber;
-    final joinedAt = a.joinedAt.compareTo(b.joinedAt);
-    if (joinedAt != 0) return joinedAt;
-    return a.queuePosition.compareTo(b.queuePosition);
   }
 
   String? _queueSliceEndEntryIdFor({
@@ -1684,6 +1680,62 @@ double _dialogWidth(BuildContext context, double maxWidth) {
   final availableWidth = screenWidth - 48;
   if (availableWidth < 280) return availableWidth;
   return availableWidth < maxWidth ? availableWidth : maxWidth;
+}
+
+Map<String, TableHighlightTone> _tableHighlightsForQueueEntry({
+  required List<RestaurantTable> tables,
+  required QueueEntry entry,
+  required int Function(RestaurantTable) occupiedCountFor,
+}) {
+  final highlights = <String, TableHighlightTone>{};
+  if (_prefersEmptyTable(entry)) {
+    for (final table in tables) {
+      if (table.status != TableStatus.available) continue;
+      final extraSeats = table.capacity - entry.partySize;
+      if (extraSeats == 0 || extraSeats == 1) {
+        highlights[table.id] = TableHighlightTone.best;
+      } else if (extraSeats == 2) {
+        highlights[table.id] = TableHighlightTone.nextBest;
+      }
+    }
+    return highlights;
+  }
+
+  var hasPartialTables = false;
+  for (final table in tables) {
+    if (table.status != TableStatus.occupied) continue;
+    final occupiedCount = occupiedCountFor(table);
+    final remaining = table.capacity - occupiedCount;
+    if (occupiedCount <= 0 || remaining <= 0) continue;
+    hasPartialTables = true;
+    if (remaining == entry.partySize) {
+      highlights[table.id] = TableHighlightTone.best;
+    } else if (remaining > entry.partySize) {
+      highlights[table.id] = TableHighlightTone.nextBest;
+    }
+  }
+  if (hasPartialTables) return highlights;
+
+  for (final table in tables) {
+    if (table.status != TableStatus.available) continue;
+    final extraSeats = table.capacity - entry.partySize;
+    if (extraSeats < 0) continue;
+    if (extraSeats <= 2) {
+      highlights[table.id] = TableHighlightTone.best;
+    } else {
+      highlights[table.id] = TableHighlightTone.nextBest;
+    }
+  }
+  return highlights;
+}
+
+bool _prefersEmptyTable(QueueEntry entry) {
+  return entry.customerPreferences?.seatingPreference ==
+      SeatingPreference.emptyTableOnly;
+}
+
+String _preferenceLabel(QueueEntry entry) {
+  return _prefersEmptyTable(entry) ? 'Empty table' : 'Shared seating';
 }
 
 List<RestaurantTable> _tablesForParty({
