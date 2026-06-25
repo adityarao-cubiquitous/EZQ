@@ -29,15 +29,13 @@ class SeatingPreferenceService {
             .toInt();
 
     // Larger parties have fewer tables available → shared wait is longer too.
-    final sharedMinutes =
-        (base + (partySize > 4 ? _largPartyAddMinutes : 0))
-            .clamp(5, _maxSharedMinutes)
-            .toInt();
+    final sharedMinutes = (base + (partySize > 4 ? _largPartyAddMinutes : 0))
+        .clamp(5, _maxSharedMinutes)
+        .toInt();
 
-    final emptyTableMinutes =
-        (sharedMinutes + _emptyTablePremiumMinutes)
-            .clamp(sharedMinutes + 1, _maxEmptyTableMinutes)
-            .toInt();
+    final emptyTableMinutes = (sharedMinutes + _emptyTablePremiumMinutes)
+        .clamp(sharedMinutes + 1, _maxEmptyTableMinutes)
+        .toInt();
 
     return SeatingEta(
       sharedMinutes: sharedMinutes,

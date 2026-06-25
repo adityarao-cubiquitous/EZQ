@@ -43,6 +43,7 @@ class CustomerQueueStatusScreen extends ConsumerWidget {
       branchId: branchId,
       activeTab: CustomerTab.status,
       queueEntryId: queueEntryId,
+      appBackRoute: '/app/home',
       child: queueEntry.when(
         data: (entry) {
           final expired =

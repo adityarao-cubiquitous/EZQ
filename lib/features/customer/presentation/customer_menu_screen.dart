@@ -31,6 +31,7 @@ class CustomerMenuScreen extends ConsumerWidget {
       branchId: branchId,
       activeTab: CustomerTab.menu,
       queueEntryId: queueEntryId,
+      appBackRoute: '/app/home',
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: menu.when(

@@ -537,6 +537,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }) {
     final openSeats = _openSeatsForTable(table, occupiedCount);
     final recommendations = _bestQueueEntriesForTable(
+      table: table,
       openSeats: openSeats,
       liveQueue: liveQueue,
     );
@@ -584,6 +585,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   List<QueueEntry> _bestQueueEntriesForTable({
+    required RestaurantTable table,
     required int openSeats,
     required List<QueueEntry> liveQueue,
   }) {
@@ -591,7 +593,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         .where(
           (entry) =>
               entry.status == QueueStatus.waiting &&
-              entry.partySize <= openSeats,
+              entry.partySize <= openSeats &&
+              (table.status == TableStatus.available ||
+                  !_prefersEmptyTable(entry)),
         )
         .toList();
     candidates.sort(compareQueueEntriesByFifo);
@@ -1701,20 +1705,18 @@ Map<String, TableHighlightTone> _tableHighlightsForQueueEntry({
     return highlights;
   }
 
-  var hasPartialTables = false;
   for (final table in tables) {
     if (table.status != TableStatus.occupied) continue;
     final occupiedCount = occupiedCountFor(table);
     final remaining = table.capacity - occupiedCount;
     if (occupiedCount <= 0 || remaining <= 0) continue;
-    hasPartialTables = true;
     if (remaining == entry.partySize) {
       highlights[table.id] = TableHighlightTone.best;
     } else if (remaining > entry.partySize) {
       highlights[table.id] = TableHighlightTone.nextBest;
     }
   }
-  if (hasPartialTables) return highlights;
+  if (highlights.isNotEmpty) return highlights;
 
   for (final table in tables) {
     if (table.status != TableStatus.available) continue;

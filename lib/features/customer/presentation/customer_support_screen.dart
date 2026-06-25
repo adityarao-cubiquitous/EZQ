@@ -23,6 +23,7 @@ class CustomerSupportScreen extends StatelessWidget {
       branchId: branchId,
       activeTab: CustomerTab.support,
       queueEntryId: queueEntryId,
+      appBackRoute: '/app/home',
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Container(

@@ -44,14 +44,9 @@ class AppInstallPrompt extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               EzqButton(
-                label: 'Install app',
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('App install will be enabled in Phase 2'),
-                    ),
-                  );
-                },
+                label: 'Sign in with phone',
+                icon: Icons.phone_iphone_rounded,
+                onPressed: () => context.go('/app/login'),
               ),
               const SizedBox(height: 12),
               SizedBox(

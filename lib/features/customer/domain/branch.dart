@@ -12,6 +12,13 @@ class Branch {
     required this.averageDiningMinutes,
     required this.averageCleaningMinutes,
     required this.holdMinutes,
+    this.averageTurnoverMinutes,
+    this.restaurantId,
+    this.restaurantName,
+    this.cuisine,
+    this.logoUrl,
+    this.latitude,
+    this.longitude,
   });
 
   final String id;
@@ -26,6 +33,15 @@ class Branch {
   final int averageDiningMinutes;
   final int averageCleaningMinutes;
   final int holdMinutes;
+  final int? averageTurnoverMinutes;
+  final String? restaurantId;
+  final String? restaurantName;
+  final String? cuisine;
+  final String? logoUrl;
+  final double? latitude;
+  final double? longitude;
+
+  bool get hasLocation => latitude != null && longitude != null;
 
   factory Branch.fromMap(String id, Map<String, dynamic> data) {
     return Branch(
@@ -41,6 +57,13 @@ class Branch {
       averageDiningMinutes: data['averageDiningMinutes'] as int? ?? 35,
       averageCleaningMinutes: data['averageCleaningMinutes'] as int? ?? 5,
       holdMinutes: data['holdMinutes'] as int? ?? 5,
+      averageTurnoverMinutes: data['averageTurnoverMinutes'] as int?,
+      restaurantId: data['restaurantId'] as String?,
+      restaurantName: data['restaurantName'] as String?,
+      cuisine: data['cuisine'] as String?,
+      logoUrl: data['logoUrl'] as String?,
+      latitude: (data['latitude'] as num?)?.toDouble(),
+      longitude: (data['longitude'] as num?)?.toDouble(),
     );
   }
 
@@ -56,5 +79,12 @@ class Branch {
     'averageDiningMinutes': averageDiningMinutes,
     'averageCleaningMinutes': averageCleaningMinutes,
     'holdMinutes': holdMinutes,
+    'averageTurnoverMinutes': averageTurnoverMinutes,
+    'restaurantId': restaurantId,
+    'restaurantName': restaurantName,
+    'cuisine': cuisine,
+    'logoUrl': logoUrl,
+    'latitude': latitude,
+    'longitude': longitude,
   };
 }

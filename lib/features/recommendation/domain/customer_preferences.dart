@@ -25,13 +25,13 @@ class CustomerPreferences {
   final DateTime? selectedAt;
 
   const CustomerPreferences.defaults()
-      : seatingPreference = SeatingPreference.anyAvailable,
-        floorPreference = null,
-        accessibilityRequired = false,
-        acceptedLongerWait = false,
-        etaShared = null,
-        etaEmptyTable = null,
-        selectedAt = null;
+    : seatingPreference = SeatingPreference.anyAvailable,
+      floorPreference = null,
+      accessibilityRequired = false,
+      acceptedLongerWait = false,
+      etaShared = null,
+      etaEmptyTable = null,
+      selectedAt = null;
 
   factory CustomerPreferences.fromMap(Map<String, dynamic> data) {
     DateTime? parseDate(String key) {

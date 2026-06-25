@@ -231,6 +231,7 @@ class _CustomerJoinQueueScreenState
       restaurantId: widget.restaurantId,
       branchId: widget.branchId,
       activeTab: CustomerTab.join,
+      appBackRoute: '/app/home',
       footer: const CustomerFooter(),
       showBottomNav: false,
       child: Padding(
@@ -568,6 +569,7 @@ class _SeatingChoiceTag extends StatelessWidget {
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: AppColors.softSurface,
@@ -575,7 +577,6 @@ class _SeatingChoiceTag extends StatelessWidget {
           border: Border.all(color: AppColors.line.withValues(alpha: 0.6)),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.touch_app_outlined,
@@ -585,25 +586,32 @@ class _SeatingChoiceTag extends StatelessWidget {
                   : AppColors.deepTeal,
             ),
             const SizedBox(width: 5),
-            Text(
-              'Choose one option',
-              style: TextStyle(
-                color: emptyTableOnly
-                    ? const Color(0xFF8A5A00)
-                    : AppColors.deepTeal,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
+            Expanded(
+              child: Text(
+                'Choose one option',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: emptyTableOnly
+                      ? const Color(0xFF8A5A00)
+                      : AppColors.deepTeal,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
               ),
             ),
             const SizedBox(width: 6),
-            Text(
-              emptyTableOnly ? 'Empty selected' : 'Shared selected',
-              style: const TextStyle(
-                color: AppColors.mutedText,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0,
+            Flexible(
+              child: Text(
+                emptyTableOnly ? 'Empty selected' : 'Shared selected',
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
+                style: const TextStyle(
+                  color: AppColors.mutedText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0,
+                ),
               ),
             ),
           ],

@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -19,6 +20,7 @@ class CustomerShell extends StatelessWidget {
     this.queueEntryId,
     this.showBottomNav = true,
     this.footer,
+    this.appBackRoute,
   });
 
   final Widget child;
@@ -28,6 +30,7 @@ class CustomerShell extends StatelessWidget {
   final String? queueEntryId;
   final bool showBottomNav;
   final Widget? footer;
+  final String? appBackRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +86,7 @@ class CustomerShell extends StatelessWidget {
                         _CustomerTopBar(
                           topInset: safePadding.top,
                           horizontalInset: horizontalInset,
+                          appBackRoute: appBackRoute,
                         ),
                         if (showBottomNav)
                           _BottomNavBar(
@@ -186,10 +190,12 @@ class _CustomerTopBar extends StatelessWidget {
   const _CustomerTopBar({
     required this.topInset,
     required this.horizontalInset,
+    required this.appBackRoute,
   });
 
   final double topInset;
   final double horizontalInset;
+  final String? appBackRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -222,11 +228,15 @@ class _CustomerTopBar extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
+                Row(
                   children: [
-                    BrandMark(size: 25),
-                    SizedBox(width: 8),
-                    Text(
+                    if (!kIsWeb && appBackRoute != null) ...[
+                      _AppBackButton(route: appBackRoute!),
+                      const SizedBox(width: 8),
+                    ],
+                    const BrandMark(size: 25),
+                    const SizedBox(width: 8),
+                    const Text(
                       'EZQ',
                       style: TextStyle(
                         color: AppColors.navyText,
@@ -236,9 +246,40 @@ class _CustomerTopBar extends StatelessWidget {
                     ),
                   ],
                 ),
-                const _InstallAppButton(),
+                if (kIsWeb) const _InstallAppButton(),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AppBackButton extends StatelessWidget {
+  const _AppBackButton({required this.route});
+
+  final String route;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.go(route),
+        borderRadius: BorderRadius.circular(999),
+        child: Ink(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.82),
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0x33BDEAF8)),
+          ),
+          child: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppColors.deepTeal,
+            size: 20,
           ),
         ),
       ),

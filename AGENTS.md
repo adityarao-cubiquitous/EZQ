@@ -7,6 +7,7 @@ Guidance for coding agents working in this repository.
 EZQ is a Flutter + Firebase restaurant queue management app.
 
 - Customer web/mobile flow: join queue, view queue status, see remaining wait, open uploaded menu PDF, use support, and view waiting-time engagement content.
+- Mobile app customer auth: iOS/Android app flow supports Firebase phone/OTP authentication at `/app/login`.
 - Manager/admin flow: manage live queue, seat parties by assigning available tables, finish meals, and track table lifecycle timestamps.
 - Firebase project: `ezq-dev-cubiquitous`.
 - Main demo restaurant path: `the-spice-house/indiranagar`.
@@ -25,6 +26,7 @@ EZQ is organized as a feature-first Flutter app with Firebase as the backend.
 Current backend posture:
 
 - The app is connected to Firebase Auth, Firestore, Hosting, and Cloud Functions source.
+- Customer phone auth uses Firebase Auth phone verification and writes the signed-in user's own `customers/{uid}` profile.
 - Firebase Hosting serves Flutter web from `build/web`.
 - Firestore rules and indexes are deployed from `firestore.rules` and `firestore.indexes.json`.
 - Cloud Functions source is in `functions/src/index.ts`, but full Functions deploy currently requires the Firebase project to be on Blaze because Cloud Build must be enabled.
@@ -68,6 +70,14 @@ Customer flow:
 3. Customer status screen shows token, queue position, remaining wait, menu, support, ad space, and waiting-game placeholder.
 4. When the manager seats the party, customer status changes to the seated/table-assigned state.
 5. Customer can view the uploaded menu PDF from branch config.
+
+Mobile app auth flow:
+
+1. Customer opens `/app/login`.
+2. Customer enters an India mobile number and requests an OTP.
+3. Firebase Auth verifies the SMS code or completes auto-verification on supported devices.
+4. App creates/updates `customers/{uid}` with phone auth profile metadata.
+5. Customer lands on `/app/home` and can continue into the queue flow.
 
 Manager flow:
 
@@ -185,6 +195,8 @@ When working inside Codex desktop, prefer the bundled Python runtime if local Py
 ## Firebase/Data Notes
 
 - Customer web app does not require customer email authentication.
+- Customer mobile app sign-in uses Firebase phone/OTP authentication; keep guest web join available.
+- Firestore rules allow authenticated phone users to create/update only their own `customers/{uid}` profile.
 - Manager login uses Firebase email/password auth.
 - Firestore table statuses actively used by the app are `available` and `occupied`; `reserved` exists for compatibility with older data.
 - Legacy `cleaning` table status should be treated as `available`; do not reintroduce a cleaning flow unless explicitly requested.
