@@ -9,6 +9,7 @@ import '../../../core/utils/phone_utils.dart';
 import '../../../core/utils/validators.dart';
 import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
+import '../../recommendation/domain/customer_preferences.dart';
 
 class JoinQueueRequest {
   const JoinQueueRequest({
@@ -19,6 +20,7 @@ class JoinQueueRequest {
     required this.partySize,
     this.notes,
     this.appSource = 'web',
+    this.customerPreferences,
   });
 
   final String restaurantId;
@@ -28,6 +30,7 @@ class JoinQueueRequest {
   final int partySize;
   final String? notes;
   final String appSource;
+  final CustomerPreferences? customerPreferences;
 }
 
 class JoinQueueResult {
@@ -140,6 +143,7 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
         'estimatedWaitMinutes': estimatedWaitMinutes,
         'queuePosition': nextToken,
         'extensionUsed': false,
+        'customerPreferences': request.customerPreferences?.toMap(),
         'joinedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -290,6 +294,7 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
       queuePosition: 3,
       extensionUsed: false,
       joinedAt: DateTime.now(),
+      customerPreferences: request.customerPreferences,
     );
     _controller.add(_entry);
     return const JoinQueueResult(

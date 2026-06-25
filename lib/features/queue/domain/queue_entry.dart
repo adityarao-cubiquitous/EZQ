@@ -1,3 +1,4 @@
+import '../../recommendation/domain/customer_preferences.dart';
 import 'queue_status.dart';
 
 class QueueEntry {
@@ -32,6 +33,7 @@ class QueueEntry {
     this.tableCycleStartAt,
     this.tableCycleEndAt,
     this.tableCycleSource,
+    this.customerPreferences,
   });
 
   final String id;
@@ -64,6 +66,7 @@ class QueueEntry {
   final DateTime? tableCycleStartAt;
   final DateTime? tableCycleEndAt;
   final String? tableCycleSource;
+  final CustomerPreferences? customerPreferences;
 
   factory QueueEntry.fromMap(String id, Map<String, dynamic> data) {
     DateTime? readDate(String key) {
@@ -107,6 +110,12 @@ class QueueEntry {
       tableCycleStartAt: readDate('tableCycleStartAt'),
       tableCycleEndAt: readDate('tableCycleEndAt'),
       tableCycleSource: data['tableCycleSource'] as String?,
+      customerPreferences:
+          data['customerPreferences'] is Map<String, dynamic>
+              ? CustomerPreferences.fromMap(
+                  data['customerPreferences'] as Map<String, dynamic>,
+                )
+              : null,
     );
   }
 
@@ -140,6 +149,7 @@ class QueueEntry {
     'tableCycleStartAt': tableCycleStartAt?.toIso8601String(),
     'tableCycleEndAt': tableCycleEndAt?.toIso8601String(),
     'tableCycleSource': tableCycleSource,
+    'customerPreferences': customerPreferences?.toMap(),
   };
 
   QueueEntry copyWith({
@@ -180,6 +190,7 @@ class QueueEntry {
       tableCycleStartAt: tableCycleStartAt,
       tableCycleEndAt: tableCycleEndAt,
       tableCycleSource: tableCycleSource,
+      customerPreferences: customerPreferences,
     );
   }
 }
