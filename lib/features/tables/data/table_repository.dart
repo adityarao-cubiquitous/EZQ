@@ -102,11 +102,13 @@ class FirebaseTableRepository implements TableRepository {
           : 'previous_completion';
       final tableNumber = tableData?['tableNumber'] as String? ?? '';
       final tokenCode = entrySnapshot.data()?['tokenCode'] as String? ?? '';
+      final partySize = entrySnapshot.data()?['partySize'] as int? ?? 0;
       final assignedAt = FieldValue.serverTimestamp();
       transaction.update(tableRef, {
         'status': TableStatus.occupied.wireName,
         'currentQueueEntryId': queueEntryId,
         'currentTokenCode': tokenCode,
+        'currentPartySize': partySize,
         'reservedAt': assignedAt,
         'occupiedAt': assignedAt,
         'currentCycleStartAt': cycleStartAt,
@@ -185,6 +187,7 @@ class FirebaseTableRepository implements TableRepository {
         'status': TableStatus.available.wireName,
         'currentQueueEntryId': null,
         'currentTokenCode': null,
+        'currentPartySize': null,
         'reservedAt': null,
         'occupiedAt': null,
         'cleaningStartedAt': null,

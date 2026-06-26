@@ -1,8 +1,6 @@
 import '../../recommendation/domain/customer_preferences.dart';
 import 'queue_status.dart';
 
-const queueAutoExpiryMinutes = 90;
-
 class QueueEntry {
   const QueueEntry({
     required this.id,
@@ -74,10 +72,6 @@ class QueueEntry {
 
   int waitingMinutesSince(DateTime now) =>
       now.difference(joinedAt).inMinutes.clamp(0, 24 * 60);
-
-  bool hasExceededAutoExpiryAt(DateTime now) =>
-      status == QueueStatus.waiting &&
-      waitingMinutesSince(now) > queueAutoExpiryMinutes;
 
   factory QueueEntry.fromMap(String id, Map<String, dynamic> data) {
     DateTime? readDate(String key) {

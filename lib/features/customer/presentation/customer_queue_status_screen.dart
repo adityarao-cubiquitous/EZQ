@@ -46,22 +46,7 @@ class CustomerQueueStatusScreen extends ConsumerWidget {
       appBackRoute: '/app/home',
       child: queueEntry.when(
         data: (entry) {
-          final expired =
-              entry.status == QueueStatus.expired ||
-              entry.hasExceededAutoExpiryAt(DateTime.now());
-          if (entry.hasExceededAutoExpiryAt(DateTime.now())) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              ref
-                  .read(customerQueueRepositoryProvider)
-                  .expireQueueEntry(
-                    restaurantId: restaurantId,
-                    branchId: branchId,
-                    queueEntryId: queueEntryId,
-                    phone: entry.phone,
-                  );
-            });
-          }
-          if (expired) {
+          if (entry.status == QueueStatus.expired) {
             return _StatusContent(
               restaurantId: restaurantId,
               branchId: branchId,
@@ -278,7 +263,7 @@ class _AutoExpiredCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'You have exited the queue automatically because your waiting time exceeded $queueAutoExpiryMinutes minutes.',
+            'This queue entry is no longer active. Please join the queue again if you still need a table.',
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Color(0xFF607D8B),

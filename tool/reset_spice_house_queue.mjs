@@ -124,6 +124,7 @@ for (const doc of tableDocs) {
     status: 'available',
     currentQueueEntryId: null,
     currentTokenCode: null,
+    currentPartySize: null,
     currentCycleStartAt: null,
     currentCycleSource: null,
     reservedAt: null,

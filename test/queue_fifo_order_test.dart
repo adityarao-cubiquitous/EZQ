@@ -66,43 +66,6 @@ void main() {
       expect(entry.waitingMinutesSince(DateTime(2026, 6, 25, 18)), 15);
     });
   });
-
-  group('QueueEntry auto expiry', () {
-    test('does not expire at exactly 90 minutes', () {
-      final now = DateTime(2026, 6, 25, 18);
-      final entry = _entry(
-        id: 'q1',
-        joinedAt: now.subtract(const Duration(minutes: queueAutoExpiryMinutes)),
-      );
-
-      expect(entry.hasExceededAutoExpiryAt(now), false);
-    });
-
-    test('expires at the 91st minute', () {
-      final now = DateTime(2026, 6, 25, 18);
-      final entry = _entry(
-        id: 'q1',
-        joinedAt: now.subtract(
-          const Duration(minutes: queueAutoExpiryMinutes + 1),
-        ),
-      );
-
-      expect(entry.hasExceededAutoExpiryAt(now), true);
-    });
-
-    test('non-waiting entries do not auto-expire', () {
-      final now = DateTime(2026, 6, 25, 18);
-      final entry = _entry(
-        id: 'q1',
-        status: QueueStatus.seated,
-        joinedAt: now.subtract(
-          const Duration(minutes: queueAutoExpiryMinutes + 1),
-        ),
-      );
-
-      expect(entry.hasExceededAutoExpiryAt(now), false);
-    });
-  });
 }
 
 QueueEntry _entry({

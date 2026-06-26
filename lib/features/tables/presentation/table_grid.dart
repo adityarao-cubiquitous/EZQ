@@ -18,6 +18,7 @@ class TableGrid extends StatefulWidget {
     this.onMealFinished,
     this.matchingTableIds = const {},
     this.tableHighlightTones = const {},
+    this.highlightScrollKey,
   });
 
   final List<RestaurantTable> tables;
@@ -29,6 +30,7 @@ class TableGrid extends StatefulWidget {
   onMealFinished;
   final Set<String> matchingTableIds;
   final Map<String, TableHighlightTone> tableHighlightTones;
+  final Object? highlightScrollKey;
 
   @override
   State<TableGrid> createState() => _TableGridState();
@@ -37,17 +39,32 @@ class TableGrid extends StatefulWidget {
 class _TableGridState extends State<TableGrid> {
   late DateTime _now;
   Timer? _minuteTicker;
+  final Map<String, GlobalKey> _tableKeys = {};
+  String _highlightSignature = '';
 
   @override
   void initState() {
     super.initState();
     _now = DateTime.now();
+    _highlightSignature = _currentHighlightSignature();
     _minuteTicker = Timer.periodic(const Duration(minutes: 1), (_) {
       if (!mounted) return;
       setState(() {
         _now = DateTime.now();
       });
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant TableGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextSignature = _currentHighlightSignature();
+    final shouldScroll =
+        nextSignature != _highlightSignature ||
+        oldWidget.highlightScrollKey != widget.highlightScrollKey;
+    _highlightSignature = nextSignature;
+    if (!shouldScroll) return;
+    _scrollToFirstHighlightedTable();
   }
 
   @override
@@ -107,6 +124,7 @@ class _TableGridState extends State<TableGrid> {
                 itemBuilder: (context, index) {
                   final table = group.tables[index];
                   return GestureDetector(
+                    key: _keyForTable(table.id),
                     behavior: HitTestBehavior.opaque,
                     onTap: () {},
                     child: _TableCard(
@@ -143,6 +161,55 @@ class _TableGridState extends State<TableGrid> {
         ),
       ),
     );
+  }
+
+  GlobalKey _keyForTable(String tableId) {
+    return _tableKeys.putIfAbsent(tableId, GlobalKey.new);
+  }
+
+  String _currentHighlightSignature() {
+    final ids = {
+      ...widget.matchingTableIds,
+      ...widget.tableHighlightTones.keys,
+    }.toList()..sort();
+    return ids.join('|');
+  }
+
+  void _scrollToFirstHighlightedTable() {
+    final tableId = _firstHighlightedTableId();
+    if (tableId == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final context = _tableKeys[tableId]?.currentContext;
+      if (context == null) return;
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+        alignment: 0.18,
+      );
+    });
+  }
+
+  String? _firstHighlightedTableId() {
+    final best = _firstTableIdForTone(TableHighlightTone.best);
+    if (best != null) return best;
+    final nextBest = _firstTableIdForTone(TableHighlightTone.nextBest);
+    if (nextBest != null) return nextBest;
+    if (widget.matchingTableIds.isEmpty) return null;
+    final ids = widget.matchingTableIds.toList()..sort();
+    return ids.first;
+  }
+
+  String? _firstTableIdForTone(TableHighlightTone tone) {
+    final ids =
+        widget.tableHighlightTones.entries
+            .where((entry) => entry.value == tone)
+            .map((entry) => entry.key)
+            .toList()
+          ..sort();
+    if (ids.isEmpty) return null;
+    return ids.first;
   }
 
   List<_CapacityGroup> _groupTablesByCapacity(List<RestaurantTable> tables) {
@@ -245,10 +312,11 @@ class _TableCard extends StatelessWidget {
     final compact = Responsive.isCompact(context);
     final occupiedCount = table.currentQueueEntryId == null
         ? 0
-        : initialPartySize ?? table.capacity;
+        : table.currentPartySize ?? initialPartySize ?? table.capacity;
     final color = _tableColor(occupiedCount);
     final highlightColor = _highlightColor();
     final highlightLabel = _highlightLabel();
+    final isHighlighted = highlightColor != null;
     final statusLabel = _statusLabel(occupiedCount);
     final minutesSpent = _minutesSpent();
     final canFinishMeal =
@@ -267,12 +335,31 @@ class _TableCard extends StatelessWidget {
       curve: Curves.easeOutCubic,
       padding: EdgeInsets.all(compact ? 8 : 10),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: isHighlighted
+            ? Color.alphaBlend(
+                highlightColor.withValues(alpha: 0.08),
+                color.withValues(alpha: 0.08),
+              )
+            : color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: highlightColor ?? color.withValues(alpha: 0.35),
-          width: highlightTone == null ? 1 : 2,
+          width: isHighlighted ? 2.5 : 1,
         ),
+        boxShadow: isHighlighted
+            ? [
+                BoxShadow(
+                  color: highlightColor.withValues(alpha: 0.34),
+                  blurRadius: 20,
+                  spreadRadius: 1,
+                ),
+                BoxShadow(
+                  color: highlightColor.withValues(alpha: 0.18),
+                  blurRadius: 44,
+                  spreadRadius: 4,
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -410,7 +497,7 @@ class _TableCard extends StatelessWidget {
 
   Color _tableColor(int occupiedCount) {
     return switch (table.status) {
-      TableStatus.available => AppColors.primaryTeal,
+      TableStatus.available => AppColors.successGreen,
       TableStatus.reserved => AppColors.accentPurple,
       TableStatus.occupied =>
         occupiedCount >= table.capacity
@@ -470,9 +557,16 @@ class _TableHighlightPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
+        color: color.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
+        border: Border.all(color: color.withValues(alpha: 0.62)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.32),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
       ),
       child: Text(
         label,

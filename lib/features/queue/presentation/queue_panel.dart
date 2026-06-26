@@ -9,10 +9,11 @@ import '../../tables/domain/restaurant_table.dart';
 import '../domain/queue_entry.dart';
 import '../domain/queue_status.dart';
 
-class QueuePanel extends StatelessWidget {
+class QueuePanel extends StatefulWidget {
   const QueuePanel({
     super.key,
     required this.queue,
+    this.initialVisibleCount = 8,
     this.spotlightEntryId,
     this.spotlightLabel,
     this.secondarySpotlightEntryId,
@@ -25,6 +26,7 @@ class QueuePanel extends StatelessWidget {
   });
 
   final List<QueueEntry> queue;
+  final int initialVisibleCount;
   final String? spotlightEntryId;
   final String? spotlightLabel;
   final String? secondarySpotlightEntryId;
@@ -36,8 +38,36 @@ class QueuePanel extends StatelessWidget {
   final void Function(QueueEntry entry)? onEntryTapped;
 
   @override
+  State<QueuePanel> createState() => _QueuePanelState();
+}
+
+class _QueuePanelState extends State<QueuePanel> {
+  bool _showAll = false;
+  String _queueSignature = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _queueSignature = _currentQueueSignature();
+  }
+
+  @override
+  void didUpdateWidget(covariant QueuePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextSignature = _currentQueueSignature();
+    if (nextSignature == _queueSignature) return;
+    _queueSignature = nextSignature;
+    _showAll = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final compact = Responsive.isCompact(context);
+    final visibleCount = _showAll
+        ? widget.queue.length
+        : _boundedVisibleCount();
+    final visibleQueue = widget.queue.take(visibleCount).toList();
+    final hiddenCount = widget.queue.length - visibleQueue.length;
     return Container(
       padding: EdgeInsets.all(compact ? 14 : 24),
       decoration: BoxDecoration(
@@ -74,7 +104,7 @@ class QueuePanel extends StatelessWidget {
             ),
           ),
           SizedBox(height: compact ? 12 : 16),
-          for (final entry in queue) ...[
+          for (final entry in visibleQueue) ...[
             Builder(
               builder: (context) {
                 final spotlightTone = _spotlightToneFor(entry.id);
@@ -95,16 +125,16 @@ class QueuePanel extends StatelessWidget {
                   },
                   child: _SpotlightAutoScroller(
                     key: ValueKey('${entry.id}-${entry.status.wireName}'),
-                    enabled: autoScrollSpotlight && isSpotlighted,
+                    enabled: widget.autoScrollSpotlight && isSpotlighted,
                     child: _QueueEntryCard(
                       entry: entry,
                       spotlightTone: spotlightTone,
                       spotlightLabel: _spotlightLabelFor(entry.id),
-                      availableTables: availableTables,
-                      onReserve: () => onReserve(entry),
-                      onSkip: () => onSkip(entry),
-                      onTap: onEntryTapped != null
-                          ? () => onEntryTapped!(entry)
+                      availableTables: widget.availableTables,
+                      onReserve: () => widget.onReserve(entry),
+                      onSkip: () => widget.onSkip(entry),
+                      onTap: widget.onEntryTapped != null
+                          ? () => widget.onEntryTapped!(entry)
                           : null,
                     ),
                   ),
@@ -113,27 +143,121 @@ class QueuePanel extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
+          if (hiddenCount > 0)
+            _LoadMoreQueueButton(
+              hiddenCount: hiddenCount,
+              onPressed: () => setState(() => _showAll = true),
+            )
+          else if (_showAll && widget.queue.length > widget.initialVisibleCount)
+            _ShowLessQueueButton(
+              onPressed: () => setState(() => _showAll = false),
+            ),
         ],
       ),
     );
   }
 
   _QueueSpotlightTone? _spotlightToneFor(String entryId) {
-    if (entryId == spotlightEntryId) return _QueueSpotlightTone.best;
-    if (entryId == secondarySpotlightEntryId) {
+    if (entryId == widget.spotlightEntryId) return _QueueSpotlightTone.best;
+    if (entryId == widget.secondarySpotlightEntryId) {
       return _QueueSpotlightTone.nextBest;
     }
     return null;
   }
 
   String? _spotlightLabelFor(String entryId) {
-    if (entryId == spotlightEntryId) return spotlightLabel;
-    if (entryId == secondarySpotlightEntryId) return secondarySpotlightLabel;
+    if (entryId == widget.spotlightEntryId) return widget.spotlightLabel;
+    if (entryId == widget.secondarySpotlightEntryId) {
+      return widget.secondarySpotlightLabel;
+    }
     return null;
+  }
+
+  int _boundedVisibleCount() {
+    if (widget.queue.isEmpty) return 0;
+    if (widget.initialVisibleCount <= 0) return 1;
+    if (widget.initialVisibleCount > widget.queue.length) {
+      return widget.queue.length;
+    }
+    return widget.initialVisibleCount;
+  }
+
+  String _currentQueueSignature() {
+    return [
+      for (final entry in widget.queue) entry.id,
+      'count:${widget.initialVisibleCount}',
+      'best:${widget.spotlightEntryId ?? ''}',
+      'next:${widget.secondarySpotlightEntryId ?? ''}',
+    ].join('|');
   }
 }
 
 enum _QueueSpotlightTone { best, nextBest }
+
+class _LoadMoreQueueButton extends StatelessWidget {
+  const _LoadMoreQueueButton({
+    required this.hiddenCount,
+    required this.onPressed,
+  });
+
+  final int hiddenCount;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = Responsive.isCompact(context);
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.expand_more_rounded),
+        label: Text('Load more ($hiddenCount)'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.deepTeal,
+          side: BorderSide(color: AppColors.line.withValues(alpha: 0.82)),
+          textStyle: TextStyle(
+            fontSize: compact ? 13 : 14,
+            fontWeight: FontWeight.w800,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShowLessQueueButton extends StatelessWidget {
+  const _ShowLessQueueButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = Responsive.isCompact(context);
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: TextButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.expand_less_rounded),
+        label: const Text('Show less'),
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.deepTeal,
+          textStyle: TextStyle(
+            fontSize: compact ? 13 : 14,
+            fontWeight: FontWeight.w800,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _SpotlightAutoScroller extends StatefulWidget {
   const _SpotlightAutoScroller({
@@ -245,10 +369,6 @@ class _QueueEntryCard extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
-                  if (_prefersSharedSeating(entry)) ...[
-                    const SizedBox(width: 6),
-                    const _SharedSeatingIndicator(),
-                  ],
                 ],
               ),
             ),
@@ -272,14 +392,7 @@ class _QueueEntryCard extends StatelessWidget {
               icon: Icons.login_rounded,
               label: 'Joined $joinedTime',
             ),
-            Text(
-              entry.status.wireName,
-              style: TextStyle(
-                color: AppColors.mutedText,
-                fontSize: compact ? 12 : 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            if (_prefersSharedSeating(entry)) const _SharedSeatingPill(),
           ],
         ),
         SizedBox(height: compact ? 10 : 12),
@@ -387,22 +500,38 @@ bool _prefersSharedSeating(QueueEntry entry) {
       SeatingPreference.anyAvailable;
 }
 
-class _SharedSeatingIndicator extends StatelessWidget {
-  const _SharedSeatingIndicator();
+class _SharedSeatingPill extends StatelessWidget {
+  const _SharedSeatingPill();
 
   @override
   Widget build(BuildContext context) {
+    final compact = Responsive.isCompact(context);
     return Container(
-      width: 9,
-      height: 9,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 9,
+        vertical: compact ? 4 : 5,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFFFC8019),
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFFC8019).withValues(alpha: 0.28),
-            blurRadius: 6,
-            spreadRadius: 1,
+        color: const Color(0xFFFFF3E8),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x33FC8019)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.group_add_rounded,
+            size: compact ? 13 : 14,
+            color: const Color(0xFFB75B00),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            'OK to share',
+            style: TextStyle(
+              color: const Color(0xFF8A4B00),
+              fontSize: compact ? 11 : 12,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),

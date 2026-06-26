@@ -189,7 +189,6 @@ async function createQueueEntry(input: JoinQueueInput, sessionType: string) {
       skippedAt: null,
       cancelledAt: null,
       expiredAt: null,
-      autoExpiredReason: null,
       noShowAt: null,
       updatedAt: FieldValue.serverTimestamp(),
     });

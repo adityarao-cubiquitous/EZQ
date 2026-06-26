@@ -11,6 +11,7 @@ class RestaurantTable {
     required this.sortOrder,
     this.currentQueueEntryId,
     this.currentTokenCode,
+    this.currentPartySize,
     this.reservedAt,
     this.occupiedAt,
     this.cleaningStartedAt,
@@ -28,6 +29,7 @@ class RestaurantTable {
   final TableStatus status;
   final String? currentQueueEntryId;
   final String? currentTokenCode;
+  final int? currentPartySize;
   final int sortOrder;
   final DateTime? reservedAt;
   final DateTime? occupiedAt;
@@ -57,6 +59,7 @@ class RestaurantTable {
       status: TableStatus.fromWireName(data['status'] as String?),
       currentQueueEntryId: data['currentQueueEntryId'] as String?,
       currentTokenCode: data['currentTokenCode'] as String?,
+      currentPartySize: data['currentPartySize'] as int?,
       sortOrder: data['sortOrder'] as int? ?? 0,
       reservedAt: readDate('reservedAt'),
       occupiedAt: readDate('occupiedAt'),
@@ -76,6 +79,7 @@ class RestaurantTable {
     'status': status.wireName,
     'currentQueueEntryId': currentQueueEntryId,
     'currentTokenCode': currentTokenCode,
+    'currentPartySize': currentPartySize,
     'sortOrder': sortOrder,
     'reservedAt': reservedAt?.toIso8601String(),
     'occupiedAt': occupiedAt?.toIso8601String(),
