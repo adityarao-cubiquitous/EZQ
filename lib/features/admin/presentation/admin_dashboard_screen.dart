@@ -148,6 +148,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 tables: tables,
                 occupiedCountFor: occupiedFor,
               );
+              final queueTableRecommendations =
+                  _queueTableRecommendationsForEntries(
+                    liveQueue: liveQueue,
+                    tables: tables,
+                    occupiedCountFor: occupiedFor,
+                  );
 
               return SafeArea(
                 bottom: false,
@@ -205,6 +211,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 SizedBox(height: gap),
                                 QueuePanel(
                                   queue: queuePresentation.queue,
+                                  tableRecommendations:
+                                      queueTableRecommendations,
                                   initialVisibleCount:
                                       queuePresentation.initialVisibleCount,
                                   spotlightEntryId: _spotlightQueueEntryId,
@@ -235,6 +243,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                         tables,
                                         occupiedFor,
                                       ),
+                                  onRecommendationSelected:
+                                      (entry, recommendation) =>
+                                          _assignRecommendedTable(
+                                            context: context,
+                                            entry: entry,
+                                            recommendation: recommendation,
+                                            tables: tables,
+                                          ),
                                 ),
                               ],
                             );
@@ -290,6 +306,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   child: SingleChildScrollView(
                                     child: QueuePanel(
                                       queue: queuePresentation.queue,
+                                      tableRecommendations:
+                                          queueTableRecommendations,
                                       initialVisibleCount:
                                           queuePresentation.initialVisibleCount,
                                       spotlightEntryId: _spotlightQueueEntryId,
@@ -298,7 +316,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                           _secondarySpotlightQueueEntryId,
                                       secondarySpotlightLabel:
                                           _secondarySpotlightLabel,
-                                      autoScrollSpotlight: false,
+                                      autoScrollSpotlight: true,
                                       availableTables: availableTables,
                                       onReserve: (entry) => _reserveQueueEntry(
                                         context: context,
@@ -320,6 +338,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                             tables,
                                             occupiedFor,
                                           ),
+                                      onRecommendationSelected:
+                                          (entry, recommendation) =>
+                                              _assignRecommendedTable(
+                                                context: context,
+                                                entry: entry,
+                                                recommendation: recommendation,
+                                                tables: tables,
+                                              ),
                                     ),
                                   ),
                                 ),
@@ -355,6 +381,58 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
     if (selectedTable == null || !context.mounted) return;
 
+    await _seatQueueEntryAtTable(
+      context: context,
+      entry: entry,
+      table: selectedTable,
+    );
+  }
+
+  Future<void> _assignRecommendedTable({
+    required BuildContext context,
+    required QueueEntry entry,
+    required QueueTableRecommendation recommendation,
+    required List<RestaurantTable> tables,
+  }) async {
+    final table = _tableById(tables, recommendation.tableId);
+    if (table == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${recommendation.tableNumber} is no longer available in this view.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (recommendation.isShared) {
+      _clearTableGridSelection();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Shared seating for ${recommendation.tableNumber} needs multi-party table support. Pick an empty-table recommendation for now.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    await _seatQueueEntryAtTable(context: context, entry: entry, table: table);
+  }
+
+  RestaurantTable? _tableById(List<RestaurantTable> tables, String tableId) {
+    for (final table in tables) {
+      if (table.id == tableId) return table;
+    }
+    return null;
+  }
+
+  Future<void> _seatQueueEntryAtTable({
+    required BuildContext context,
+    required QueueEntry entry,
+    required RestaurantTable table,
+  }) async {
     try {
       await ref
           .read(tableRepositoryProvider)
@@ -362,7 +440,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             restaurantId: widget.restaurantId,
             branchId: widget.branchId,
             queueEntryId: entry.id,
-            tableId: selectedTable.id,
+            tableId: table.id,
           );
       if (!context.mounted) return;
       await showGeneralDialog<void>(
@@ -375,7 +453,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           return _SeatingTransitionOverlay(
             tokenCode: entry.tokenCode,
             customerName: entry.customerName,
-            tableNumber: selectedTable.tableNumber,
+            tableNumber: table.tableNumber,
           );
         },
         transitionBuilder: (context, animation, secondaryAnimation, child) {
@@ -395,15 +473,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${entry.tokenCode} seated at ${selectedTable.tableNumber}. Table is now occupied.',
+            '${entry.tokenCode} seated at ${table.tableNumber}. Table is now occupied.',
           ),
         ),
       );
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not reserve table: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not seat party: $error')));
     }
   }
 
@@ -654,6 +732,101 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
   }
 
+  Map<String, List<QueueTableRecommendation>>
+  _queueTableRecommendationsForEntries({
+    required List<QueueEntry> liveQueue,
+    required List<RestaurantTable> tables,
+    required int Function(RestaurantTable) occupiedCountFor,
+  }) {
+    final recommendations = <String, List<QueueTableRecommendation>>{};
+    for (final entry in liveQueue) {
+      final entryRecommendations = _tableRecommendationsForQueueEntry(
+        entry: entry,
+        tables: tables,
+        occupiedCountFor: occupiedCountFor,
+      );
+      if (entryRecommendations.isEmpty) continue;
+      recommendations[entry.id] = entryRecommendations;
+    }
+    return recommendations;
+  }
+
+  List<QueueTableRecommendation> _tableRecommendationsForQueueEntry({
+    required QueueEntry entry,
+    required List<RestaurantTable> tables,
+    required int Function(RestaurantTable) occupiedCountFor,
+  }) {
+    final candidates = _tableFitCandidatesForQueueEntry(
+      entry: entry,
+      tables: tables,
+      occupiedCountFor: occupiedCountFor,
+    );
+    if (candidates.isEmpty) return const [];
+    return [
+      QueueTableRecommendation(
+        tableId: candidates.first.table.id,
+        tableNumber: candidates.first.table.tableNumber,
+        openSeats: candidates.first.openSeats,
+        capacity: candidates.first.table.capacity,
+        isShared: candidates.first.isShared,
+        tone: QueueTableRecommendationTone.best,
+      ),
+      if (candidates.length > 1)
+        QueueTableRecommendation(
+          tableId: candidates[1].table.id,
+          tableNumber: candidates[1].table.tableNumber,
+          openSeats: candidates[1].openSeats,
+          capacity: candidates[1].table.capacity,
+          isShared: candidates[1].isShared,
+          tone: QueueTableRecommendationTone.nextBest,
+        ),
+    ];
+  }
+
+  List<_TableFitCandidate> _tableFitCandidatesForQueueEntry({
+    required QueueEntry entry,
+    required List<RestaurantTable> tables,
+    required int Function(RestaurantTable) occupiedCountFor,
+  }) {
+    final allowShared = !_prefersEmptyTable(entry);
+    final candidates = <_TableFitCandidate>[];
+    for (final table in tables) {
+      final isAvailable = table.status == TableStatus.available;
+      final isShared =
+          allowShared &&
+          table.status == TableStatus.occupied &&
+          occupiedCountFor(table) > 0;
+      if (!isAvailable && !isShared) continue;
+
+      final openSeats = isAvailable
+          ? table.capacity
+          : table.capacity - occupiedCountFor(table);
+      if (openSeats < entry.partySize) continue;
+      candidates.add(
+        _TableFitCandidate(
+          table: table,
+          openSeats: openSeats,
+          isShared: isShared,
+        ),
+      );
+    }
+
+    candidates.sort((a, b) {
+      final waste = (a.openSeats - entry.partySize).compareTo(
+        b.openSeats - entry.partySize,
+      );
+      if (waste != 0) return waste;
+      final shared = (b.isShared ? 1 : 0).compareTo(a.isShared ? 1 : 0);
+      if (shared != 0) return shared;
+      final capacity = a.table.capacity.compareTo(b.table.capacity);
+      if (capacity != 0) return capacity;
+      final sortOrder = a.table.sortOrder.compareTo(b.table.sortOrder);
+      if (sortOrder != 0) return sortOrder;
+      return a.table.tableNumber.compareTo(b.table.tableNumber);
+    });
+    return candidates;
+  }
+
   String? _spotlightLabelForNext(QueueEntry? nextEntry) {
     if (nextEntry == null) return null;
     return '${nextEntry.tokenCode} is next';
@@ -695,6 +868,18 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _secondarySpotlightLabel = nextEntry == null ? null : nextLabel;
     });
   }
+}
+
+class _TableFitCandidate {
+  const _TableFitCandidate({
+    required this.table,
+    required this.openSeats,
+    required this.isShared,
+  });
+
+  final RestaurantTable table;
+  final int openSeats;
+  final bool isShared;
 }
 
 class _SkipTransitionOverlay extends StatefulWidget {
@@ -1719,56 +1904,56 @@ Map<String, TableHighlightTone> _tableHighlightsForQueueEntry({
   required QueueEntry entry,
   required int Function(RestaurantTable) occupiedCountFor,
 }) {
-  final highlights = <String, TableHighlightTone>{};
-  if (_prefersEmptyTable(entry)) {
-    return _smallestAvailableTableHighlights(tables: tables, entry: entry);
-  }
-
-  int? smallestSharedFit;
+  final candidates = <_TableFitCandidate>[];
+  final allowShared = !_prefersEmptyTable(entry);
   for (final table in tables) {
-    if (table.status != TableStatus.occupied) continue;
-    final occupiedCount = occupiedCountFor(table);
-    final remaining = table.capacity - occupiedCount;
-    if (occupiedCount <= 0 || remaining < entry.partySize) continue;
-    if (smallestSharedFit == null || remaining < smallestSharedFit) {
-      smallestSharedFit = remaining;
-    }
+    final isAvailable = table.status == TableStatus.available;
+    final isShared =
+        allowShared &&
+        table.status == TableStatus.occupied &&
+        occupiedCountFor(table) > 0;
+    if (!isAvailable && !isShared) continue;
+    final openSeats = isAvailable
+        ? table.capacity
+        : table.capacity - occupiedCountFor(table);
+    if (openSeats < entry.partySize) continue;
+    candidates.add(
+      _TableFitCandidate(
+        table: table,
+        openSeats: openSeats,
+        isShared: isShared,
+      ),
+    );
   }
-  if (smallestSharedFit != null) {
-    for (final table in tables) {
-      if (table.status != TableStatus.occupied) continue;
-      final occupiedCount = occupiedCountFor(table);
-      final remaining = table.capacity - occupiedCount;
-      if (occupiedCount > 0 && remaining == smallestSharedFit) {
-        highlights[table.id] = TableHighlightTone.best;
-      }
-    }
-    return highlights;
+  if (candidates.isEmpty) return const {};
+  candidates.sort((a, b) {
+    final waste = (a.openSeats - entry.partySize).compareTo(
+      b.openSeats - entry.partySize,
+    );
+    if (waste != 0) return waste;
+    final shared = (b.isShared ? 1 : 0).compareTo(a.isShared ? 1 : 0);
+    if (shared != 0) return shared;
+    final capacity = a.table.capacity.compareTo(b.table.capacity);
+    if (capacity != 0) return capacity;
+    final sortOrder = a.table.sortOrder.compareTo(b.table.sortOrder);
+    if (sortOrder != 0) return sortOrder;
+    return a.table.tableNumber.compareTo(b.table.tableNumber);
+  });
+  final bestWaste = candidates.first.openSeats - entry.partySize;
+  int? nextWaste;
+  for (final candidate in candidates) {
+    final waste = candidate.openSeats - entry.partySize;
+    if (waste <= bestWaste) continue;
+    nextWaste = waste;
+    break;
   }
-
-  return _smallestAvailableTableHighlights(tables: tables, entry: entry);
-}
-
-Map<String, TableHighlightTone> _smallestAvailableTableHighlights({
-  required List<RestaurantTable> tables,
-  required QueueEntry entry,
-}) {
-  final fittingTables = tables
-      .where(
-        (table) =>
-            table.status == TableStatus.available &&
-            table.capacity >= entry.partySize,
-      )
-      .toList();
-  if (fittingTables.isEmpty) return const {};
-
-  final bestCapacity = fittingTables
-      .map((table) => table.capacity)
-      .reduce((a, b) => a < b ? a : b);
-
   return {
-    for (final table in fittingTables)
-      if (table.capacity == bestCapacity) table.id: TableHighlightTone.best,
+    for (final candidate in candidates)
+      if (candidate.openSeats - entry.partySize == bestWaste)
+        candidate.table.id: TableHighlightTone.best
+      else if (nextWaste != null &&
+          candidate.openSeats - entry.partySize == nextWaste)
+        candidate.table.id: TableHighlightTone.nextBest,
   };
 }
 

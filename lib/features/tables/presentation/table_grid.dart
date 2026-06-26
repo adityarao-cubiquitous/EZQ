@@ -497,7 +497,7 @@ class _TableCard extends StatelessWidget {
 
   Color _tableColor(int occupiedCount) {
     return switch (table.status) {
-      TableStatus.available => AppColors.successGreen,
+      TableStatus.available => AppColors.primaryTeal,
       TableStatus.reserved => AppColors.accentPurple,
       TableStatus.occupied =>
         occupiedCount >= table.capacity
@@ -510,7 +510,7 @@ class _TableCard extends StatelessWidget {
   Color? _highlightColor() {
     return switch (highlightTone) {
       TableHighlightTone.best => AppColors.successGreen,
-      TableHighlightTone.nextBest => AppColors.accentPurple,
+      TableHighlightTone.nextBest => AppColors.warningOrange,
       null => null,
     };
   }
@@ -557,21 +557,21 @@ class _TableHighlightPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
+        color: color,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.62)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
         boxShadow: [
           BoxShadow(
-            color: color.withValues(alpha: 0.32),
-            blurRadius: 10,
-            spreadRadius: 1,
+            color: color.withValues(alpha: 0.36),
+            blurRadius: 12,
+            spreadRadius: 2,
           ),
         ],
       ),
       child: Text(
         label,
-        style: TextStyle(
-          color: color,
+        style: const TextStyle(
+          color: Colors.white,
           fontSize: 11,
           fontWeight: FontWeight.w900,
         ),

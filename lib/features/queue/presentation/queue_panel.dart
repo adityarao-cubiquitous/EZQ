@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/responsive.dart';
-import '../../../core/utils/date_time_utils.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../recommendation/domain/recommendation_types.dart';
 import '../../tables/domain/restaurant_table.dart';
@@ -13,6 +12,7 @@ class QueuePanel extends StatefulWidget {
   const QueuePanel({
     super.key,
     required this.queue,
+    this.tableRecommendations = const {},
     this.initialVisibleCount = 8,
     this.spotlightEntryId,
     this.spotlightLabel,
@@ -23,9 +23,11 @@ class QueuePanel extends StatefulWidget {
     required this.onReserve,
     required this.onSkip,
     this.onEntryTapped,
+    this.onRecommendationSelected,
   });
 
   final List<QueueEntry> queue;
+  final Map<String, List<QueueTableRecommendation>> tableRecommendations;
   final int initialVisibleCount;
   final String? spotlightEntryId;
   final String? spotlightLabel;
@@ -36,6 +38,11 @@ class QueuePanel extends StatefulWidget {
   final void Function(QueueEntry entry) onReserve;
   final void Function(QueueEntry entry) onSkip;
   final void Function(QueueEntry entry)? onEntryTapped;
+  final void Function(
+    QueueEntry entry,
+    QueueTableRecommendation recommendation,
+  )?
+  onRecommendationSelected;
 
   @override
   State<QueuePanel> createState() => _QueuePanelState();
@@ -108,7 +115,6 @@ class _QueuePanelState extends State<QueuePanel> {
             Builder(
               builder: (context) {
                 final spotlightTone = _spotlightToneFor(entry.id);
-                final isSpotlighted = spotlightTone != null;
                 return AnimatedSwitcher(
                   duration: const Duration(milliseconds: 280),
                   switchInCurve: Curves.easeOutCubic,
@@ -125,9 +131,13 @@ class _QueuePanelState extends State<QueuePanel> {
                   },
                   child: _SpotlightAutoScroller(
                     key: ValueKey('${entry.id}-${entry.status.wireName}'),
-                    enabled: widget.autoScrollSpotlight && isSpotlighted,
+                    enabled:
+                        widget.autoScrollSpotlight &&
+                        spotlightTone == _QueueSpotlightTone.best,
                     child: _QueueEntryCard(
                       entry: entry,
+                      recommendations:
+                          widget.tableRecommendations[entry.id] ?? const [],
                       spotlightTone: spotlightTone,
                       spotlightLabel: _spotlightLabelFor(entry.id),
                       availableTables: widget.availableTables,
@@ -136,6 +146,14 @@ class _QueuePanelState extends State<QueuePanel> {
                       onTap: widget.onEntryTapped != null
                           ? () => widget.onEntryTapped!(entry)
                           : null,
+                      onRecommendationSelected:
+                          widget.onRecommendationSelected == null
+                          ? null
+                          : (recommendation) =>
+                                widget.onRecommendationSelected!(
+                                  entry,
+                                  recommendation,
+                                ),
                     ),
                   ),
                 );
@@ -191,6 +209,26 @@ class _QueuePanelState extends State<QueuePanel> {
     ].join('|');
   }
 }
+
+class QueueTableRecommendation {
+  const QueueTableRecommendation({
+    required this.tableId,
+    required this.tableNumber,
+    required this.openSeats,
+    required this.capacity,
+    required this.isShared,
+    required this.tone,
+  });
+
+  final String tableId;
+  final String tableNumber;
+  final int openSeats;
+  final int capacity;
+  final bool isShared;
+  final QueueTableRecommendationTone tone;
+}
+
+enum QueueTableRecommendationTone { best, nextBest }
 
 enum _QueueSpotlightTone { best, nextBest }
 
@@ -308,21 +346,26 @@ class _SpotlightAutoScrollerState extends State<_SpotlightAutoScroller> {
 class _QueueEntryCard extends StatelessWidget {
   const _QueueEntryCard({
     required this.entry,
+    required this.recommendations,
     required this.spotlightTone,
     required this.spotlightLabel,
     required this.availableTables,
     required this.onReserve,
     required this.onSkip,
     this.onTap,
+    this.onRecommendationSelected,
   });
 
   final QueueEntry entry;
+  final List<QueueTableRecommendation> recommendations;
   final _QueueSpotlightTone? spotlightTone;
   final String? spotlightLabel;
   final List<RestaurantTable> availableTables;
   final VoidCallback onReserve;
   final VoidCallback onSkip;
   final VoidCallback? onTap;
+  final void Function(QueueTableRecommendation recommendation)?
+  onRecommendationSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -330,7 +373,6 @@ class _QueueEntryCard extends StatelessWidget {
     final canReserve = entry.status == QueueStatus.waiting;
     final spotlight = spotlightTone != null;
     final waitedMinutes = entry.waitingMinutesSince(DateTime.now());
-    final joinedTime = DateTimeUtils.shortTime(entry.joinedAt);
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -386,15 +428,25 @@ class _QueueEntryCard extends StatelessWidget {
           children: [
             _QueueMetaPill(
               icon: Icons.timer_outlined,
-              label: 'Waiting $waitedMinutes min',
-            ),
-            _QueueMetaPill(
-              icon: Icons.login_rounded,
-              label: 'Joined $joinedTime',
+              label: '$waitedMinutes min',
             ),
             if (_prefersSharedSeating(entry)) const _SharedSeatingPill(),
           ],
         ),
+        if (recommendations.isNotEmpty) ...[
+          SizedBox(height: compact ? 8 : 10),
+          for (final recommendation in recommendations) ...[
+            _QueueTableRecommendationStrip(
+              recommendation: recommendation,
+              partySize: entry.partySize,
+              onPressed: onRecommendationSelected == null
+                  ? null
+                  : () => onRecommendationSelected!(recommendation),
+            ),
+            if (recommendation != recommendations.last)
+              SizedBox(height: compact ? 6 : 7),
+          ],
+        ],
         SizedBox(height: compact ? 10 : 12),
         if (compact)
           Column(
@@ -433,45 +485,38 @@ class _QueueEntryCard extends StatelessWidget {
       curve: Curves.easeOutBack,
       builder: (context, glow, child) {
         final toneColor = _spotlightColor(spotlightTone);
-        return AnimatedScale(
-          duration: const Duration(milliseconds: 380),
-          curve: Curves.easeOutBack,
-          scale: spotlight ? 1.025 : 1,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 360),
-            curve: Curves.easeOutCubic,
-            padding: EdgeInsets.all(compact ? 12 : 16),
-            decoration: BoxDecoration(
-              gradient: spotlight
-                  ? LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppColors.primaryTeal.withValues(alpha: 0.11),
-                        toneColor.withValues(alpha: 0.13),
-                        Colors.white.withValues(alpha: 0.96),
-                      ],
-                    )
-                  : null,
-              color: spotlight ? null : const Color(0xFFF7F9FF),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: spotlight
-                    ? toneColor.withValues(alpha: 0.46)
-                    : const Color(0x1ABDC8D0),
-                width: spotlight ? 1.4 : 1,
-              ),
-              boxShadow: [
-                if (spotlight)
-                  BoxShadow(
-                    color: toneColor.withValues(alpha: 0.16 + (glow * 0.08)),
-                    blurRadius: 24 + (glow * 8),
-                    offset: const Offset(0, 12),
-                  ),
-              ],
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 360),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.all(compact ? 12 : 16),
+          decoration: BoxDecoration(
+            color: spotlight
+                ? Color.alphaBlend(
+                    toneColor.withValues(alpha: 0.08),
+                    const Color(0xFFF7F9FF),
+                  )
+                : const Color(0xFFF7F9FF),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: spotlight ? toneColor : const Color(0x1ABDC8D0),
+              width: spotlight ? 2.5 : 1,
             ),
-            child: content,
+            boxShadow: spotlight
+                ? [
+                    BoxShadow(
+                      color: toneColor.withValues(alpha: 0.34),
+                      blurRadius: 20,
+                      spreadRadius: 1,
+                    ),
+                    BoxShadow(
+                      color: toneColor.withValues(alpha: 0.18),
+                      blurRadius: 44,
+                      spreadRadius: 4,
+                    ),
+                  ]
+                : null,
           ),
+          child: content,
         );
       },
     );
@@ -526,7 +571,7 @@ class _SharedSeatingPill extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            'OK to share',
+            'Share',
             style: TextStyle(
               color: const Color(0xFF8A4B00),
               fontSize: compact ? 11 : 12,
@@ -535,6 +580,101 @@ class _SharedSeatingPill extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _QueueTableRecommendationStrip extends StatelessWidget {
+  const _QueueTableRecommendationStrip({
+    required this.recommendation,
+    required this.partySize,
+    this.onPressed,
+  });
+
+  final QueueTableRecommendation recommendation;
+  final int partySize;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = Responsive.isCompact(context);
+    final spareSeats = recommendation.openSeats - partySize;
+    final color = recommendation.tone == QueueTableRecommendationTone.best
+        ? AppColors.successGreen
+        : AppColors.warningOrange;
+    final rankLabel = recommendation.tone == QueueTableRecommendationTone.best
+        ? 'Best'
+        : 'Next';
+    final pathLabel = recommendation.isShared ? 'Share' : 'Empty';
+    final fitLabel = spareSeats == 0
+        ? 'exact fit'
+        : '$spareSeats spare ${spareSeats == 1 ? 'seat' : 'seats'}';
+
+    final strip = Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 12,
+        vertical: compact ? 8 : 9,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Icon(
+              recommendation.isShared
+                  ? Icons.groups_2_rounded
+                  : Icons.event_seat_rounded,
+              color: color,
+              size: 16,
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              '$rankLabel: $pathLabel ${recommendation.tableNumber} · $fitLabel',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.navyText,
+                fontSize: compact ? 12 : 13,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          Tooltip(
+            message: 'Seat at ${recommendation.tableNumber}',
+            child: Container(
+              width: compact ? 28 : 30,
+              height: compact ? 28 : 30,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Icon(
+                Icons.touch_app_rounded,
+                color: color,
+                size: compact ? 16 : 17,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (onPressed == null) return strip;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(onTap: onPressed, child: strip),
     );
   }
 }
