@@ -1,4 +1,5 @@
 import 'package:ezq/app/ezq_app.dart';
+import 'package:ezq/features/customer/presentation/customer_join_queue_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -56,4 +57,32 @@ void main() {
     await tester.pump();
     expect(find.text('Reservation cancelled'), findsWidgets);
   });
+
+  testWidgets(
+    'customer join header uses resolved restaurant and branch names',
+    (tester) async {
+      tester.view.physicalSize = const Size(430, 1100);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            home: CustomerJoinQueueScreen(
+              restaurantId: 'salad-studio',
+              branchId: '12th-main',
+              restaurantName: 'Salad Studio',
+              branchName: '12th Main',
+            ),
+          ),
+        ),
+      );
+      await pumpFrames(tester);
+
+      expect(find.text('Salad Studio'), findsOneWidget);
+      expect(find.text('12th Main Branch'), findsOneWidget);
+      expect(find.text('The Spice House'), findsNothing);
+    },
+  );
 }

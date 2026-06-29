@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
@@ -77,7 +78,7 @@ class MockMenuRepository implements MenuRepository {
 
 final menuRepositoryProvider = Provider<MenuRepository>((ref) {
   const useFirebase = bool.fromEnvironment('USE_FIREBASE');
-  if (useFirebase) {
+  if (useFirebase || kIsWeb) {
     return FirebaseMenuRepository(
       branchIdentityRepository: ref.watch(branchIdentityRepositoryProvider),
     );

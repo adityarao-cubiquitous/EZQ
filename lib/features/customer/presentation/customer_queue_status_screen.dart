@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -651,7 +652,7 @@ typedef HiddenObjectImageArgs = ({String restaurantId, String branchId});
 final hiddenObjectImageProvider =
     StreamProvider.family<String?, HiddenObjectImageArgs>((ref, args) {
       const useFirebase = bool.fromEnvironment('USE_FIREBASE');
-      if (!useFirebase) return Stream.value(null);
+      if (!useFirebase && !kIsWeb) return Stream.value(null);
 
       return Stream.fromFuture(
             ref

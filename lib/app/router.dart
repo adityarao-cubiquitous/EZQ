@@ -21,6 +21,7 @@ import '../features/reports/presentation/daily_summary_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   const useFirebase = bool.fromEnvironment('USE_FIREBASE');
+  final useFirebaseCustomerRoutes = useFirebase || kIsWeb;
   const useAppRoot = !kIsWeb && useFirebase;
 
   return GoRouter(
@@ -34,7 +35,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/customer/:restaurantId/:branchId',
         builder: (context, state) {
-          if (!useFirebase) {
+          if (!useFirebaseCustomerRoutes) {
             return CustomerJoinQueueScreen(
               restaurantId: state.pathParameters['restaurantId']!,
               branchId: state.pathParameters['branchId']!,
