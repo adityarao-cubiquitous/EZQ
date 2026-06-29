@@ -788,26 +788,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required List<RestaurantTable> tables,
     required int Function(RestaurantTable) occupiedCountFor,
   }) {
-    final allowShared = !_prefersEmptyTable(entry);
     final candidates = <_TableFitCandidate>[];
     for (final table in tables) {
-      final isAvailable = table.status == TableStatus.available;
-      final isShared =
-          allowShared &&
-          table.status == TableStatus.occupied &&
-          occupiedCountFor(table) > 0;
-      if (!isAvailable && !isShared) continue;
-
-      final openSeats = isAvailable
-          ? table.capacity
-          : table.capacity - occupiedCountFor(table);
+      if (table.status != TableStatus.available) continue;
+      final openSeats = table.capacity;
       if (openSeats < entry.partySize) continue;
       candidates.add(
-        _TableFitCandidate(
-          table: table,
-          openSeats: openSeats,
-          isShared: isShared,
-        ),
+        _TableFitCandidate(table: table, openSeats: openSeats, isShared: false),
       );
     }
 
@@ -816,8 +803,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         b.openSeats - entry.partySize,
       );
       if (waste != 0) return waste;
-      final shared = (b.isShared ? 1 : 0).compareTo(a.isShared ? 1 : 0);
-      if (shared != 0) return shared;
       final capacity = a.table.capacity.compareTo(b.table.capacity);
       if (capacity != 0) return capacity;
       final sortOrder = a.table.sortOrder.compareTo(b.table.sortOrder);
@@ -1905,24 +1890,12 @@ Map<String, TableHighlightTone> _tableHighlightsForQueueEntry({
   required int Function(RestaurantTable) occupiedCountFor,
 }) {
   final candidates = <_TableFitCandidate>[];
-  final allowShared = !_prefersEmptyTable(entry);
   for (final table in tables) {
-    final isAvailable = table.status == TableStatus.available;
-    final isShared =
-        allowShared &&
-        table.status == TableStatus.occupied &&
-        occupiedCountFor(table) > 0;
-    if (!isAvailable && !isShared) continue;
-    final openSeats = isAvailable
-        ? table.capacity
-        : table.capacity - occupiedCountFor(table);
+    if (table.status != TableStatus.available) continue;
+    final openSeats = table.capacity;
     if (openSeats < entry.partySize) continue;
     candidates.add(
-      _TableFitCandidate(
-        table: table,
-        openSeats: openSeats,
-        isShared: isShared,
-      ),
+      _TableFitCandidate(table: table, openSeats: openSeats, isShared: false),
     );
   }
   if (candidates.isEmpty) return const {};
@@ -1931,8 +1904,6 @@ Map<String, TableHighlightTone> _tableHighlightsForQueueEntry({
       b.openSeats - entry.partySize,
     );
     if (waste != 0) return waste;
-    final shared = (b.isShared ? 1 : 0).compareTo(a.isShared ? 1 : 0);
-    if (shared != 0) return shared;
     final capacity = a.table.capacity.compareTo(b.table.capacity);
     if (capacity != 0) return capacity;
     final sortOrder = a.table.sortOrder.compareTo(b.table.sortOrder);
