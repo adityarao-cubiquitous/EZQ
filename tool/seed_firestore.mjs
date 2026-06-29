@@ -32,6 +32,7 @@ const documents = {
     restaurantId: 'the-spice-house',
     restaurantName: 'The Spice House',
     branchId: 'indiranagar',
+    branchSlug: 'indiranagar',
     name: 'Indiranagar',
     area: 'Indiranagar',
     address: '100 Feet Road, Indiranagar, Bengaluru',
@@ -40,6 +41,8 @@ const documents = {
       'https://ezq-dev-cubiquitous.web.app/customer/the-spice-house/indiranagar',
     qrImageUrl:
       'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/the-spice-house-indiranagar.png',
+    qrSvgUrl:
+      'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/the-spice-house-indiranagar.svg',
     menuPdfUrl: '/demo-menu.pdf',
     menuPreviewImageUrl: '/demo-menu-page-1.png',
     isActive: true,

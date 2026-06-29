@@ -180,6 +180,23 @@ function branchIdFor(restaurantId, pathBranchId, duplicatePathBranchIds) {
   return `${restaurantId}-${pathBranchId}`;
 }
 
+function slugify(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function branchSlugFor(branchId, data) {
+  const existing = data.branchSlug;
+  if (typeof existing === 'string' && existing.trim().length > 0) {
+    return slugify(existing);
+  }
+  return slugify(data.name) || slugify(branchId);
+}
+
 function qrSlugFor(restaurantId, branchId, data) {
   const existing = data.qrSlug;
   if (typeof existing === 'string' && existing.trim().length > 0) {
@@ -282,7 +299,8 @@ async function main() {
         restaurantData.name ??
         restaurantId;
       const qrSlug = qrSlugFor(restaurantId, branchId, branchData);
-      const queueUrl = `${hostingOrigin}/customer/${restaurantId}/${branchId}`;
+      const branchSlug = branchSlugFor(branchId, branchData);
+      const queueUrl = `${hostingOrigin}/customer/${restaurantId}/${branchSlug}`;
       const qrImageUrl = qrImageUrlFor(qrSlug, branchData);
       const isActive =
         typeof branchData.isActive === 'boolean'
@@ -292,6 +310,7 @@ async function main() {
         restaurantId,
         restaurantName,
         branchId,
+        branchSlug,
         name: branchData.name ?? branchId,
         qrSlug,
         queueUrl,

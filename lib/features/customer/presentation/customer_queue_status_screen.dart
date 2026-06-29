@@ -13,6 +13,7 @@ import '../../../core/widgets/ezq_button.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
+import '../data/branch_identity_repository.dart';
 import '../data/customer_queue_repository.dart';
 import 'customer_shell.dart';
 import 'restaurant_logo.dart';
@@ -652,9 +653,19 @@ final hiddenObjectImageProvider =
       const useFirebase = bool.fromEnvironment('USE_FIREBASE');
       if (!useFirebase) return Stream.value(null);
 
-      return FirebaseFirestore.instance
-          .doc(FirestorePaths.branch(args.restaurantId, args.branchId))
-          .snapshots()
+      return Stream.fromFuture(
+            ref
+                .read(branchIdentityRepositoryProvider)
+                .resolveBranchId(
+                  restaurantId: args.restaurantId,
+                  branchSlugOrId: args.branchId,
+                ),
+          )
+          .asyncExpand((resolvedBranchId) {
+            return FirebaseFirestore.instance
+                .doc(FirestorePaths.branch(args.restaurantId, resolvedBranchId))
+                .snapshots();
+          })
           .map((snapshot) {
             final data = snapshot.data() ?? <String, dynamic>{};
             return data['hiddenObjectPuzzleImageUrl'] as String? ??

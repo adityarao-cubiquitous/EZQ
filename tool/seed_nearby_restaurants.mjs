@@ -149,6 +149,10 @@ const documents = Object.fromEntries(
         restaurantId: restaurant.id,
         restaurantName: restaurant.name,
         branchId: restaurant.branchId,
+        branchSlug: restaurant.branchName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, ''),
         name: restaurant.branchName,
         area: restaurant.area,
         address: restaurant.address,
@@ -156,13 +160,28 @@ const documents = Object.fromEntries(
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
-        qrSlug: `${restaurant.id}-${restaurant.branchId}`,
+        qrSlug: `${restaurant.id}-${restaurant.branchName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')}`,
         queueUrl:
           `https://ezq-dev-cubiquitous.web.app/customer/` +
-          `${restaurant.id}/${restaurant.branchId}`,
+          `${restaurant.id}/${restaurant.branchName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')}`,
         qrImageUrl:
           `https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/` +
-          `qr-codes/${restaurant.id}-${restaurant.branchId}.png`,
+          `qr-codes/${restaurant.id}-${restaurant.branchName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')}.png`,
+        qrSvgUrl:
+          `https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/` +
+          `qr-codes/${restaurant.id}-${restaurant.branchName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')}.svg`,
         isActive: true,
         signedUp: true,
         cuisine: restaurant.cuisine,

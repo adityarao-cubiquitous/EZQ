@@ -16,8 +16,10 @@ class Branch {
     this.restaurantId,
     this.restaurantName,
     this.branchId,
+    this.branchSlug,
     this.queueUrl,
     this.qrImageUrl,
+    this.qrSvgUrl,
     this.cuisine,
     this.logoUrl,
     this.latitude,
@@ -40,8 +42,10 @@ class Branch {
   final String? restaurantId;
   final String? restaurantName;
   final String? branchId;
+  final String? branchSlug;
   final String? queueUrl;
   final String? qrImageUrl;
+  final String? qrSvgUrl;
   final String? cuisine;
   final String? logoUrl;
   final double? latitude;
@@ -67,8 +71,10 @@ class Branch {
       restaurantId: data['restaurantId'] as String?,
       restaurantName: data['restaurantName'] as String?,
       branchId: data['branchId'] as String? ?? id,
+      branchSlug: data['branchSlug'] as String?,
       queueUrl: data['queueUrl'] as String?,
       qrImageUrl: data['qrImageUrl'] as String?,
+      qrSvgUrl: data['qrSvgUrl'] as String?,
       cuisine: data['cuisine'] as String?,
       logoUrl: data['logoUrl'] as String?,
       latitude: (data['latitude'] as num?)?.toDouble(),
@@ -92,8 +98,10 @@ class Branch {
     'restaurantId': restaurantId,
     'restaurantName': restaurantName,
     'branchId': branchId ?? id,
+    'branchSlug': branchSlug,
     'queueUrl': queueUrl,
     'qrImageUrl': qrImageUrl,
+    'qrSvgUrl': qrSvgUrl,
     'cuisine': cuisine,
     'logoUrl': logoUrl,
     'latitude': latitude,
