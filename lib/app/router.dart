@@ -8,6 +8,7 @@ import '../features/admin/presentation/branch_selector_screen.dart';
 import '../features/auth/presentation/customer_phone_auth_screen.dart';
 import '../features/auth/presentation/admin_login_screen.dart';
 import '../features/customer/presentation/app_install_prompt.dart';
+import '../features/customer/presentation/customer_deep_link_screen.dart';
 import '../features/customer/presentation/customer_join_queue_screen.dart';
 import '../features/customer/presentation/customer_menu_screen.dart';
 import '../features/customer/presentation/customer_queue_status_screen.dart';
@@ -32,10 +33,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/customer/:restaurantId/:branchId',
-        builder: (context, state) => CustomerJoinQueueScreen(
-          restaurantId: state.pathParameters['restaurantId']!,
-          branchId: state.pathParameters['branchId']!,
-        ),
+        builder: (context, state) {
+          if (!useFirebase) {
+            return CustomerJoinQueueScreen(
+              restaurantId: state.pathParameters['restaurantId']!,
+              branchId: state.pathParameters['branchId']!,
+            );
+          }
+          return CustomerDeepLinkScreen(
+            restaurantSlug: state.pathParameters['restaurantId']!,
+            branchSlug: state.pathParameters['branchId']!,
+          );
+        },
       ),
       GoRoute(
         path: '/customer/:restaurantId/:branchId/status/:queueEntryId',
