@@ -1,20 +1,127 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
+import '../../auth/data/auth_repository.dart';
 import '../../queue/data/queue_repository.dart';
 import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
+import '../../recommendation/domain/customer_preferences.dart';
 import '../../recommendation/domain/recommendation_types.dart';
 import '../../tables/data/table_repository.dart';
 import '../../tables/domain/restaurant_table.dart';
 import '../../tables/domain/table_status.dart';
 import '../../tables/presentation/table_grid.dart';
 import '../../queue/presentation/queue_panel.dart';
+import '../../customer/domain/seating_preference_service.dart';
+
+final _adminWalkInEtaProvider = StreamProvider.autoDispose
+    .family<
+      SeatingEta,
+      ({String restaurantId, String branchId, int partySize})
+    >((ref, args) {
+      final queueRepository = ref.watch(queueRepositoryProvider);
+      final tableRepository = ref.watch(tableRepositoryProvider);
+      final controller = StreamController<SeatingEta>();
+      List<QueueEntry>? latestQueue;
+      List<RestaurantTable>? latestTables;
+
+      void emitIfReady() {
+        final queue = latestQueue;
+        final tables = latestTables;
+        if (queue == null || tables == null || controller.isClosed) return;
+        controller.add(
+          _adminComputeLiveEta(
+            queue: queue,
+            tables: tables,
+            partySize: args.partySize,
+          ),
+        );
+      }
+
+      final queueSubscription = queueRepository
+          .watchTodayQueue(
+            restaurantId: args.restaurantId,
+            branchId: args.branchId,
+          )
+          .listen((queue) {
+            latestQueue = queue;
+            emitIfReady();
+          }, onError: controller.addError);
+
+      final tableSubscription = tableRepository
+          .watchTables(restaurantId: args.restaurantId, branchId: args.branchId)
+          .listen((tables) {
+            latestTables = tables;
+            emitIfReady();
+          }, onError: controller.addError);
+
+      ref.onDispose(() {
+        queueSubscription.cancel();
+        tableSubscription.cancel();
+        controller.close();
+      });
+
+      return controller.stream;
+    });
+
+SeatingEta _adminComputeLiveEta({
+  required List<QueueEntry> queue,
+  required List<RestaurantTable> tables,
+  required int partySize,
+}) {
+  final waitingCount = queue
+      .where((entry) => entry.status == QueueStatus.waiting)
+      .length;
+  final sharedReadySlots = tables
+      .where(
+        (table) => _adminTableCanFitParty(table, partySize, allowShared: true),
+      )
+      .length;
+  final emptyReadySlots = tables
+      .where(
+        (table) => _adminTableCanFitParty(table, partySize, allowShared: false),
+      )
+      .length;
+
+  final sharedPosition = (waitingCount + 1 - sharedReadySlots).clamp(0, 99);
+  final emptyPosition = (waitingCount + 1 - emptyReadySlots).clamp(0, 99);
+  final partySizePremium = partySize > 4 ? 6 : 0;
+  final sharedMinutes = sharedPosition == 0
+      ? 5
+      : (8 + sharedPosition * 5 + partySizePremium).clamp(5, 75).toInt();
+  final rawEmptyMinutes = emptyPosition == 0
+      ? 6
+      : (10 + emptyPosition * 6 + partySizePremium).clamp(6, 100).toInt();
+  final emptyMinutes = rawEmptyMinutes <= sharedMinutes
+      ? (sharedMinutes + 8).clamp(6, 100).toInt()
+      : rawEmptyMinutes;
+
+  return SeatingEta(
+    sharedMinutes: sharedMinutes,
+    emptyTableMinutes: emptyMinutes,
+  );
+}
+
+bool _adminTableCanFitParty(
+  RestaurantTable table,
+  int partySize, {
+  required bool allowShared,
+}) {
+  if (table.status == TableStatus.available) return table.capacity >= partySize;
+  if (!allowShared || table.status != TableStatus.occupied) return false;
+  final currentPartySize = table.currentPartySize ?? 0;
+  if (currentPartySize <= 0) return false;
+  return table.capacity - currentPartySize >= partySize;
+}
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({
@@ -38,6 +145,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   String? _secondarySpotlightLabel;
   int _spotlightGeneration = 0;
   QueueEntry? _selectedQueueEntry;
+  _TopMetricFilter? _selectedMetricFilter;
 
   void _handleQueueEntryTap(
     QueueEntry entry,
@@ -93,6 +201,67 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
   }
 
+  Map<String, TableHighlightTone> _metricTableHighlights({
+    required List<RestaurantTable> tables,
+    required List<QueueEntry> liveQueue,
+    required int Function(RestaurantTable) occupiedCountFor,
+  }) {
+    return switch (_selectedMetricFilter) {
+      _TopMetricFilter.free => {
+        for (final table in tables)
+          if (table.status == TableStatus.available)
+            table.id: TableHighlightTone.free,
+      },
+      _TopMetricFilter.occupied => {
+        for (final table in tables)
+          if (table.status == TableStatus.occupied)
+            table.id: TableHighlightTone.occupied,
+      },
+      _TopMetricFilter.waiting =>
+        liveQueue.isEmpty
+            ? const {}
+            : _tableHighlightsForQueueEntry(
+                tables: tables,
+                entry: liveQueue.first,
+                occupiedCountFor: occupiedCountFor,
+              ),
+      null => const {},
+    };
+  }
+
+  void _handleMetricTap(_TopMetricFilter filter) {
+    final isDeselecting = _selectedMetricFilter == filter;
+    setState(() {
+      _selectedMetricFilter = isDeselecting ? null : filter;
+      _selectedQueueEntry = null;
+      _spotlightQueueEntryId = null;
+      _spotlightLabel = null;
+      _secondarySpotlightQueueEntryId = null;
+      _secondarySpotlightLabel = null;
+      _spotlightGeneration++;
+    });
+    ScaffoldMessenger.of(context).clearSnackBars();
+    if (!isDeselecting) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(filter.snackBarLabel)));
+    }
+  }
+
+  Future<void> _logoutAdmin() async {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    try {
+      await ref.read(authRepositoryProvider).signOut();
+      if (!mounted) return;
+      context.go('/admin/login');
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not logout: $error')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tablesStream = ref
@@ -143,6 +312,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 tables,
                 occupiedFor,
               );
+              final metricHighlights = _metricTableHighlights(
+                tables: tables,
+                liveQueue: liveQueue,
+                occupiedCountFor: occupiedFor,
+              );
+              final tableHighlights = _selectedMetricFilter == null
+                  ? matchingHighlights
+                  : metricHighlights;
               final queuePresentation = _queuePresentationForTables(
                 liveQueue: liveQueue,
                 tables: tables,
@@ -160,10 +337,18 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 child: Column(
                   children: [
                     _AdminTopBar(
+                      restaurantId: widget.restaurantId,
+                      branchId: widget.branchId,
+                      restaurantName: _restaurantDisplayName(
+                        widget.restaurantId,
+                      ),
                       branchName: 'Indiranagar',
                       freeTables: free,
                       occupiedTables: occupied,
                       waitingCount: liveQueue.length,
+                      selectedMetric: _selectedMetricFilter,
+                      onMetricTap: _handleMetricTap,
+                      onLogout: _logoutAdmin,
                       onReports: () => context.go(
                         '/admin/${widget.restaurantId}/${widget.branchId}/reports',
                       ),
@@ -181,8 +366,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               children: [
                                 TableGrid(
                                   tables: tables,
-                                  tableHighlightTones: matchingHighlights,
-                                  highlightScrollKey: _selectedQueueEntry?.id,
+                                  tableHighlightTones: tableHighlights,
+                                  highlightScrollKey:
+                                      _selectedQueueEntry?.id ??
+                                      _selectedMetricFilter,
                                   completedPartySizeFor: (table) =>
                                       table.currentPartySize ??
                                       queueById[table.currentQueueEntryId]
@@ -265,9 +452,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   child: SingleChildScrollView(
                                     child: TableGrid(
                                       tables: tables,
-                                      tableHighlightTones: matchingHighlights,
+                                      tableHighlightTones: tableHighlights,
                                       highlightScrollKey:
-                                          _selectedQueueEntry?.id,
+                                          _selectedQueueEntry?.id ??
+                                          _selectedMetricFilter,
                                       completedPartySizeFor: (table) =>
                                           table.currentPartySize ??
                                           queueById[table.currentQueueEntryId]
@@ -598,6 +786,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   void _clearTableGridSelection() {
     if (_selectedQueueEntry == null &&
+        _selectedMetricFilter == null &&
         _spotlightQueueEntryId == null &&
         _secondarySpotlightQueueEntryId == null) {
       return;
@@ -605,6 +794,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
     setState(() {
       _selectedQueueEntry = null;
+      _selectedMetricFilter = null;
       _spotlightQueueEntryId = null;
       _spotlightLabel = null;
       _secondarySpotlightQueueEntryId = null;
@@ -1657,17 +1847,29 @@ class _MealFinishedDialogState extends State<_MealFinishedDialog> {
 
 class _AdminTopBar extends StatelessWidget {
   const _AdminTopBar({
+    required this.restaurantId,
+    required this.branchId,
+    required this.restaurantName,
     required this.branchName,
     required this.freeTables,
     required this.occupiedTables,
     required this.waitingCount,
+    required this.selectedMetric,
+    required this.onMetricTap,
+    required this.onLogout,
     required this.onReports,
   });
 
+  final String restaurantId;
+  final String branchId;
+  final String restaurantName;
   final String branchName;
   final int freeTables;
   final int occupiedTables;
   final int waitingCount;
+  final _TopMetricFilter? selectedMetric;
+  final ValueChanged<_TopMetricFilter> onMetricTap;
+  final VoidCallback onLogout;
   final VoidCallback onReports;
 
   @override
@@ -1714,19 +1916,21 @@ class _AdminTopBar extends StatelessWidget {
                     ),
                     const SizedBox(width: 14),
                     Expanded(
-                      child: Text(
-                        branchName,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      child: _AdminLocationTitle(
+                        restaurantName: restaurantName,
+                        branchName: branchName,
+                        compact: true,
                       ),
                     ),
                     IconButton(
                       tooltip: 'Daily summary',
                       onPressed: onReports,
                       icon: const Icon(Icons.bar_chart),
+                    ),
+                    IconButton(
+                      tooltip: 'Logout',
+                      onPressed: onLogout,
+                      icon: const Icon(Icons.logout_rounded),
                     ),
                   ],
                 ),
@@ -1738,6 +1942,8 @@ class _AdminTopBar extends StatelessWidget {
                         label: 'Free',
                         value: freeTables,
                         color: AppColors.primaryTeal,
+                        selected: selectedMetric == _TopMetricFilter.free,
+                        onTap: () => onMetricTap(_TopMetricFilter.free),
                         compact: true,
                       ),
                     ),
@@ -1746,6 +1952,8 @@ class _AdminTopBar extends StatelessWidget {
                         label: 'Occupied',
                         value: occupiedTables,
                         color: AppColors.errorRed,
+                        selected: selectedMetric == _TopMetricFilter.occupied,
+                        onTap: () => onMetricTap(_TopMetricFilter.occupied),
                         compact: true,
                       ),
                     ),
@@ -1754,6 +1962,8 @@ class _AdminTopBar extends StatelessWidget {
                         label: 'Waiting',
                         value: waitingCount,
                         color: AppColors.accentPurple,
+                        selected: selectedMetric == _TopMetricFilter.waiting,
+                        onTap: () => onMetricTap(_TopMetricFilter.waiting),
                         compact: true,
                       ),
                     ),
@@ -1765,7 +1975,10 @@ class _AdminTopBar extends StatelessWidget {
                         icon: Icons.add,
                         onPressed: () => showDialog<void>(
                           context: context,
-                          builder: (context) => const _WalkInDialog(),
+                          builder: (context) => _WalkInDialog(
+                            restaurantId: restaurantId,
+                            branchId: branchId,
+                          ),
                         ),
                       ),
                     ),
@@ -1788,28 +2001,31 @@ class _AdminTopBar extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 24),
-                  Text(
-                    branchName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  _AdminLocationTitle(
+                    restaurantName: restaurantName,
+                    branchName: branchName,
                   ),
                   const Spacer(),
                   _TopMetric(
                     label: 'Free',
                     value: freeTables,
                     color: AppColors.primaryTeal,
+                    selected: selectedMetric == _TopMetricFilter.free,
+                    onTap: () => onMetricTap(_TopMetricFilter.free),
                   ),
                   _TopMetric(
                     label: 'Occupied',
                     value: occupiedTables,
                     color: AppColors.errorRed,
+                    selected: selectedMetric == _TopMetricFilter.occupied,
+                    onTap: () => onMetricTap(_TopMetricFilter.occupied),
                   ),
                   _TopMetric(
                     label: 'Waiting',
                     value: waitingCount,
                     color: AppColors.accentPurple,
+                    selected: selectedMetric == _TopMetricFilter.waiting,
+                    onTap: () => onMetricTap(_TopMetricFilter.waiting),
                   ),
                   const SizedBox(width: 16),
                   SizedBox(
@@ -1819,7 +2035,10 @@ class _AdminTopBar extends StatelessWidget {
                       icon: Icons.add,
                       onPressed: () => showDialog<void>(
                         context: context,
-                        builder: (context) => const _WalkInDialog(),
+                        builder: (context) => _WalkInDialog(
+                          restaurantId: restaurantId,
+                          branchId: branchId,
+                        ),
                       ),
                     ),
                   ),
@@ -1828,6 +2047,11 @@ class _AdminTopBar extends StatelessWidget {
                     onPressed: onReports,
                     icon: const Icon(Icons.bar_chart),
                   ),
+                  IconButton(
+                    tooltip: 'Logout',
+                    onPressed: onLogout,
+                    icon: const Icon(Icons.logout_rounded),
+                  ),
                 ],
               ),
             ),
@@ -1835,42 +2059,649 @@ class _AdminTopBar extends StatelessWidget {
   }
 }
 
-class _WalkInDialog extends StatelessWidget {
-  const _WalkInDialog();
+class _AdminLocationTitle extends StatelessWidget {
+  const _AdminLocationTitle({
+    required this.restaurantName,
+    required this.branchName,
+    this.compact = false,
+  });
+
+  final String restaurantName;
+  final String branchName;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            restaurantName,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.navyText,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            branchName,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.mutedText,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          restaurantName,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.navyText,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: AppColors.softSurface,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.line.withValues(alpha: 0.65)),
+          ),
+          child: Text(
+            branchName,
+            style: const TextStyle(
+              color: AppColors.deepTeal,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _restaurantDisplayName(String restaurantId) {
+  if (restaurantId == AppConstants.demoRestaurantId) return 'The Spice House';
+  return restaurantId
+      .split('-')
+      .where((part) => part.isNotEmpty)
+      .map((part) => part[0].toUpperCase() + part.substring(1))
+      .join(' ');
+}
+
+class _WalkInDialog extends ConsumerStatefulWidget {
+  const _WalkInDialog({required this.restaurantId, required this.branchId});
+
+  final String restaurantId;
+  final String branchId;
+
+  @override
+  ConsumerState<_WalkInDialog> createState() => _WalkInDialogState();
+}
+
+class _WalkInDialogState extends ConsumerState<_WalkInDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _notesController = TextEditingController();
+  int _partySize = 4;
+  bool _sharePreference = false;
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _submitting = true);
+    final now = DateTime.now();
+    final eta =
+        ref
+            .read(
+              _adminWalkInEtaProvider((
+                restaurantId: widget.restaurantId,
+                branchId: widget.branchId,
+                partySize: _partySize,
+              )),
+            )
+            .value ??
+        ref
+            .read(seatingPreferenceServiceProvider)
+            .computeEtaEstimate(partySize: _partySize);
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      final result = await ref
+          .read(queueRepositoryProvider)
+          .addWalkIn(
+            AddWalkInRequest(
+              restaurantId: widget.restaurantId,
+              branchId: widget.branchId,
+              customerName: _nameController.text,
+              phone: _phoneController.text,
+              partySize: _partySize,
+              notes: _notesController.text,
+              customerPreferences: CustomerPreferences(
+                seatingPreference: _sharePreference
+                    ? SeatingPreference.anyAvailable
+                    : SeatingPreference.emptyTableOnly,
+                acceptedLongerWait: !_sharePreference,
+                etaShared: eta.sharedMinutes,
+                etaEmptyTable: eta.emptyTableMinutes,
+                selectedAt: now,
+              ),
+            ),
+          );
+      if (!mounted) return;
+      navigator.pop();
+      messenger.showSnackBar(
+        SnackBar(content: Text('${result.tokenCode} walk-in added to queue')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final dialogWidth = _dialogWidth(context, 420);
+    final etaAsync = ref.watch(
+      _adminWalkInEtaProvider((
+        restaurantId: widget.restaurantId,
+        branchId: widget.branchId,
+        partySize: _partySize,
+      )),
+    );
+    final eta =
+        etaAsync.value ??
+        ref
+            .watch(seatingPreferenceServiceProvider)
+            .computeEtaEstimate(partySize: _partySize);
     return AlertDialog(
-      title: const Text('Add walk-in'),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+      titlePadding: EdgeInsets.zero,
+      contentPadding: EdgeInsets.zero,
+      actionsPadding: EdgeInsets.zero,
+      title: const SizedBox.shrink(),
       content: SizedBox(
         width: dialogWidth,
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(decoration: InputDecoration(labelText: 'Name')),
-            SizedBox(height: 12),
-            TextField(decoration: InputDecoration(labelText: 'Phone')),
-            SizedBox(height: 12),
-            TextField(decoration: InputDecoration(labelText: 'Party size')),
-            SizedBox(height: 12),
-            TextField(decoration: InputDecoration(labelText: 'Notes')),
-          ],
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.98),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0x26BDC8D0)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1A12A9DC),
+                blurRadius: 28,
+                offset: Offset(0, 16),
+              ),
+            ],
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Add walk-in',
+                    style: TextStyle(
+                      color: AppColors.deepTeal,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _WalkInField(
+                  label: 'Guest Name',
+                  hintText: 'Enter guest name',
+                  controller: _nameController,
+                  textInputAction: TextInputAction.next,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Enter guest name';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                _WalkInField(
+                  label: 'Mobile Number (Optional)',
+                  hintText: '9876543210',
+                  prefixWidget: const Text(
+                    '+91  ',
+                    style: TextStyle(
+                      color: AppColors.navyText,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  controller: _phoneController,
+                  textInputAction: TextInputAction.next,
+                  keyboardType: TextInputType.number,
+                  enableSuggestions: false,
+                  autofillHints: const <String>[],
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                  ],
+                  validator: (value) {
+                    final phone = value?.trim() ?? '';
+                    if (phone.isEmpty) return null;
+                    if (phone.length != 10) {
+                      return 'Enter a 10 digit mobile number';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                _WalkInPartySizeSelector(
+                  value: _partySize,
+                  onChanged: (value) => setState(() => _partySize = value),
+                ),
+                const SizedBox(height: 14),
+                _WalkInPreferenceSelector(
+                  sharePreference: _sharePreference,
+                  eta: eta,
+                  isLive: etaAsync.hasValue,
+                  onChanged: (value) =>
+                      setState(() => _sharePreference = value),
+                ),
+                const SizedBox(height: 16),
+                _WalkInField(
+                  label: 'Special Notes (Optional)',
+                  hintText: 'e.g. High chair, birthday',
+                  controller: _notesController,
+                  textInputAction: TextInputAction.done,
+                  maxLines: 2,
+                  onFieldSubmitted: (_) => _submitting ? null : _submit(),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: _submitting
+                            ? null
+                            : () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: EzqButton(
+                        label: _submitting ? 'Adding...' : 'Add to queue',
+                        icon: Icons.arrow_forward_rounded,
+                        onPressed: _submitting ? null : _submit,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+    );
+  }
+}
+
+class _WalkInField extends StatelessWidget {
+  const _WalkInField({
+    required this.label,
+    required this.hintText,
+    required this.controller,
+    this.prefixWidget,
+    this.keyboardType,
+    this.textInputAction,
+    this.inputFormatters,
+    this.enableSuggestions = true,
+    this.autofillHints,
+    this.validator,
+    this.onFieldSubmitted,
+    this.maxLines = 1,
+  });
+
+  final String label;
+  final String hintText;
+  final TextEditingController controller;
+  final Widget? prefixWidget;
+  final TextInputType? keyboardType;
+  final TextInputAction? textInputAction;
+  final List<TextInputFormatter>? inputFormatters;
+  final bool enableSuggestions;
+  final Iterable<String>? autofillHints;
+  final String? Function(String?)? validator;
+  final ValueChanged<String>? onFieldSubmitted;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF3E484F),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
-        FilledButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Walk-in added to queue')),
-            );
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          textInputAction: textInputAction,
+          inputFormatters: inputFormatters,
+          enableSuggestions: enableSuggestions,
+          autocorrect: enableSuggestions,
+          autofillHints: autofillHints,
+          validator: validator,
+          onFieldSubmitted: onFieldSubmitted,
+          maxLines: maxLines,
+          style: const TextStyle(
+            color: AppColors.deepTeal,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            hintText: hintText,
+            prefixIcon: prefixWidget == null
+                ? null
+                : Padding(
+                    padding: const EdgeInsets.only(left: 18, right: 2),
+                    child: Center(widthFactor: 1, child: prefixWidget),
+                  ),
+            prefixIconConstraints: prefixWidget == null
+                ? null
+                : const BoxConstraints(minWidth: 0, minHeight: 0),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 15,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WalkInPartySizeSelector extends StatelessWidget {
+  const _WalkInPartySizeSelector({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            'Party Size',
+            style: TextStyle(
+              color: Color(0xFF3E484F),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        DropdownButtonFormField<int>(
+          initialValue: value,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+          decoration: const InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
+            prefixIcon: Icon(Icons.groups_outlined),
+          ),
+          items: [
+            for (final option in List<int>.generate(20, (index) => index + 1))
+              DropdownMenuItem<int>(
+                value: option,
+                child: Text(option == 1 ? '1 person' : '$option people'),
+              ),
+          ],
+          onChanged: (newValue) {
+            if (newValue != null) onChanged(newValue);
           },
-          child: const Text('Add to queue'),
+        ),
+      ],
+    );
+  }
+}
+
+class _WalkInPreferenceSelector extends StatelessWidget {
+  const _WalkInPreferenceSelector({
+    required this.sharePreference,
+    required this.eta,
+    required this.isLive,
+    required this.onChanged,
+  });
+
+  final bool sharePreference;
+  final SeatingEta eta;
+  final bool isLive;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Seating preference',
+                style: TextStyle(
+                  color: Color(0xFF3E484F),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (isLive) const _WalkInLiveEtaDot(),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _WalkInEtaCard(
+                label: 'Non-shared',
+                minutes: eta.emptyTableMinutes,
+                active: !sharePreference,
+                leading: Icons.event_seat_rounded,
+                onTap: () => onChanged(false),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _WalkInEtaCard(
+                label: 'Share',
+                minutes: eta.sharedMinutes,
+                active: sharePreference,
+                leading: Icons.groups_2_rounded,
+                onTap: () => onChanged(!sharePreference),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          sharePreference
+              ? 'Can be seated with another party when seats are available.'
+              : 'Default: seat only when a separate table is available.',
+          style: const TextStyle(color: AppColors.mutedText, fontSize: 11),
+        ),
+      ],
+    );
+  }
+}
+
+class _WalkInEtaCard extends StatelessWidget {
+  const _WalkInEtaCard({
+    required this.label,
+    required this.minutes,
+    required this.active,
+    required this.leading,
+    required this.onTap,
+  });
+
+  final String label;
+  final int minutes;
+  final bool active;
+  final IconData leading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? AppColors.primaryTeal : AppColors.mutedText;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          decoration: BoxDecoration(
+            color: active ? AppColors.softSurface : AppColors.softerSurface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: active
+                  ? AppColors.primaryTeal.withValues(alpha: 0.55)
+                  : AppColors.line.withValues(alpha: 0.55),
+              width: active ? 1.5 : 1,
+            ),
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: AppColors.primaryTeal.withValues(alpha: 0.10),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : const [],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    active
+                        ? Icons.check_box_rounded
+                        : Icons.check_box_outline_blank_rounded,
+                    size: 16,
+                    color: color,
+                  ),
+                  const SizedBox(width: 5),
+                  Icon(leading, size: 15, color: color),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: active
+                            ? AppColors.deepTeal
+                            : AppColors.mutedText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                child: Text(
+                  '~$minutes min',
+                  key: ValueKey(minutes),
+                  style: TextStyle(
+                    color: active ? AppColors.navyText : AppColors.mutedText,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WalkInLiveEtaDot extends StatelessWidget {
+  const _WalkInLiveEtaDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Live',
+          style: TextStyle(
+            color: AppColors.mutedText,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        SizedBox(width: 5),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.successGreen,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x6610B981),
+                blurRadius: 8,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: SizedBox(width: 7, height: 7),
         ),
       ],
     );
@@ -1961,40 +2792,132 @@ class _TopMetric extends StatelessWidget {
     required this.label,
     required this.value,
     required this.color,
+    required this.selected,
+    required this.onTap,
     this.compact = false,
   });
 
   final String label;
   final int value;
   final Color color;
+  final bool selected;
+  final VoidCallback onTap;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final icon = switch (label) {
+      'Free' => Icons.event_seat_rounded,
+      'Occupied' => Icons.table_restaurant_rounded,
+      _ => Icons.hourglass_top_rounded,
+    };
+    final foreground = selected ? Colors.white : color;
+    final background = selected ? color : Colors.white;
+    final tintedBackground = color.withValues(alpha: 0.11);
+
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 10),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: AppColors.mutedText,
-              fontSize: compact ? 11 : 14,
+      padding: EdgeInsets.symmetric(horizontal: compact ? 3 : 5),
+      child: Material(
+        color: background,
+        elevation: selected ? 2 : 0,
+        shadowColor: color.withValues(alpha: 0.20),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: color.withValues(alpha: 0.14),
+          highlightColor: color.withValues(alpha: 0.08),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            constraints: BoxConstraints(
+              minWidth: compact ? 70 : 92,
+              minHeight: compact ? 54 : 60,
+            ),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 10 : 13,
+              vertical: compact ? 7 : 9,
+            ),
+            decoration: BoxDecoration(
+              color: selected ? color : tintedBackground,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected
+                    ? Colors.white.withValues(alpha: 0.26)
+                    : color.withValues(alpha: 0.62),
+                width: selected ? 2 : 1.4,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: selected
+                      ? color.withValues(alpha: 0.24)
+                      : color.withValues(alpha: 0.10),
+                  blurRadius: selected ? 18 : 11,
+                  offset: const Offset(0, 7),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: compact ? 16 : 17, color: foreground),
+                SizedBox(width: compact ? 6 : 7),
+                Flexible(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        label,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: foreground.withValues(alpha: 0.82),
+                          fontSize: compact ? 10 : 12,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                      ),
+                      SizedBox(height: compact ? 2 : 3),
+                      Text(
+                        '$value',
+                        style: TextStyle(
+                          color: foreground,
+                          fontSize: compact ? 20 : 23,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (selected) ...[
+                  SizedBox(width: compact ? 5 : 7),
+                  Icon(
+                    Icons.check_circle_rounded,
+                    size: compact ? 14 : 16,
+                    color: foreground.withValues(alpha: 0.92),
+                  ),
+                ],
+              ],
             ),
           ),
-          Text(
-            '$value',
-            style: TextStyle(
-              color: color,
-              fontSize: compact ? 20 : 24,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
+}
+
+enum _TopMetricFilter {
+  free,
+  occupied,
+  waiting;
+
+  String get snackBarLabel => switch (this) {
+    _TopMetricFilter.free => 'Highlighting available tables',
+    _TopMetricFilter.occupied => 'Highlighting occupied tables',
+    _TopMetricFilter.waiting =>
+      'Highlighting tables for the next waiting party',
+  };
 }

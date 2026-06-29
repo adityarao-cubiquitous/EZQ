@@ -20,7 +20,8 @@ void main() {
 
     expect(find.text('The Spice House'), findsOneWidget);
     expect(find.text('Join Queue'), findsOneWidget);
-    expect(find.text('No app install required'), findsOneWidget);
+    expect(find.text('Shared seating'), findsOneWidget);
+    expect(find.text('Empty table only'), findsOneWidget);
 
     await tester.enterText(find.byType(TextFormField).first, 'Alex Johnson');
     await tester.tap(find.text('4 people'));

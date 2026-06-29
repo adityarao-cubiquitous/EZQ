@@ -281,6 +281,24 @@ class FirebaseCustomerProfileRepository implements CustomerProfileRepository {
   }
 }
 
+class FirebaseAuthRepository implements AuthRepository {
+  FirebaseAuthRepository({FirebaseAuth? auth})
+    : _auth = auth ?? FirebaseAuth.instance;
+
+  final FirebaseAuth _auth;
+
+  @override
+  Future<void> signInAdmin({required String email, required String password}) {
+    return _auth.signInWithEmailAndPassword(
+      email: email.trim(),
+      password: password,
+    );
+  }
+
+  @override
+  Future<void> signOut() => _auth.signOut();
+}
+
 class MockAuthRepository implements AuthRepository {
   @override
   Future<void> signInAdmin({
@@ -366,6 +384,10 @@ class MockCustomerProfileRepository implements CustomerProfileRepository {
 }
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  const useFirebase = bool.fromEnvironment('USE_FIREBASE');
+  if (useFirebase) {
+    return FirebaseAuthRepository();
+  }
   return MockAuthRepository();
 });
 

@@ -233,7 +233,7 @@ class _TableGridState extends State<TableGrid> {
   }
 }
 
-enum TableHighlightTone { best, nextBest }
+enum TableHighlightTone { best, nextBest, free, occupied }
 
 class _CapacityGroup {
   _CapacityGroup({required this.capacity, required this.tables});
@@ -511,6 +511,8 @@ class _TableCard extends StatelessWidget {
     return switch (highlightTone) {
       TableHighlightTone.best => AppColors.successGreen,
       TableHighlightTone.nextBest => AppColors.warningOrange,
+      TableHighlightTone.free => AppColors.primaryTeal,
+      TableHighlightTone.occupied => AppColors.errorRed,
       null => null,
     };
   }
@@ -519,6 +521,8 @@ class _TableCard extends StatelessWidget {
     return switch (highlightTone) {
       TableHighlightTone.best => 'Best',
       TableHighlightTone.nextBest => 'Next',
+      TableHighlightTone.free => 'Free',
+      TableHighlightTone.occupied => 'Occupied',
       null => null,
     };
   }
