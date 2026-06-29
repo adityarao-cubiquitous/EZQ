@@ -39,6 +39,7 @@ migrate_working_dir/
 # Firebase Functions generated/dependency output
 functions/node_modules/
 functions/lib/
+tool/node_modules/
 
 # Local/generated document artifacts
 tmp/

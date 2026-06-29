@@ -593,6 +593,8 @@ Platform and backend features:
 - Firebase Hosting configured for Flutter web.
 - Firestore data model for restaurants, branches, tables, queue entries, and daily counters.
 - Branch documents use a standard QR identity schema: `restaurantId`, `restaurantName`, `branchId`, `name`, `qrSlug`, `queueUrl`, `qrImageUrl`, and `isActive`.
+- Queue URLs are generated from the restaurant slug and customer-facing branch slug, while `branchId` remains the unique internal Firestore branch identity.
+- QR generation tooling creates PNG/SVG QR assets from each branch `queueUrl` and saves asset metadata back to the branch document once Firebase Storage is available.
 - Firebase Auth integrated for manager accounts.
 - Firestore rules and indexes maintained in the repository.
 - Seed script for demo restaurant data.
