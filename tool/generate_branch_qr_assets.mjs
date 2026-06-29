@@ -1,27 +1,74 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { request } from 'node:https';
 import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 const require = createRequire(import.meta.url);
 const QRCode = require('qrcode');
+const execFileAsync = promisify(execFile);
 
 const projectId = process.argv[2] ?? 'ezq-dev-cubiquitous';
 const hostingOrigin =
   process.env.EZQ_HOSTING_ORIGIN ?? 'https://ezq-dev-cubiquitous.web.app';
 const assetMode = process.env.EZQ_QR_ASSET_MODE ?? 'local';
 const localQrOutputDir = process.env.EZQ_QR_OUTPUT_DIR ?? 'assets/qr';
+const driveExportDir = process.env.EZQ_QR_DRIVE_EXPORT_DIR ?? 'drive_export';
+const qrBundlePath = process.env.EZQ_QR_BUNDLE_PATH ?? 'qr_bundle.zip';
 const storageBucket =
   process.env.EZQ_STORAGE_BUCKET ?? `${projectId}.firebasestorage.app`;
 const storageLocation = process.env.EZQ_STORAGE_LOCATION ?? 'ASIA-SOUTH1';
 const configPath = `${homedir()}/.config/configstore/firebase-tools.json`;
 const firebaseToolsConfig = JSON.parse(await readFile(configPath, 'utf8'));
-const accessToken = firebaseToolsConfig.tokens?.access_token;
+const refreshToken = firebaseToolsConfig.tokens?.refresh_token;
+let accessToken = firebaseToolsConfig.tokens?.access_token;
 
-if (!accessToken) {
+if (!accessToken && !refreshToken) {
   throw new Error('No Firebase CLI access token found. Run firebase login first.');
+}
+
+async function refreshAccessToken() {
+  if (!refreshToken) return accessToken;
+  const body = new URLSearchParams({
+    client_id:
+      '563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com',
+    client_secret: 'j9iVZfS8kkCEFUPaAeJV0sAi',
+    refresh_token: refreshToken,
+    grant_type: 'refresh_token',
+  }).toString();
+
+  return new Promise((resolve, reject) => {
+    const req = request(
+      {
+        hostname: 'oauth2.googleapis.com',
+        method: 'POST',
+        path: '/token',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        let response = '';
+        res.on('data', (chunk) => {
+          response += chunk;
+        });
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(JSON.parse(response).access_token);
+            return;
+          }
+          reject(new Error(`Failed to refresh Firebase token: ${response}`));
+        });
+      },
+    );
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
 }
 
 function slugify(value) {
@@ -382,10 +429,10 @@ class QrService {
   }
 
   async saveLocalAsset({ restaurantId, branchSlug, extension, body }) {
-    const restaurantDir = path.join(this.outputDir, restaurantId);
+    const restaurantDir = path.join(this.outputDir, restaurantId, branchSlug);
     await mkdir(restaurantDir, { recursive: true });
     const relativePath = path
-      .join(this.outputDir, restaurantId, `${branchSlug}.${extension}`)
+      .join(this.outputDir, restaurantId, branchSlug, `${branchSlug}.${extension}`)
       .replaceAll(path.sep, '/');
     await writeFile(relativePath, body);
     return {
@@ -407,6 +454,28 @@ class QrService {
       manifestPath: manifestPath.replaceAll(path.sep, '/'),
       indexPath: indexPath.replaceAll(path.sep, '/'),
     };
+  }
+
+  async saveDriveExport({ assets, exportDir }) {
+    await rm(exportDir, { recursive: true, force: true });
+    for (const asset of assets) {
+      const restaurantDir = path.join(exportDir, asset.restaurantId);
+      await mkdir(restaurantDir, { recursive: true });
+      await copyFile(
+        asset.pngPath,
+        path.join(restaurantDir, `${asset.branchSlug}.png`),
+      );
+      await copyFile(
+        asset.svgPath,
+        path.join(restaurantDir, `${asset.branchSlug}.svg`),
+      );
+    }
+  }
+
+  async saveZipBundle({ bundlePath, sourceDirs }) {
+    await rm(bundlePath, { force: true });
+    await execFileAsync('zip', ['-qr', bundlePath, ...sourceDirs]);
+    return bundlePath;
   }
 }
 
@@ -509,6 +578,7 @@ async function loadBranches() {
 }
 
 async function main() {
+  accessToken = await refreshAccessToken();
   const branches = await loadBranches();
   const queueUrlGenerator = new QueueUrlGenerator({ origin: hostingOrigin });
   const qrService = new QrService({
@@ -518,6 +588,12 @@ async function main() {
   });
   if (assetMode === 'storage') {
     await qrService.ensureBucket();
+  } else {
+    await Promise.all([
+      rm(localQrOutputDir, { recursive: true, force: true }),
+      rm(driveExportDir, { recursive: true, force: true }),
+      rm(qrBundlePath, { force: true }),
+    ]);
   }
 
   queueUrlGenerator.assignBranchSlugs(branches);
@@ -627,9 +703,19 @@ async function main() {
     const distribution = await qrService.saveLocalDistributionIndex({
       assets: generatedAssets,
     });
+    await qrService.saveDriveExport({
+      assets: generatedAssets,
+      exportDir: driveExportDir,
+    });
+    const bundlePath = await qrService.saveZipBundle({
+      bundlePath: qrBundlePath,
+      sourceDirs: [localQrOutputDir, driveExportDir],
+    });
     console.log(
       `Wrote local QR manifest ${distribution.manifestPath} and print index ${distribution.indexPath}`,
     );
+    console.log(`Wrote Drive-ready export ${driveExportDir}`);
+    console.log(`Wrote QR bundle ${bundlePath}`);
   }
 
   console.log(`Generated ${assetMode} QR assets for ${branches.length} branches.`);
