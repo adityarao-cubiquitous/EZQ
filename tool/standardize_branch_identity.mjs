@@ -66,6 +66,10 @@ function toFirestoreDocument(data) {
   };
 }
 
+function toRawFirestoreDocument(fields) {
+  return { fields };
+}
+
 function firestoreRequest(method, path, body) {
   const payload = body === undefined ? undefined : JSON.stringify(body);
 
@@ -128,7 +132,7 @@ function documentId(documentName) {
   return documentName.split('/').pop();
 }
 
-function requireUnique(items, key) {
+function duplicateValues(items, key) {
   const seen = new Map();
   const duplicates = [];
 
@@ -144,9 +148,36 @@ function requireUnique(items, key) {
     }
   }
 
+  return duplicates;
+}
+
+function requireUnique(items, key) {
+  const duplicates = duplicateValues(items, key);
   if (duplicates.length > 0) {
     throw new Error(`Duplicate ${key} values found:\n${duplicates.join('\n')}`);
   }
+}
+
+function duplicateValueSet(items, key) {
+  const counts = new Map();
+  for (const item of items) {
+    counts.set(item[key], (counts.get(item[key]) ?? 0) + 1);
+  }
+  return new Set(
+    [...counts.entries()]
+      .filter(([, count]) => count > 1)
+      .map(([value]) => value),
+  );
+}
+
+function branchIdFor(restaurantId, pathBranchId, duplicatePathBranchIds) {
+  if (!duplicatePathBranchIds.has(pathBranchId)) {
+    return pathBranchId;
+  }
+  if (restaurantId === 'the-spice-house' && pathBranchId === 'indiranagar') {
+    return pathBranchId;
+  }
+  return `${restaurantId}-${pathBranchId}`;
 }
 
 function qrSlugFor(restaurantId, branchId, data) {
@@ -165,9 +196,51 @@ function qrImageUrlFor(qrSlug, data) {
   return `${qrImageBaseUrl}/${qrSlug}.png`;
 }
 
+async function listSubcollectionIds(documentPath) {
+  const response = await firestoreRequest(
+    'POST',
+    `/v1/projects/${projectId}/databases/(default)/documents/${documentPath}:listCollectionIds`,
+    { pageSize: 100 },
+  );
+  return response.collectionIds ?? [];
+}
+
+async function patchRawDocument(documentPath, fields) {
+  const mask = Object.keys(fields)
+    .map((field) => `updateMask.fieldPaths=${encodeURIComponent(field)}`)
+    .join('&');
+  await firestoreRequest(
+    'PATCH',
+    `/v1/projects/${projectId}/databases/(default)/documents/${documentPath}?${mask}`,
+    toRawFirestoreDocument(fields),
+  );
+}
+
+async function copySubcollections(sourceDocumentPath, targetDocumentPath) {
+  const subcollectionIds = await listSubcollectionIds(sourceDocumentPath);
+
+  for (const subcollectionId of subcollectionIds) {
+    const sourceCollectionPath = `${sourceDocumentPath}/${subcollectionId}`;
+    const targetCollectionPath = `${targetDocumentPath}/${subcollectionId}`;
+    const documents = await listCollection(sourceCollectionPath);
+
+    for (const document of documents) {
+      const childId = documentId(document.name);
+      const sourceChildPath = `${sourceCollectionPath}/${childId}`;
+      const targetChildPath = `${targetCollectionPath}/${childId}`;
+      await patchRawDocument(targetChildPath, document.fields ?? {});
+      await copySubcollections(sourceChildPath, targetChildPath);
+      await firestoreRequest(
+        'DELETE',
+        `/v1/projects/${projectId}/databases/(default)/documents/${sourceChildPath}`,
+      );
+    }
+  }
+}
+
 async function main() {
   const restaurants = await listCollection('restaurants');
-  const branchUpdates = [];
+  const branchRecords = [];
 
   for (const restaurantDoc of restaurants) {
     const restaurantId = documentId(restaurantDoc.name);
@@ -175,8 +248,34 @@ async function main() {
     const branches = await listCollection(`restaurants/${restaurantId}/branches`);
 
     for (const branchDoc of branches) {
-      const branchId = documentId(branchDoc.name);
+      const pathBranchId = documentId(branchDoc.name);
       const branchData = parseFirestoreFields(branchDoc.fields);
+      branchRecords.push({
+        path: `restaurants/${restaurantId}/branches/${pathBranchId}`,
+        restaurantId,
+        restaurantData,
+        pathBranchId,
+        branchData,
+      });
+    }
+  }
+
+  const duplicatePathBranchIds = duplicateValueSet(branchRecords, 'pathBranchId');
+  const branchUpdates = [];
+
+  for (const record of branchRecords) {
+    const {
+      path,
+      restaurantId,
+      restaurantData,
+      pathBranchId,
+      branchData,
+    } = record;
+      const branchId = branchIdFor(
+        restaurantId,
+        pathBranchId,
+        duplicatePathBranchIds,
+      );
       const restaurantName =
         branchData.restaurantName ??
         restaurantData.brandName ??
@@ -200,29 +299,40 @@ async function main() {
         isActive,
         updatedAt: new Date().toISOString(),
       };
+      const targetPath = `restaurants/${restaurantId}/branches/${branchId}`;
 
       branchUpdates.push({
-        path: `restaurants/${restaurantId}/branches/${branchId}`,
+        path,
+        targetPath,
         branchId,
         qrSlug,
-        update,
+        update: { ...branchData, ...update },
+        shouldMoveDocument: path !== targetPath,
       });
-    }
   }
 
   requireUnique(branchUpdates, 'branchId');
   requireUnique(branchUpdates, 'qrSlug');
 
-  for (const { path, update } of branchUpdates) {
+  for (const { path, targetPath, update, shouldMoveDocument } of branchUpdates) {
     const mask = Object.keys(update)
       .map((field) => `updateMask.fieldPaths=${encodeURIComponent(field)}`)
       .join('&');
     await firestoreRequest(
       'PATCH',
-      `/v1/projects/${projectId}/databases/(default)/documents/${path}?${mask}`,
+      `/v1/projects/${projectId}/databases/(default)/documents/${targetPath}?${mask}`,
       toFirestoreDocument(update),
     );
-    console.log(`Standardized ${path}`);
+    if (shouldMoveDocument) {
+      await copySubcollections(path, targetPath);
+      await firestoreRequest(
+        'DELETE',
+        `/v1/projects/${projectId}/databases/(default)/documents/${path}`,
+      );
+      console.log(`Moved ${path} -> ${targetPath}`);
+    } else {
+      console.log(`Standardized ${path}`);
+    }
   }
 
   console.log(

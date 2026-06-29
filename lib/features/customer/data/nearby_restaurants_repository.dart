@@ -131,7 +131,12 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
-        qrSlug: 'spice-house-indiranagar',
+        branchId: 'indiranagar',
+        qrSlug: 'the-spice-house-indiranagar',
+        queueUrl:
+            'https://ezq-dev-cubiquitous.web.app/customer/the-spice-house/indiranagar',
+        qrImageUrl:
+            'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/the-spice-house-indiranagar.png',
         isActive: true,
         averageDiningMinutes: 35,
         averageCleaningMinutes: 5,
@@ -141,7 +146,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6408,
       ),
       const Branch(
-        id: 'indiranagar',
+        id: 'cubbon-curry-indiranagar',
         restaurantId: 'cubbon-curry',
         restaurantName: 'Cubbon Curry',
         name: 'Indiranagar',
@@ -150,7 +155,12 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
+        branchId: 'cubbon-curry-indiranagar',
         qrSlug: 'cubbon-curry-indiranagar',
+        queueUrl:
+            'https://ezq-dev-cubiquitous.web.app/customer/cubbon-curry/cubbon-curry-indiranagar',
+        qrImageUrl:
+            'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/cubbon-curry-indiranagar.png',
         isActive: true,
         averageDiningMinutes: 32,
         averageCleaningMinutes: 5,
@@ -160,7 +170,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6418,
       ),
       const Branch(
-        id: 'indiranagar',
+        id: 'noodle-yard-indiranagar',
         restaurantId: 'noodle-yard',
         restaurantName: 'Noodle Yard',
         name: 'Indiranagar',
@@ -169,7 +179,12 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
+        branchId: 'noodle-yard-indiranagar',
         qrSlug: 'noodle-yard-indiranagar',
+        queueUrl:
+            'https://ezq-dev-cubiquitous.web.app/customer/noodle-yard/noodle-yard-indiranagar',
+        qrImageUrl:
+            'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/noodle-yard-indiranagar.png',
         isActive: true,
         averageDiningMinutes: 30,
         averageCleaningMinutes: 5,
@@ -179,7 +194,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6387,
       ),
       const Branch(
-        id: 'indiranagar',
+        id: 'taco-tawa-indiranagar',
         restaurantId: 'taco-tawa',
         restaurantName: 'Taco Tawa',
         name: 'Indiranagar',
@@ -188,7 +203,12 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
+        branchId: 'taco-tawa-indiranagar',
         qrSlug: 'taco-tawa-indiranagar',
+        queueUrl:
+            'https://ezq-dev-cubiquitous.web.app/customer/taco-tawa/taco-tawa-indiranagar',
+        qrImageUrl:
+            'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/taco-tawa-indiranagar.png',
         isActive: true,
         averageDiningMinutes: 28,
         averageCleaningMinutes: 5,
@@ -198,7 +218,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6432,
       ),
       const Branch(
-        id: 'indiranagar',
+        id: 'dosa-lab-indiranagar',
         restaurantId: 'dosa-lab',
         restaurantName: 'Dosa Lab',
         name: 'Indiranagar',
@@ -207,7 +227,12 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
+        branchId: 'dosa-lab-indiranagar',
         qrSlug: 'dosa-lab-indiranagar',
+        queueUrl:
+            'https://ezq-dev-cubiquitous.web.app/customer/dosa-lab/dosa-lab-indiranagar',
+        qrImageUrl:
+            'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/dosa-lab-indiranagar.png',
         isActive: true,
         averageDiningMinutes: 25,
         averageCleaningMinutes: 5,
