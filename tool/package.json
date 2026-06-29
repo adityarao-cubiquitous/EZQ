@@ -1,7 +1,8 @@
 {
   "private": true,
   "scripts": {
-    "generate-branch-qr-assets": "node generate_branch_qr_assets.mjs"
+    "generate-branch-qr-assets": "node generate_branch_qr_assets.mjs",
+    "generate-branch-qr-assets:storage": "EZQ_QR_ASSET_MODE=storage node generate_branch_qr_assets.mjs"
   },
   "dependencies": {
     "qrcode": "^1.5.4"

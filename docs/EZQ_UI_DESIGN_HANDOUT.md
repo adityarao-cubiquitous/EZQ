@@ -594,7 +594,9 @@ Platform and backend features:
 - Firestore data model for restaurants, branches, tables, queue entries, and daily counters.
 - Branch documents use a standard QR identity schema: `restaurantId`, `restaurantName`, `branchId`, `name`, `qrSlug`, `queueUrl`, `qrImageUrl`, and `isActive`.
 - Queue URLs are generated from the restaurant slug and customer-facing branch slug, while `branchId` remains the unique internal Firestore branch identity.
-- QR generation tooling creates PNG/SVG QR assets from each branch `queueUrl` and saves asset metadata back to the branch document once Firebase Storage is available.
+- MVP QR generation writes PNG/SVG assets under `assets/qr/{restaurantId}/{branchSlug}`, refreshes `assets/qr/manifest.json` and `assets/qr/index.html`, and saves local QR metadata back to the branch document.
+- MVP QR metadata persists `branchSlug`, `queueUrl`, `qrSlug`, `qrImageUrl`, `qrSvgUrl`, `qrGeneratedAt`, and `qrVersion`; generated assets can be downloaded from the local files or printed from `assets/qr/index.html`.
+- Firebase Storage upload remains a deferred production mode via `EZQ_QR_ASSET_MODE=storage node tool/generate_branch_qr_assets.mjs ezq-dev-cubiquitous`.
 - Firebase Auth integrated for manager accounts.
 - Firestore rules and indexes maintained in the repository.
 - Seed script for demo restaurant data.

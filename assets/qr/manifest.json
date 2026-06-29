@@ -1,0 +1,125 @@
+{
+  "generatedAt": "2026-06-29T10:20:34.541Z",
+  "assets": [
+    {
+      "restaurantId": "biryani-bay",
+      "restaurantName": "Biryani Bay",
+      "branchId": "domlur-edge",
+      "branchSlug": "domlur-edge",
+      "branchName": "Domlur Edge",
+      "qrSlug": "biryani-bay-domlur-edge",
+      "queueUrl": "https://ezq-dev-cubiquitous.web.app/customer/biryani-bay/domlur-edge",
+      "qrVersion": 1,
+      "pngPath": "assets/qr/biryani-bay/domlur-edge.png",
+      "svgPath": "assets/qr/biryani-bay/domlur-edge.svg"
+    },
+    {
+      "restaurantId": "cubbon-curry",
+      "restaurantName": "Cubbon Curry",
+      "branchId": "cubbon-curry-indiranagar",
+      "branchSlug": "indiranagar",
+      "branchName": "Indiranagar",
+      "qrSlug": "cubbon-curry-indiranagar",
+      "queueUrl": "https://ezq-dev-cubiquitous.web.app/customer/cubbon-curry/indiranagar",
+      "qrVersion": 1,
+      "pngPath": "assets/qr/cubbon-curry/indiranagar.png",
+      "svgPath": "assets/qr/cubbon-curry/indiranagar.svg"
+    },
+    {
+      "restaurantId": "dosa-lab",
+      "restaurantName": "Dosa Lab",
+      "branchId": "dosa-lab-indiranagar",
+      "branchSlug": "indiranagar",
+      "branchName": "Indiranagar",
+      "qrSlug": "dosa-lab-indiranagar",
+      "queueUrl": "https://ezq-dev-cubiquitous.web.app/customer/dosa-lab/indiranagar",
+      "qrVersion": 1,
+      "pngPath": "assets/qr/dosa-lab/indiranagar.png",
+      "svgPath": "assets/qr/dosa-lab/indiranagar.svg"
+    },
+    {
+      "restaurantId": "grill-garden",
+      "restaurantName": "Grill Garden",
+      "branchId": "old-airport-road",
+      "branchSlug": "old-airport-road",
+      "branchName": "Old Airport Road",
+      "qrSlug": "grill-garden-old-airport-road",
+      "queueUrl": "https://ezq-dev-cubiquitous.web.app/customer/grill-garden/old-airport-road",
+      "qrVersion": 1,
+      "pngPath": "assets/qr/grill-garden/old-airport-road.png",
+      "svgPath": "assets/qr/grill-garden/old-airport-road.svg"
+    },
+    {
+      "restaurantId": "momo-mill",
+      "restaurantName": "Momo Mill",
+      "branchId": "indiranagar-metro",
+      "branchSlug": "indiranagar-metro",
+      "branchName": "Indiranagar Metro",
+      "qrSlug": "momo-mill-indiranagar-metro",
+      "queueUrl": "https://ezq-dev-cubiquitous.web.app/customer/momo-mill/indiranagar-metro",
+      "qrVersion": 1,
+      "pngPath": "assets/qr/momo-mill/indiranagar-metro.png",
+      "svgPath": "assets/qr/momo-mill/indiranagar-metro.svg"
+    },
+    {
+      "restaurantId": "noodle-yard",
+      "restaurantName": "Noodle Yard",
+      "branchId": "noodle-yard-indiranagar",
+      "branchSlug": "indiranagar",
+      "branchName": "Indiranagar",
+      "qrSlug": "noodle-yard-indiranagar",
+      "queueUrl": "https://ezq-dev-cubiquitous.web.app/customer/noodle-yard/indiranagar",
+      "qrVersion": 1,
+      "pngPath": "assets/qr/noodle-yard/indiranagar.png",
+      "svgPath": "assets/qr/noodle-yard/indiranagar.svg"
+    },
+    {
+      "restaurantId": "pasta-pepper",
+      "restaurantName": "Pasta Pepper",
+      "branchId": "hal-2nd-stage",
+      "branchSlug": "hal-2nd-stage",
+      "branchName": "HAL 2nd Stage",
+      "qrSlug": "pasta-pepper-hal-2nd-stage",
+      "queueUrl": "https://ezq-dev-cubiquitous.web.app/customer/pasta-pepper/hal-2nd-stage",
+      "qrVersion": 1,
+      "pngPath": "assets/qr/pasta-pepper/hal-2nd-stage.png",
+      "svgPath": "assets/qr/pasta-pepper/hal-2nd-stage.svg"
+    },
+    {
+      "restaurantId": "salad-studio",
+      "restaurantName": "Salad Studio",
+      "branchId": "12th-main",
+      "branchSlug": "12th-main",
+      "branchName": "12th Main",
+      "qrSlug": "salad-studio-12th-main",
+      "queueUrl": "https://ezq-dev-cubiquitous.web.app/customer/salad-studio/12th-main",
+      "qrVersion": 1,
+      "pngPath": "assets/qr/salad-studio/12th-main.png",
+      "svgPath": "assets/qr/salad-studio/12th-main.svg"
+    },
+    {
+      "restaurantId": "taco-tawa",
+      "restaurantName": "Taco Tawa",
+      "branchId": "taco-tawa-indiranagar",
+      "branchSlug": "indiranagar",
+      "branchName": "Indiranagar",
+      "qrSlug": "taco-tawa-indiranagar",
+      "queueUrl": "https://ezq-dev-cubiquitous.web.app/customer/taco-tawa/indiranagar",
+      "qrVersion": 1,
+      "pngPath": "assets/qr/taco-tawa/indiranagar.png",
+      "svgPath": "assets/qr/taco-tawa/indiranagar.svg"
+    },
+    {
+      "restaurantId": "the-spice-house",
+      "restaurantName": "The Spice House",
+      "branchId": "indiranagar",
+      "branchSlug": "indiranagar",
+      "branchName": "Indiranagar",
+      "qrSlug": "the-spice-house-indiranagar",
+      "queueUrl": "https://ezq-dev-cubiquitous.web.app/customer/the-spice-house/indiranagar",
+      "qrVersion": 1,
+      "pngPath": "assets/qr/the-spice-house/indiranagar.png",
+      "svgPath": "assets/qr/the-spice-house/indiranagar.svg"
+    }
+  ]
+}

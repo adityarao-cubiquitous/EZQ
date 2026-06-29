@@ -1,8 +1,9 @@
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { request } from 'node:https';
 import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const QRCode = require('qrcode');
@@ -10,6 +11,8 @@ const QRCode = require('qrcode');
 const projectId = process.argv[2] ?? 'ezq-dev-cubiquitous';
 const hostingOrigin =
   process.env.EZQ_HOSTING_ORIGIN ?? 'https://ezq-dev-cubiquitous.web.app';
+const assetMode = process.env.EZQ_QR_ASSET_MODE ?? 'local';
+const localQrOutputDir = process.env.EZQ_QR_OUTPUT_DIR ?? 'assets/qr';
 const storageBucket =
   process.env.EZQ_STORAGE_BUCKET ?? `${projectId}.firebasestorage.app`;
 const storageLocation = process.env.EZQ_STORAGE_LOCATION ?? 'ASIA-SOUTH1';
@@ -265,9 +268,10 @@ class QueueUrlGenerator {
 }
 
 class QrService {
-  constructor({ bucket, location }) {
+  constructor({ bucket, location, outputDir }) {
     this.bucket = bucket;
     this.location = location;
+    this.outputDir = outputDir;
   }
 
   generateQueueUrl({ queueUrl }) {
@@ -376,6 +380,101 @@ class QrService {
   async saveQrMetadata({ path, metadata }) {
     await patchDocument(path, metadata);
   }
+
+  async saveLocalAsset({ restaurantId, branchSlug, extension, body }) {
+    const restaurantDir = path.join(this.outputDir, restaurantId);
+    await mkdir(restaurantDir, { recursive: true });
+    const relativePath = path
+      .join(this.outputDir, restaurantId, `${branchSlug}.${extension}`)
+      .replaceAll(path.sep, '/');
+    await writeFile(relativePath, body);
+    return {
+      localPath: relativePath,
+      downloadUrl: relativePath,
+    };
+  }
+
+  async saveLocalDistributionIndex({ assets }) {
+    await mkdir(this.outputDir, { recursive: true });
+    const manifestPath = path.join(this.outputDir, 'manifest.json');
+    const indexPath = path.join(this.outputDir, 'index.html');
+    await writeFile(
+      manifestPath,
+      `${JSON.stringify({ generatedAt: new Date().toISOString(), assets }, null, 2)}\n`,
+    );
+    await writeFile(indexPath, printIndexHtml(assets));
+    return {
+      manifestPath: manifestPath.replaceAll(path.sep, '/'),
+      indexPath: indexPath.replaceAll(path.sep, '/'),
+    };
+  }
+}
+
+function printIndexHtml(assets) {
+  const cards = assets
+    .map(
+      (asset) => `
+      <article class="qr-card">
+        <h2>${escapeHtml(asset.restaurantName)}</h2>
+        <p>${escapeHtml(asset.branchName)} · ${escapeHtml(asset.branchSlug)}</p>
+        <img src="${relativeFromQrRoot(asset.pngPath)}" alt="${escapeHtml(asset.qrSlug)} QR code">
+        <code>${escapeHtml(asset.queueUrl)}</code>
+        <div class="actions">
+          <a href="${relativeFromQrRoot(asset.pngPath)}" download>Download PNG</a>
+          <a href="${relativeFromQrRoot(asset.svgPath)}" download>Download SVG</a>
+        </div>
+      </article>`,
+    )
+    .join('\n');
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EZQ QR Assets</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 24px; color: #123; }
+    header { margin-bottom: 24px; }
+    main { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
+    .qr-card { break-inside: avoid; border: 1px solid #D8E3E5; border-radius: 8px; padding: 16px; }
+    h1, h2, p { margin: 0; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; margin-bottom: 4px; }
+    p { color: #52666B; margin-bottom: 12px; }
+    img { width: 100%; max-width: 260px; display: block; margin: 0 auto 12px; }
+    code { display: block; font-size: 12px; white-space: normal; overflow-wrap: anywhere; }
+    .actions { display: flex; gap: 10px; margin-top: 12px; }
+    a { color: #006B72; font-weight: 700; }
+    @media print {
+      body { margin: 8mm; }
+      .actions { display: none; }
+      .qr-card { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>EZQ QR Assets</h1>
+  </header>
+  <main>${cards}
+  </main>
+</body>
+</html>
+`;
+}
+
+function relativeFromQrRoot(filePath) {
+  return filePath.replace(/^assets\/qr\//, '');
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 async function loadBranches() {
@@ -415,8 +514,11 @@ async function main() {
   const qrService = new QrService({
     bucket: storageBucket,
     location: storageLocation,
+    outputDir: localQrOutputDir,
   });
-  await qrService.ensureBucket();
+  if (assetMode === 'storage') {
+    await qrService.ensureBucket();
+  }
 
   queueUrlGenerator.assignBranchSlugs(branches);
   for (const branch of branches) {
@@ -427,60 +529,110 @@ async function main() {
   }
   queueUrlGenerator.validateUrlUniqueness(branches);
 
+  const generatedAssets = [];
+
   for (const branch of branches) {
     const queueUrl = qrService.generateQueueUrl({ queueUrl: branch.queueUrl });
     const qrSlug = `${branch.restaurantId}-${branch.branchSlug}`;
-    const pngPath = `qr-codes/${qrSlug}.png`;
-    const svgPath = `qr-codes/${qrSlug}.svg`;
+    const nextQrVersion =
+      Number.isInteger(branch.data.qrVersion) && branch.data.qrVersion > 0
+        ? branch.data.qrVersion + 1
+        : 1;
     const [png, svg] = await Promise.all([
       qrService.generateQrPng(queueUrl),
       qrService.generateQrSvg(queueUrl),
     ]);
-    const [pngUpload, svgUpload] = await Promise.all([
-      qrService.uploadToStorage({
-        objectName: pngPath,
-        contentType: 'image/png',
-        body: png,
-      }),
-      qrService.uploadToStorage({
-        objectName: svgPath,
-        contentType: 'image/svg+xml',
-        body: svg,
-      }),
-    ]);
+    const [pngAsset, svgAsset] =
+      assetMode === 'storage'
+        ? await Promise.all([
+            qrService.uploadToStorage({
+              objectName: `qr-codes/${qrSlug}.png`,
+              contentType: 'image/png',
+              body: png,
+            }),
+            qrService.uploadToStorage({
+              objectName: `qr-codes/${qrSlug}.svg`,
+              contentType: 'image/svg+xml',
+              body: svg,
+            }),
+          ])
+        : await Promise.all([
+            qrService.saveLocalAsset({
+              restaurantId: branch.restaurantId,
+              branchSlug: branch.branchSlug,
+              extension: 'png',
+              body: png,
+            }),
+            qrService.saveLocalAsset({
+              restaurantId: branch.restaurantId,
+              branchSlug: branch.branchSlug,
+              extension: 'svg',
+              body: svg,
+            }),
+          ]);
     const generatedAt = new Date().toISOString();
+    const metadata = {
+      restaurantId: branch.restaurantId,
+      restaurantName: branch.restaurantName,
+      branchId: branch.branchId,
+      branchSlug: branch.branchSlug,
+      qrSlug,
+      queueUrl,
+      qrImageUrl: pngAsset.downloadUrl,
+      qrPngUrl: pngAsset.downloadUrl,
+      qrSvgUrl: svgAsset.downloadUrl,
+      qrPngStoragePath: pngAsset.storagePath ?? null,
+      qrSvgStoragePath: svgAsset.storagePath ?? null,
+      qrPngLocalPath: pngAsset.localPath ?? null,
+      qrSvgLocalPath: svgAsset.localPath ?? null,
+      qrGeneratedAt: generatedAt,
+      qrVersion: nextQrVersion,
+      qrAssetMode: assetMode,
+      qrCode: {
+        queueUrl,
+        pngUrl: pngAsset.downloadUrl,
+        svgUrl: svgAsset.downloadUrl,
+        pngStoragePath: pngAsset.storagePath ?? null,
+        svgStoragePath: svgAsset.storagePath ?? null,
+        pngLocalPath: pngAsset.localPath ?? null,
+        svgLocalPath: svgAsset.localPath ?? null,
+        generatedAt,
+        version: nextQrVersion,
+        assetMode,
+      },
+      updatedAt: generatedAt,
+    };
 
     await qrService.saveQrMetadata({
       path: branch.path,
-      metadata: {
-        restaurantId: branch.restaurantId,
-        restaurantName: branch.restaurantName,
-        branchId: branch.branchId,
-        branchSlug: branch.branchSlug,
-        qrSlug,
-        queueUrl,
-        qrImageUrl: pngUpload.downloadUrl,
-        qrPngUrl: pngUpload.downloadUrl,
-        qrSvgUrl: svgUpload.downloadUrl,
-        qrPngStoragePath: pngUpload.storagePath,
-        qrSvgStoragePath: svgUpload.storagePath,
-        qrGeneratedAt: generatedAt,
-        qrCode: {
-          queueUrl,
-          pngUrl: pngUpload.downloadUrl,
-          svgUrl: svgUpload.downloadUrl,
-          pngStoragePath: pngUpload.storagePath,
-          svgStoragePath: svgUpload.storagePath,
-          generatedAt,
-        },
-        updatedAt: generatedAt,
-      },
+      metadata,
     });
 
+    generatedAssets.push({
+      restaurantId: branch.restaurantId,
+      restaurantName: branch.restaurantName,
+      branchId: branch.branchId,
+      branchSlug: branch.branchSlug,
+      branchName: branch.data.name ?? branch.branchSlug,
+      qrSlug,
+      queueUrl,
+      qrVersion: nextQrVersion,
+      pngPath: pngAsset.localPath ?? pngAsset.storagePath,
+      svgPath: svgAsset.localPath ?? svgAsset.storagePath,
+    });
     console.log(`Generated QR assets for ${branch.path}: ${queueUrl}`);
   }
 
-  console.log(`Generated QR assets for ${branches.length} branches.`);
+  if (assetMode === 'local') {
+    const distribution = await qrService.saveLocalDistributionIndex({
+      assets: generatedAssets,
+    });
+    console.log(
+      `Wrote local QR manifest ${distribution.manifestPath} and print index ${distribution.indexPath}`,
+    );
+  }
+
+  console.log(`Generated ${assetMode} QR assets for ${branches.length} branches.`);
 }
 
 await main();
