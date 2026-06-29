@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,8 +11,15 @@ import '../../../core/widgets/ezq_button.dart';
 import '../../../core/widgets/ezq_text_field.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../core/utils/validators.dart';
+import '../../auth/data/auth_repository.dart';
+import '../../queue/data/queue_repository.dart';
+import '../../queue/domain/queue_entry.dart';
+import '../../queue/domain/queue_status.dart';
 import '../../recommendation/domain/customer_preferences.dart';
 import '../../recommendation/domain/recommendation_types.dart';
+import '../../tables/data/table_repository.dart';
+import '../../tables/domain/restaurant_table.dart';
+import '../../tables/domain/table_status.dart';
 import '../data/customer_queue_repository.dart';
 import '../domain/seating_preference_service.dart';
 import 'customer_shell.dart';
@@ -40,6 +49,7 @@ class _CustomerJoinQueueScreenState
   int _partySize = 4;
   bool _emptyTableOnly = false;
   bool _submitting = false;
+  bool _profilePrefilled = false;
   late SeatingEta _eta;
 
   @override
@@ -48,6 +58,9 @@ class _CustomerJoinQueueScreenState
     _eta = ref
         .read(seatingPreferenceServiceProvider)
         .computeEtaEstimate(partySize: _partySize);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _prefillMobileProfile(),
+    );
   }
 
   @override
@@ -66,6 +79,46 @@ class _CustomerJoinQueueScreenState
           .read(seatingPreferenceServiceProvider)
           .computeEtaEstimate(partySize: value);
     });
+  }
+
+  Future<void> _prefillMobileProfile() async {
+    if (kIsWeb || _profilePrefilled || !mounted) return;
+    _profilePrefilled = true;
+
+    final authRepository = ref.read(customerPhoneAuthRepositoryProvider);
+    final user = authRepository.currentUser();
+    final debugPhone = ref.read(debugCustomerPhoneSessionProvider).value;
+    final debugProfile = ref.read(debugCustomerNameProfileProvider).value;
+
+    CustomerNameProfile? profile = debugProfile;
+    if (profile == null && user != null) {
+      try {
+        profile = await ref
+            .read(customerProfileRepositoryProvider)
+            .loadNameProfile(user);
+      } catch (_) {
+        profile = null;
+      }
+    }
+    if (!mounted) return;
+
+    final displayName = profile?.displayName.trim() ?? '';
+    final phone = _mobileNumberForForm(user?.phoneNumber ?? debugPhone);
+
+    if (displayName.isNotEmpty && _nameController.text.trim().isEmpty) {
+      _nameController.text = displayName;
+    }
+    if (phone != null && _phoneController.text.trim() == '98765 43210') {
+      _phoneController.text = phone;
+    }
+  }
+
+  String? _mobileNumberForForm(String? phone) {
+    final trimmed = phone?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    final digits = trimmed.replaceAll(RegExp(r'\D'), '');
+    if (digits.length >= 10) return digits.substring(digits.length - 10);
+    return trimmed;
   }
 
   // Returns null if the user cancelled (do not join).
@@ -208,25 +261,65 @@ class _CustomerJoinQueueScreenState
 
     setState(() => _submitting = true);
     final repository = ref.read(customerQueueRepositoryProvider);
-    final result = await repository.joinQueue(
-      JoinQueueRequest(
-        restaurantId: widget.restaurantId,
-        branchId: widget.branchId,
-        customerName: _nameController.text,
-        phone: _phoneController.text,
-        partySize: _partySize,
-        notes: _notesController.text,
-        customerPreferences: prefs,
-      ),
-    );
-    if (!mounted) return;
-    context.go(
-      '/customer/${widget.restaurantId}/${widget.branchId}/status/${result.queueEntryId}',
-    );
+    final user = ref.read(customerPhoneAuthRepositoryProvider).currentUser();
+    try {
+      final result = await repository.joinQueue(
+        JoinQueueRequest(
+          restaurantId: widget.restaurantId,
+          branchId: widget.branchId,
+          customerName: _nameController.text,
+          phone: _phoneController.text,
+          partySize: _partySize,
+          notes: _notesController.text,
+          appSource: kIsWeb ? 'web' : 'mobile_app',
+          customerId: kIsWeb ? null : user?.uid,
+          sessionType: kIsWeb
+              ? 'web_guest'
+              : user == null
+              ? 'mobile_debug'
+              : 'mobile_phone_auth',
+          enforceSingleActiveQueue: !kIsWeb,
+          customerPreferences: prefs,
+        ),
+      );
+      if (!mounted) return;
+      context.go(
+        '/customer/${widget.restaurantId}/${widget.branchId}/status/${result.queueEntryId}',
+      );
+    } on ActiveQueueConflictException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'You already have active queue ${error.tokenCode}. Cancel it or finish dining before joining another restaurant.',
+          ),
+        ),
+      );
+      context.go(error.statusRoute);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final liveEtaState = kIsWeb
+        ? null
+        : ref.watch(
+            _liveSeatingEtaProvider((
+              restaurantId: widget.restaurantId,
+              branchId: widget.branchId,
+              partySize: _partySize,
+            )),
+          );
+    final liveEta = liveEtaState?.asData?.value;
+    final eta = liveEta ?? _eta;
+
     return CustomerShell(
       restaurantId: widget.restaurantId,
       branchId: widget.branchId,
@@ -250,17 +343,116 @@ class _CustomerJoinQueueScreenState
               emptyTableOnly: _emptyTableOnly,
               onEmptyTableOnlyChanged: (v) =>
                   setState(() => _emptyTableOnly = v),
-              eta: _eta,
+              eta: eta,
+              isLiveEta: liveEta != null,
               onJoin: _submitting ? null : _joinQueue,
             ),
-            const SizedBox(height: 18),
-            const _FeaturedWaitCard(),
-            const SizedBox(height: 132),
+            if (kIsWeb) ...[
+              const SizedBox(height: 18),
+              const _FeaturedWaitCard(),
+            ],
+            SizedBox(height: kIsWeb ? 132 : 28),
           ],
         ),
       ),
     );
   }
+}
+
+final _liveSeatingEtaProvider = StreamProvider.autoDispose
+    .family<
+      SeatingEta,
+      ({String restaurantId, String branchId, int partySize})
+    >((ref, args) {
+      final queueRepository = ref.watch(queueRepositoryProvider);
+      final tableRepository = ref.watch(tableRepositoryProvider);
+      final controller = StreamController<SeatingEta>();
+      List<QueueEntry>? latestQueue;
+      List<RestaurantTable>? latestTables;
+
+      void emitIfReady() {
+        final queue = latestQueue;
+        final tables = latestTables;
+        if (queue == null || tables == null || controller.isClosed) return;
+        controller.add(
+          _computeLiveEta(
+            queue: queue,
+            tables: tables,
+            partySize: args.partySize,
+          ),
+        );
+      }
+
+      final queueSubscription = queueRepository
+          .watchTodayQueue(
+            restaurantId: args.restaurantId,
+            branchId: args.branchId,
+          )
+          .listen((queue) {
+            latestQueue = queue;
+            emitIfReady();
+          }, onError: controller.addError);
+
+      final tableSubscription = tableRepository
+          .watchTables(restaurantId: args.restaurantId, branchId: args.branchId)
+          .listen((tables) {
+            latestTables = tables;
+            emitIfReady();
+          }, onError: controller.addError);
+
+      ref.onDispose(() {
+        queueSubscription.cancel();
+        tableSubscription.cancel();
+        controller.close();
+      });
+
+      return controller.stream;
+    });
+
+SeatingEta _computeLiveEta({
+  required List<QueueEntry> queue,
+  required List<RestaurantTable> tables,
+  required int partySize,
+}) {
+  final waitingCount = queue
+      .where((entry) => entry.status == QueueStatus.waiting)
+      .length;
+  final sharedReadySlots = tables
+      .where((table) => _tableCanFitParty(table, partySize, allowShared: true))
+      .length;
+  final emptyReadySlots = tables
+      .where((table) => _tableCanFitParty(table, partySize, allowShared: false))
+      .length;
+
+  final sharedPosition = (waitingCount + 1 - sharedReadySlots).clamp(0, 99);
+  final emptyPosition = (waitingCount + 1 - emptyReadySlots).clamp(0, 99);
+  final partySizePremium = partySize > 4 ? 6 : 0;
+  final sharedMinutes = sharedPosition == 0
+      ? 5
+      : (8 + sharedPosition * 5 + partySizePremium).clamp(5, 75).toInt();
+  final rawEmptyMinutes = emptyPosition == 0
+      ? 6
+      : (10 + emptyPosition * 6 + partySizePremium).clamp(6, 100).toInt();
+  final emptyMinutes = rawEmptyMinutes <= sharedMinutes
+      ? (sharedMinutes + 8).clamp(6, 100).toInt()
+      : rawEmptyMinutes;
+
+  return SeatingEta(
+    sharedMinutes: sharedMinutes,
+    emptyTableMinutes: emptyMinutes,
+  );
+}
+
+bool _tableCanFitParty(
+  RestaurantTable table,
+  int partySize, {
+  required bool allowShared,
+}) {
+  if (table.status == TableStatus.available) return table.capacity >= partySize;
+  if (!allowShared || table.status != TableStatus.occupied) return false;
+  final currentPartySize = table.currentPartySize ?? 0;
+  if (currentPartySize <= 0) return false;
+  return table.capacity - currentPartySize >= partySize;
 }
 
 // ─────────────────────────── Hero header ─────────────────────────────────────
@@ -316,6 +508,7 @@ class _JoinQueueCard extends StatelessWidget {
     required this.emptyTableOnly,
     required this.onEmptyTableOnlyChanged,
     required this.eta,
+    required this.isLiveEta,
     required this.onJoin,
   });
 
@@ -328,6 +521,7 @@ class _JoinQueueCard extends StatelessWidget {
   final bool emptyTableOnly;
   final ValueChanged<bool> onEmptyTableOnlyChanged;
   final SeatingEta eta;
+  final bool isLiveEta;
   final VoidCallback? onJoin;
 
   @override
@@ -372,6 +566,7 @@ class _JoinQueueCard extends StatelessWidget {
               const SizedBox(height: 14),
               _SeatingEtaRow(
                 eta: eta,
+                isLive: isLiveEta,
                 emptyTableOnly: emptyTableOnly,
                 onEmptyTableOnlyChanged: onEmptyTableOnlyChanged,
               ),
@@ -390,48 +585,50 @@ class _JoinQueueCard extends StatelessWidget {
               large: true,
               onPressed: onJoin,
             ),
-            const SizedBox(height: 14),
-            const Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 4,
-              children: [
-                Icon(
-                  Icons.verified_user_outlined,
-                  size: 14,
-                  color: Color(0x993E484F),
-                ),
-                Text(
-                  'No app install required',
-                  style: TextStyle(
-                    color: Color(0xB33E484F),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+            if (kIsWeb) ...[
+              const SizedBox(height: 14),
+              const Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 4,
+                children: [
+                  Icon(
+                    Icons.verified_user_outlined,
+                    size: 14,
+                    color: Color(0x993E484F),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 46,
-              child: OutlinedButton.icon(
-                onPressed: () => context.go('/admin/login'),
-                icon: const Icon(Icons.admin_panel_settings_outlined),
-                label: const Text('Manager Login'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.deepTeal,
-                  side: const BorderSide(color: AppColors.line),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                  Text(
+                    'No app install required',
+                    style: TextStyle(
+                      color: Color(0xB33E484F),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                  textStyle: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: OutlinedButton.icon(
+                  onPressed: () => context.go('/admin/login'),
+                  icon: const Icon(Icons.admin_panel_settings_outlined),
+                  label: const Text('Manager Login'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.deepTeal,
+                    side: const BorderSide(color: AppColors.line),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -518,11 +715,13 @@ class _PartySizeSelector extends StatelessWidget {
 class _SeatingEtaRow extends StatelessWidget {
   const _SeatingEtaRow({
     required this.eta,
+    required this.isLive,
     required this.emptyTableOnly,
     required this.onEmptyTableOnlyChanged,
   });
 
   final SeatingEta eta;
+  final bool isLive;
   final bool emptyTableOnly;
   final ValueChanged<bool> onEmptyTableOnlyChanged;
 
@@ -539,6 +738,7 @@ class _SeatingEtaRow extends StatelessWidget {
               child: _EtaCard(
                 label: 'Shared seating',
                 minutes: eta.sharedMinutes,
+                isLive: isLive,
                 active: !emptyTableOnly,
                 onTap: () => onEmptyTableOnlyChanged(false),
               ),
@@ -548,6 +748,7 @@ class _SeatingEtaRow extends StatelessWidget {
               child: _EtaCard(
                 label: 'Empty table only',
                 minutes: eta.emptyTableMinutes,
+                isLive: isLive,
                 active: emptyTableOnly,
                 onTap: () => onEmptyTableOnlyChanged(true),
               ),
@@ -621,68 +822,110 @@ class _SeatingChoiceTag extends StatelessWidget {
   }
 }
 
-class _EtaCard extends StatelessWidget {
+class _EtaCard extends StatefulWidget {
   const _EtaCard({
     required this.label,
     required this.minutes,
+    required this.isLive,
     required this.active,
     required this.onTap,
   });
 
   final String label;
   final int minutes;
+  final bool isLive;
   final bool active;
   final VoidCallback onTap;
+
+  @override
+  State<_EtaCard> createState() => _EtaCardState();
+}
+
+class _EtaCardState extends State<_EtaCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: widget.onTap,
         borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: active ? AppColors.softSurface : AppColors.softerSurface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: active
-                  ? AppColors.primaryTeal.withValues(alpha: 0.55)
-                  : AppColors.line.withValues(alpha: 0.45),
-              width: active ? 1.5 : 1.0,
-            ),
-            boxShadow: active
-                ? const [
-                    BoxShadow(
-                      color: Color(0x1712A9DC),
-                      blurRadius: 12,
-                      offset: Offset(0, 6),
-                    ),
-                  ]
-                : const [],
-          ),
+        child: AnimatedBuilder(
+          animation: _pulseController,
+          builder: (context, child) {
+            final pulse = widget.isLive
+                ? (0.5 + 0.5 * math.sin(_pulseController.value * math.pi * 2))
+                : 0.0;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 240),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: widget.active
+                    ? AppColors.softSurface
+                    : AppColors.softerSurface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: widget.active
+                      ? AppColors.primaryTeal.withValues(
+                          alpha: 0.55 + pulse * 0.22,
+                        )
+                      : AppColors.line.withValues(alpha: 0.45),
+                  width: widget.active ? 1.5 : 1.0,
+                ),
+                boxShadow: widget.active
+                    ? [
+                        BoxShadow(
+                          color: AppColors.primaryTeal.withValues(
+                            alpha: widget.isLive ? 0.12 + pulse * 0.08 : 0.09,
+                          ),
+                          blurRadius: widget.isLive ? 14 + pulse * 8 : 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ]
+                    : const [],
+              ),
+              child: child,
+            );
+          },
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Icon(
-                    active
+                    widget.active
                         ? Icons.check_circle_rounded
                         : Icons.radio_button_unchecked_rounded,
                     size: 14,
-                    color: active ? AppColors.primaryTeal : AppColors.mutedText,
+                    color: widget.active
+                        ? AppColors.primaryTeal
+                        : AppColors.mutedText,
                   ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      label,
+                      widget.label,
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: active
+                        color: widget.active
                             ? AppColors.deepTeal
                             : AppColors.mutedText,
                         letterSpacing: 0,
@@ -690,21 +933,60 @@ class _EtaCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (widget.isLive) const _LiveEtaDot(),
                 ],
               ),
               const SizedBox(height: 3),
-              Text(
-                '~$minutes min',
-                style: TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w800,
-                  color: active ? AppColors.navyText : AppColors.mutedText,
-                  letterSpacing: 0,
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 320),
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 0.18),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    ),
+                  );
+                },
+                child: Text(
+                  '~${widget.minutes} min',
+                  key: ValueKey(widget.minutes),
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: widget.active
+                        ? AppColors.navyText
+                        : AppColors.mutedText,
+                    letterSpacing: 0,
+                  ),
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LiveEtaDot extends StatelessWidget {
+  const _LiveEtaDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 7,
+      height: 7,
+      margin: const EdgeInsets.only(left: 4),
+      decoration: const BoxDecoration(
+        color: AppColors.successGreen,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(color: Color(0x6610B981), blurRadius: 8, spreadRadius: 1),
+        ],
       ),
     );
   }

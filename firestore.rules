@@ -29,6 +29,32 @@ service cloud.firestore {
           'phone',
           'authProvider',
           'appInstalled',
+          'firstName',
+          'lastName',
+          'displayName',
+          'profileCompletedAt',
+          'createdAt',
+          'updatedAt'
+        ]);
+    }
+
+    function isOwnDebugPhoneCustomerProfile(customerId) {
+      return isSignedIn()
+        && request.auth.uid == customerId
+        && request.auth.token.firebase.sign_in_provider == 'anonymous'
+        && request.resource.data.uid == customerId
+        && request.resource.data.phone is string
+        && request.resource.data.authProvider == 'debug_phone'
+        && request.resource.data.appInstalled == true
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'phone',
+          'authProvider',
+          'appInstalled',
+          'firstName',
+          'lastName',
+          'displayName',
+          'profileCompletedAt',
           'createdAt',
           'updatedAt'
         ]);
@@ -73,8 +99,10 @@ service cloud.firestore {
 
     match /customers/{customerId} {
       allow read: if isSignedIn() && request.auth.uid == customerId;
-      allow create: if isOwnPhoneCustomerProfile(customerId);
-      allow update: if isOwnPhoneCustomerProfile(customerId)
+      allow create: if isOwnPhoneCustomerProfile(customerId)
+        || isOwnDebugPhoneCustomerProfile(customerId);
+      allow update: if (isOwnPhoneCustomerProfile(customerId)
+        || isOwnDebugPhoneCustomerProfile(customerId))
         && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if false;
 
@@ -82,6 +110,10 @@ service cloud.firestore {
         allow read: if isSignedIn() && request.auth.uid == customerId;
         allow write: if false;
       }
+    }
+
+    match /{path=**}/queueEntries/{queueEntryId} {
+      allow read: if true;
     }
 
     match /notifications/{notificationId} {

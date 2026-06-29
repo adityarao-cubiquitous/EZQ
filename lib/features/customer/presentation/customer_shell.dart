@@ -2,11 +2,13 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/widgets/brand_mark.dart';
+import '../../auth/data/auth_repository.dart';
 
 enum CustomerTab { join, status, menu, support }
 
@@ -186,7 +188,7 @@ class CustomerFooter extends StatelessWidget {
   }
 }
 
-class _CustomerTopBar extends StatelessWidget {
+class _CustomerTopBar extends ConsumerWidget {
   const _CustomerTopBar({
     required this.topInset,
     required this.horizontalInset,
@@ -198,7 +200,11 @@ class _CustomerTopBar extends StatelessWidget {
   final String? appBackRoute;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authUser = ref.watch(customerAuthStateProvider).asData?.value;
+    final debugPhone = ref.watch(debugCustomerPhoneSessionProvider).value;
+    final showLogout = !kIsWeb && (authUser != null || debugPhone != null);
+
     return Positioned(
       top: 0,
       left: 0,
@@ -246,9 +252,47 @@ class _CustomerTopBar extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (kIsWeb) const _InstallAppButton(),
+                if (kIsWeb)
+                  const _InstallAppButton()
+                else if (showLogout)
+                  _AppLogoutButton(
+                    onPressed: () async {
+                      ref.read(debugCustomerPhoneSessionProvider).value = null;
+                      await ref
+                          .read(customerPhoneAuthRepositoryProvider)
+                          .signOut();
+                      if (!context.mounted) return;
+                      context.go('/app/login');
+                    },
+                  ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AppLogoutButton extends StatelessWidget {
+  const _AppLogoutButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Log out',
+      child: IconButton.filledTonal(
+        onPressed: onPressed,
+        icon: const Icon(Icons.logout_rounded),
+        color: AppColors.deepTeal,
+        style: IconButton.styleFrom(
+          backgroundColor: Colors.white.withValues(alpha: 0.82),
+          fixedSize: const Size(40, 40),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0x33BDEAF8)),
           ),
         ),
       ),

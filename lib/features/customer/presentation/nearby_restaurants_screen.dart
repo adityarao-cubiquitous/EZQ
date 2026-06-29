@@ -276,15 +276,6 @@ class _NearbyRestaurantCard extends StatelessWidget {
                 icon: Icons.groups_rounded,
                 label: '${restaurant.waitingCount} waiting',
               ),
-              if (restaurant.usesAssumedWait)
-                const _MetaPill(
-                  icon: Icons.auto_graph_rounded,
-                  label: 'Assumed',
-                ),
-              const _MetaPill(
-                icon: Icons.verified_rounded,
-                label: 'EZQ signed up',
-              ),
             ],
           ),
           const SizedBox(height: 12),

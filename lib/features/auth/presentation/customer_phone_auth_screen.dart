@@ -72,7 +72,7 @@ class _CustomerPhoneAuthScreenState
           );
       if (!mounted) return;
       if (result.autoVerified) {
-        _goHome();
+        _goProfile();
         return;
       }
       setState(() {
@@ -107,9 +107,26 @@ class _CustomerPhoneAuthScreenState
         if (_otpController.text.trim() != '123456') {
           throw StateError('That code does not look right. Please try again.');
         }
+        final phone = _normalizedPhone ?? _phoneController.text;
+        try {
+          await ref
+              .read(customerPhoneAuthRepositoryProvider)
+              .confirmDebugSmsCode(phone: phone);
+        } catch (error) {
+          if (!_isAnonymousAuthDisabled(error)) rethrow;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Using local demo login. Enable Anonymous Auth to write customers in Firebase.',
+                ),
+              ),
+            );
+          }
+        }
         ref.read(debugCustomerPhoneSessionProvider).value = _normalizedPhone;
         if (!mounted) return;
-        _goHome();
+        _goProfile();
         return;
       }
 
@@ -120,7 +137,7 @@ class _CustomerPhoneAuthScreenState
             smsCode: _otpController.text.trim(),
           );
       if (!mounted) return;
-      _goHome();
+      _goProfile();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -131,7 +148,7 @@ class _CustomerPhoneAuthScreenState
     }
   }
 
-  void _goHome() => context.go('/app/home');
+  void _goProfile() => context.go('/app/profile');
 
   String _friendlyError(Object error) {
     final message = error.toString();
@@ -147,13 +164,19 @@ class _CustomerPhoneAuthScreenState
     return message.replaceFirst('Bad state: ', '');
   }
 
+  bool _isAnonymousAuthDisabled(Object error) {
+    final message = error.toString();
+    return message.contains('admin-restricted-operation') ||
+        message.contains('operation is restricted to administrators');
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(customerAuthStateProvider);
     authState.whenData((user) {
       if (user != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _goHome();
+          if (mounted) _goProfile();
         });
       }
     });

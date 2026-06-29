@@ -20,6 +20,9 @@ class JoinQueueRequest {
     required this.partySize,
     this.notes,
     this.appSource = 'web',
+    this.customerId,
+    this.sessionType,
+    this.enforceSingleActiveQueue = false,
     this.customerPreferences,
   });
 
@@ -30,6 +33,9 @@ class JoinQueueRequest {
   final int partySize;
   final String? notes;
   final String appSource;
+  final String? customerId;
+  final String? sessionType;
+  final bool enforceSingleActiveQueue;
   final CustomerPreferences? customerPreferences;
 }
 
@@ -45,6 +51,29 @@ class JoinQueueResult {
   final int tokenNumber;
   final String tokenCode;
   final int estimatedWaitMinutes;
+}
+
+class ActiveQueueConflictException implements Exception {
+  const ActiveQueueConflictException({
+    required this.restaurantId,
+    required this.branchId,
+    required this.queueEntryId,
+    required this.tokenCode,
+    required this.status,
+  });
+
+  final String restaurantId;
+  final String branchId;
+  final String queueEntryId;
+  final String tokenCode;
+  final QueueStatus status;
+
+  String get statusRoute =>
+      '/customer/$restaurantId/$branchId/status/$queueEntryId';
+
+  @override
+  String toString() =>
+      'ActiveQueueConflictException($tokenCode, ${status.wireName})';
 }
 
 abstract class CustomerQueueRepository {
@@ -88,6 +117,16 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
   Future<JoinQueueResult> joinQueue(JoinQueueRequest request) async {
     final businessDate = DateTimeUtils.businessDate();
     final phone = PhoneUtils.normalizeIndiaMobile(request.phone);
+    if (request.enforceSingleActiveQueue) {
+      final activeQueue = await _findActiveQueueEntrySafely(
+        phone: phone,
+        customerId: request.customerId,
+      );
+      if (activeQueue != null) {
+        throw activeQueue;
+      }
+    }
+
     final partySizeBand = Validators.partySizeBand(request.partySize);
     final branchRef = _firestore.doc(
       FirestorePaths.branch(request.restaurantId, request.branchId),
@@ -134,8 +173,8 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
         'notes': request.notes?.trim().isEmpty ?? true
             ? null
             : request.notes?.trim(),
-        'customerId': null,
-        'sessionType': 'web_guest',
+        'customerId': request.customerId,
+        'sessionType': request.sessionType ?? 'web_guest',
         'appSource': request.appSource,
         'status': QueueStatus.waiting.wireName,
         'assignedTableId': null,
@@ -257,10 +296,81 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
       });
     });
   }
+
+  Future<ActiveQueueConflictException?> _findActiveQueueEntrySafely({
+    required String phone,
+    required String? customerId,
+  }) async {
+    try {
+      return await _findActiveQueueEntry(phone: phone, customerId: customerId);
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied') return null;
+      rethrow;
+    }
+  }
+
+  Future<ActiveQueueConflictException?> _findActiveQueueEntry({
+    required String phone,
+    required String? customerId,
+  }) async {
+    final candidates = <String, ActiveQueueConflictException>{};
+
+    Future<void> collect(Query<Map<String, dynamic>> query) async {
+      final snapshot = await query.limit(20).get();
+      for (final doc in snapshot.docs) {
+        final conflict = _activeQueueConflictFromDoc(doc);
+        if (conflict != null) {
+          candidates[doc.reference.path] = conflict;
+        }
+      }
+    }
+
+    await collect(
+      _firestore
+          .collectionGroup('queueEntries')
+          .where('phone', isEqualTo: phone),
+    );
+
+    final trimmedCustomerId = customerId?.trim();
+    if (trimmedCustomerId != null && trimmedCustomerId.isNotEmpty) {
+      await collect(
+        _firestore
+            .collectionGroup('queueEntries')
+            .where('customerId', isEqualTo: trimmedCustomerId),
+      );
+    }
+
+    if (candidates.isEmpty) return null;
+    return candidates.values.first;
+  }
+
+  ActiveQueueConflictException? _activeQueueConflictFromDoc(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final status = QueueStatus.fromWireName(doc.data()['status'] as String?);
+    if (!_singleQueueBlockingStatuses.contains(status)) return null;
+
+    final pathParts = doc.reference.path.split('/');
+    if (pathParts.length < 6 ||
+        pathParts[0] != 'restaurants' ||
+        pathParts[2] != 'branches' ||
+        pathParts[4] != 'queueEntries') {
+      return null;
+    }
+
+    return ActiveQueueConflictException(
+      restaurantId: pathParts[1],
+      branchId: pathParts[3],
+      queueEntryId: pathParts[5],
+      tokenCode: doc.data()['tokenCode'] as String? ?? 'your queue',
+      status: status,
+    );
+  }
 }
 
 class MockCustomerQueueRepository implements CustomerQueueRepository {
   final _controller = StreamController<QueueEntry>.broadcast();
+  bool _hasJoinedActiveQueue = false;
   QueueEntry _entry = QueueEntry(
     id: 'demo-entry',
     tokenNumber: 7,
@@ -279,6 +389,18 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Future<JoinQueueResult> joinQueue(JoinQueueRequest request) async {
+    if (request.enforceSingleActiveQueue &&
+        _hasJoinedActiveQueue &&
+        _singleQueueBlockingStatuses.contains(_entry.status)) {
+      throw ActiveQueueConflictException(
+        restaurantId: request.restaurantId,
+        branchId: request.branchId,
+        queueEntryId: _entry.id,
+        tokenCode: _entry.tokenCode,
+        status: _entry.status,
+      );
+    }
+
     _entry = QueueEntry(
       id: 'demo-entry',
       tokenNumber: 7,
@@ -296,6 +418,7 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
       joinedAt: DateTime.now(),
       customerPreferences: request.customerPreferences,
     );
+    _hasJoinedActiveQueue = true;
     _controller.add(_entry);
     return const JoinQueueResult(
       queueEntryId: 'demo-entry',
@@ -342,9 +465,17 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
     required String phone,
   }) async {
     _entry = _entry.copyWith(status: QueueStatus.cancelled);
+    _hasJoinedActiveQueue = false;
     _controller.add(_entry);
   }
 }
+
+const _singleQueueBlockingStatuses = {
+  QueueStatus.waiting,
+  QueueStatus.reserved,
+  QueueStatus.onTheWay,
+  QueueStatus.seated,
+};
 
 final customerQueueRepositoryProvider = Provider<CustomerQueueRepository>((
   ref,

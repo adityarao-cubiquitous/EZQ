@@ -43,7 +43,31 @@ abstract class CustomerPhoneAuthRepository {
     required String smsCode,
   });
 
+  Future<UserCredential> confirmDebugSmsCode({required String phone});
+
   Future<void> signOut();
+}
+
+class CustomerNameProfile {
+  const CustomerNameProfile({required this.firstName, required this.lastName});
+
+  final String firstName;
+  final String lastName;
+
+  String get displayName => '$firstName $lastName'.trim();
+}
+
+abstract class CustomerProfileRepository {
+  Future<bool> needsNameProfile(User? user);
+
+  Future<CustomerNameProfile?> loadNameProfile(User? user);
+
+  Future<void> saveNameProfile({
+    required User? user,
+    required String firstName,
+    required String lastName,
+    String? phoneNumber,
+  });
 }
 
 class FirebaseCustomerPhoneAuthRepository
@@ -147,6 +171,17 @@ class FirebaseCustomerPhoneAuthRepository
   }
 
   @override
+  Future<UserCredential> confirmDebugSmsCode({required String phone}) async {
+    final normalizedPhone = PhoneUtils.normalizeIndiaMobile(phone);
+    final userCredential = await _auth.signInAnonymously();
+    await _upsertDebugCustomerProfile(
+      user: userCredential.user,
+      phone: normalizedPhone,
+    );
+    return userCredential;
+  }
+
+  @override
   Future<void> signOut() => _auth.signOut();
 
   Future<void> _upsertCustomerProfile(User? user) async {
@@ -159,6 +194,86 @@ class FirebaseCustomerPhoneAuthRepository
         'phone': user.phoneNumber,
         'authProvider': 'phone',
         'appInstalled': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+        if (!snapshot.exists) 'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
+  }
+
+  Future<void> _upsertDebugCustomerProfile({
+    required User? user,
+    required String phone,
+  }) async {
+    if (user == null) return;
+    final profileRef = _firestore.doc(FirestorePaths.customer(user.uid));
+    await _firestore.runTransaction<void>((transaction) async {
+      final snapshot = await transaction.get(profileRef);
+      transaction.set(profileRef, {
+        'uid': user.uid,
+        'phone': phone,
+        'authProvider': 'debug_phone',
+        'appInstalled': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+        if (!snapshot.exists) 'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
+  }
+}
+
+class FirebaseCustomerProfileRepository implements CustomerProfileRepository {
+  FirebaseCustomerProfileRepository({FirebaseFirestore? firestore})
+    : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  final FirebaseFirestore _firestore;
+
+  @override
+  Future<bool> needsNameProfile(User? user) async {
+    if (user == null) return true;
+    final snapshot = await _firestore
+        .doc(FirestorePaths.customer(user.uid))
+        .get();
+    final data = snapshot.data();
+    final firstName = (data?['firstName'] as String? ?? '').trim();
+    final lastName = (data?['lastName'] as String? ?? '').trim();
+    return firstName.isEmpty || lastName.isEmpty;
+  }
+
+  @override
+  Future<CustomerNameProfile?> loadNameProfile(User? user) async {
+    if (user == null) return null;
+    final snapshot = await _firestore
+        .doc(FirestorePaths.customer(user.uid))
+        .get();
+    final data = snapshot.data();
+    if (data == null) return null;
+    final firstName = (data['firstName'] as String? ?? '').trim();
+    final lastName = (data['lastName'] as String? ?? '').trim();
+    if (firstName.isEmpty && lastName.isEmpty) return null;
+    return CustomerNameProfile(firstName: firstName, lastName: lastName);
+  }
+
+  @override
+  Future<void> saveNameProfile({
+    required User? user,
+    required String firstName,
+    required String lastName,
+    String? phoneNumber,
+  }) async {
+    if (user == null) return;
+    final normalizedFirst = firstName.trim();
+    final normalizedLast = lastName.trim();
+    final profileRef = _firestore.doc(FirestorePaths.customer(user.uid));
+    await _firestore.runTransaction<void>((transaction) async {
+      final snapshot = await transaction.get(profileRef);
+      transaction.set(profileRef, {
+        'uid': user.uid,
+        'phone': user.phoneNumber ?? phoneNumber,
+        'authProvider': user.isAnonymous ? 'debug_phone' : 'phone',
+        'appInstalled': true,
+        'firstName': normalizedFirst,
+        'lastName': normalizedLast,
+        'displayName': '$normalizedFirst $normalizedLast'.trim(),
+        'profileCompletedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         if (!snapshot.exists) 'createdAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -209,8 +324,44 @@ class MockCustomerPhoneAuthRepository implements CustomerPhoneAuthRepository {
   }
 
   @override
+  Future<UserCredential> confirmDebugSmsCode({required String phone}) {
+    throw UnsupportedError(
+      'Debug phone authentication requires Firebase. Run with USE_FIREBASE=true.',
+    );
+  }
+
+  @override
   Future<void> signOut() async {
     _currentUser = null;
+  }
+}
+
+class MockCustomerProfileRepository implements CustomerProfileRepository {
+  CustomerNameProfile? _profile;
+
+  @override
+  Future<bool> needsNameProfile(User? user) async {
+    return _profile == null ||
+        _profile!.firstName.trim().isEmpty ||
+        _profile!.lastName.trim().isEmpty;
+  }
+
+  @override
+  Future<CustomerNameProfile?> loadNameProfile(User? user) async {
+    return _profile;
+  }
+
+  @override
+  Future<void> saveNameProfile({
+    required User? user,
+    required String firstName,
+    required String lastName,
+    String? phoneNumber,
+  }) async {
+    _profile = CustomerNameProfile(
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+    );
   }
 }
 
@@ -227,6 +378,16 @@ final customerPhoneAuthRepositoryProvider =
       return MockCustomerPhoneAuthRepository();
     });
 
+final customerProfileRepositoryProvider = Provider<CustomerProfileRepository>((
+  ref,
+) {
+  const useFirebase = bool.fromEnvironment('USE_FIREBASE');
+  if (useFirebase) {
+    return FirebaseCustomerProfileRepository();
+  }
+  return MockCustomerProfileRepository();
+});
+
 final customerAuthStateProvider = StreamProvider<User?>((ref) {
   return ref.watch(customerPhoneAuthRepositoryProvider).authStateChanges();
 });
@@ -236,3 +397,8 @@ final debugCustomerPhoneSessionProvider = Provider<ValueNotifier<String?>>((
 ) {
   return ValueNotifier<String?>(null);
 });
+
+final debugCustomerNameProfileProvider =
+    Provider<ValueNotifier<CustomerNameProfile?>>((ref) {
+      return ValueNotifier<CustomerNameProfile?>(null);
+    });

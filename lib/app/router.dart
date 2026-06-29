@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../core/constants/app_constants.dart';
 import '../features/admin/presentation/admin_dashboard_screen.dart';
 import '../features/admin/presentation/branch_selector_screen.dart';
+import '../features/auth/presentation/customer_name_profile_screen.dart';
 import '../features/auth/presentation/customer_phone_auth_screen.dart';
 import '../features/auth/presentation/admin_login_screen.dart';
 import '../features/customer/presentation/app_install_prompt.dart';
@@ -112,6 +113,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/app/login',
         builder: (context, state) => const CustomerPhoneAuthScreen(),
+      ),
+      GoRoute(
+        path: '/app/profile',
+        builder: (context, state) => const CustomerNameProfileScreen(),
       ),
       GoRoute(
         path: '/app/home',
