@@ -20,6 +20,8 @@ class AppColors {
   static const line = Color(0xFFB0DCEB);
   static const errorRed = Color(0xFFE05C5C);
   static const successGreen = Color(0xFF24A148);
+  static const highlightYellow = Color(0xFFFACC15);
+  static const partialLavender = Color(0xFFA78BFA);
   static const warningOrange = Color(0xFFF59E0B);
   static const deepTeal = Color(0xFF006B7A);
   static const inkBlue = Color(0xFF102331);

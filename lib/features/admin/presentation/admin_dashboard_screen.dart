@@ -222,6 +222,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   secondarySpotlightLabel:
                                       _secondarySpotlightLabel,
                                   autoScrollSpotlight: true,
+                                  selectedEntryId: _selectedQueueEntry?.id,
                                   availableTables: availableTables,
                                   onReserve: (entry) => _reserveQueueEntry(
                                     context: context,
@@ -317,6 +318,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       secondarySpotlightLabel:
                                           _secondarySpotlightLabel,
                                       autoScrollSpotlight: true,
+                                      selectedEntryId: _selectedQueueEntry?.id,
                                       availableTables: availableTables,
                                       onReserve: (entry) => _reserveQueueEntry(
                                         context: context,
@@ -762,25 +764,75 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       occupiedCountFor: occupiedCountFor,
     );
     if (candidates.isEmpty) return const [];
+    final bestCandidate = _firstCandidateForTone(
+      candidates,
+      entry,
+      QueueTableRecommendationTone.best,
+    );
+    final nextCandidate = _firstCandidateForTone(
+      candidates,
+      entry,
+      QueueTableRecommendationTone.nextBest,
+    );
     return [
-      QueueTableRecommendation(
-        tableId: candidates.first.table.id,
-        tableNumber: candidates.first.table.tableNumber,
-        openSeats: candidates.first.openSeats,
-        capacity: candidates.first.table.capacity,
-        isShared: candidates.first.isShared,
-        tone: QueueTableRecommendationTone.best,
-      ),
-      if (candidates.length > 1)
-        QueueTableRecommendation(
-          tableId: candidates[1].table.id,
-          tableNumber: candidates[1].table.tableNumber,
-          openSeats: candidates[1].openSeats,
-          capacity: candidates[1].table.capacity,
-          isShared: candidates[1].isShared,
-          tone: QueueTableRecommendationTone.nextBest,
+      if (bestCandidate != null)
+        _queueTableRecommendationForCandidate(
+          bestCandidate,
+          QueueTableRecommendationTone.best,
+        ),
+      if (nextCandidate != null)
+        _queueTableRecommendationForCandidate(
+          nextCandidate,
+          QueueTableRecommendationTone.nextBest,
+        ),
+      if (bestCandidate == null && nextCandidate == null)
+        _queueTableRecommendationForCandidate(
+          candidates.first,
+          QueueTableRecommendationTone.best,
         ),
     ];
+  }
+
+  _TableFitCandidate? _firstCandidateForTone(
+    List<_TableFitCandidate> candidates,
+    QueueEntry entry,
+    QueueTableRecommendationTone tone,
+  ) {
+    for (final candidate in candidates) {
+      if (_toneForTableFitCandidate(candidate, entry) == tone) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  QueueTableRecommendation _queueTableRecommendationForCandidate(
+    _TableFitCandidate candidate,
+    QueueTableRecommendationTone tone,
+  ) {
+    return QueueTableRecommendation(
+      tableId: candidate.table.id,
+      tableNumber: candidate.table.tableNumber,
+      openSeats: candidate.openSeats,
+      capacity: candidate.table.capacity,
+      isShared: candidate.isShared,
+      tone: tone,
+    );
+  }
+
+  QueueTableRecommendationTone _toneForTableFitCandidate(
+    _TableFitCandidate candidate,
+    QueueEntry entry,
+  ) {
+    final extraSeats = candidate.openSeats - entry.partySize;
+    if (candidate.isShared) {
+      return extraSeats == 0
+          ? QueueTableRecommendationTone.best
+          : QueueTableRecommendationTone.nextBest;
+    }
+    return entry.partySize >= 7 || extraSeats <= 2
+        ? QueueTableRecommendationTone.best
+        : QueueTableRecommendationTone.nextBest;
   }
 
   List<_TableFitCandidate> _tableFitCandidatesForQueueEntry({
@@ -789,7 +841,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required int Function(RestaurantTable) occupiedCountFor,
   }) {
     final allowShared = !_prefersEmptyTable(entry);
-    final candidates = <_TableFitCandidate>[];
+    final sharedCandidates = <_TableFitCandidate>[];
+    final availableCandidates = <_TableFitCandidate>[];
     for (final table in tables) {
       final isAvailable = table.status == TableStatus.available;
       final isShared =
@@ -802,15 +855,28 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ? table.capacity
           : table.capacity - occupiedCountFor(table);
       if (openSeats < entry.partySize) continue;
-      candidates.add(
-        _TableFitCandidate(
-          table: table,
-          openSeats: openSeats,
-          isShared: isShared,
-        ),
-      );
+      if (isShared) {
+        sharedCandidates.add(
+          _TableFitCandidate(
+            table: table,
+            openSeats: openSeats,
+            isShared: true,
+          ),
+        );
+      } else {
+        availableCandidates.add(
+          _TableFitCandidate(
+            table: table,
+            openSeats: openSeats,
+            isShared: false,
+          ),
+        );
+      }
     }
 
+    final candidates = sharedCandidates.isNotEmpty
+        ? sharedCandidates
+        : availableCandidates;
     candidates.sort((a, b) {
       final waste = (a.openSeats - entry.partySize).compareTo(
         b.openSeats - entry.partySize,
@@ -1904,57 +1970,47 @@ Map<String, TableHighlightTone> _tableHighlightsForQueueEntry({
   required QueueEntry entry,
   required int Function(RestaurantTable) occupiedCountFor,
 }) {
-  final candidates = <_TableFitCandidate>[];
-  final allowShared = !_prefersEmptyTable(entry);
+  final highlights = <String, TableHighlightTone>{};
+  if (_prefersEmptyTable(entry)) {
+    for (final table in tables) {
+      if (table.status != TableStatus.available) continue;
+      final extraSeats = table.capacity - entry.partySize;
+      if (extraSeats == 0) {
+        highlights[table.id] = TableHighlightTone.best;
+      } else if (extraSeats == 1 || extraSeats == 2) {
+        highlights[table.id] = TableHighlightTone.nextBest;
+      }
+    }
+    return highlights;
+  }
+
+  var hasSharedCandidate = false;
   for (final table in tables) {
-    final isAvailable = table.status == TableStatus.available;
-    final isShared =
-        allowShared &&
-        table.status == TableStatus.occupied &&
-        occupiedCountFor(table) > 0;
-    if (!isAvailable && !isShared) continue;
-    final openSeats = isAvailable
-        ? table.capacity
-        : table.capacity - occupiedCountFor(table);
-    if (openSeats < entry.partySize) continue;
-    candidates.add(
-      _TableFitCandidate(
-        table: table,
-        openSeats: openSeats,
-        isShared: isShared,
-      ),
-    );
+    if (table.status != TableStatus.occupied) continue;
+    final occupiedCount = occupiedCountFor(table);
+    final remaining = table.capacity - occupiedCount;
+    if (occupiedCount <= 0 || remaining <= 0) continue;
+    if (remaining < entry.partySize) continue;
+    hasSharedCandidate = true;
+    if (remaining == entry.partySize) {
+      highlights[table.id] = TableHighlightTone.best;
+    } else {
+      highlights[table.id] = TableHighlightTone.nextBest;
+    }
   }
-  if (candidates.isEmpty) return const {};
-  candidates.sort((a, b) {
-    final waste = (a.openSeats - entry.partySize).compareTo(
-      b.openSeats - entry.partySize,
-    );
-    if (waste != 0) return waste;
-    final shared = (b.isShared ? 1 : 0).compareTo(a.isShared ? 1 : 0);
-    if (shared != 0) return shared;
-    final capacity = a.table.capacity.compareTo(b.table.capacity);
-    if (capacity != 0) return capacity;
-    final sortOrder = a.table.sortOrder.compareTo(b.table.sortOrder);
-    if (sortOrder != 0) return sortOrder;
-    return a.table.tableNumber.compareTo(b.table.tableNumber);
-  });
-  final bestWaste = candidates.first.openSeats - entry.partySize;
-  int? nextWaste;
-  for (final candidate in candidates) {
-    final waste = candidate.openSeats - entry.partySize;
-    if (waste <= bestWaste) continue;
-    nextWaste = waste;
-    break;
+  if (hasSharedCandidate) return highlights;
+
+  for (final table in tables) {
+    if (table.status != TableStatus.available) continue;
+    final extraSeats = table.capacity - entry.partySize;
+    if (extraSeats < 0) continue;
+    if (entry.partySize >= 7 || extraSeats <= 2) {
+      highlights[table.id] = TableHighlightTone.best;
+    } else {
+      highlights[table.id] = TableHighlightTone.nextBest;
+    }
   }
-  return {
-    for (final candidate in candidates)
-      if (candidate.openSeats - entry.partySize == bestWaste)
-        candidate.table.id: TableHighlightTone.best
-      else if (nextWaste != null &&
-          candidate.openSeats - entry.partySize == nextWaste)
-        candidate.table.id: TableHighlightTone.nextBest,
-  };
+  return highlights;
 }
 
 bool _prefersEmptyTable(QueueEntry entry) {

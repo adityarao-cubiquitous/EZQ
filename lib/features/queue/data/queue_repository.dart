@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../../recommendation/domain/customer_preferences.dart';
+import '../../recommendation/domain/recommendation_types.dart';
 import '../domain/queue_entry.dart';
 import '../domain/queue_status.dart';
 
@@ -100,6 +102,9 @@ class MockQueueRepository implements QueueRepository {
         queuePosition: 3,
         extensionUsed: false,
         joinedAt: DateTime.now().subtract(const Duration(minutes: 18)),
+        customerPreferences: const CustomerPreferences(
+          seatingPreference: SeatingPreference.emptyTableOnly,
+        ),
       ),
       QueueEntry(
         id: 'q8',

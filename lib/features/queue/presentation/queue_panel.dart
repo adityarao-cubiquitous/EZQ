@@ -19,6 +19,7 @@ class QueuePanel extends StatefulWidget {
     this.secondarySpotlightEntryId,
     this.secondarySpotlightLabel,
     this.autoScrollSpotlight = false,
+    this.selectedEntryId,
     required this.availableTables,
     required this.onReserve,
     required this.onSkip,
@@ -34,6 +35,7 @@ class QueuePanel extends StatefulWidget {
   final String? secondarySpotlightEntryId;
   final String? secondarySpotlightLabel;
   final bool autoScrollSpotlight;
+  final String? selectedEntryId;
   final List<RestaurantTable> availableTables;
   final void Function(QueueEntry entry) onReserve;
   final void Function(QueueEntry entry) onSkip;
@@ -140,6 +142,7 @@ class _QueuePanelState extends State<QueuePanel> {
                           widget.tableRecommendations[entry.id] ?? const [],
                       spotlightTone: spotlightTone,
                       spotlightLabel: _spotlightLabelFor(entry.id),
+                      isSelected: entry.id == widget.selectedEntryId,
                       availableTables: widget.availableTables,
                       onReserve: () => widget.onReserve(entry),
                       onSkip: () => widget.onSkip(entry),
@@ -349,6 +352,7 @@ class _QueueEntryCard extends StatelessWidget {
     required this.recommendations,
     required this.spotlightTone,
     required this.spotlightLabel,
+    required this.isSelected,
     required this.availableTables,
     required this.onReserve,
     required this.onSkip,
@@ -360,6 +364,7 @@ class _QueueEntryCard extends StatelessWidget {
   final List<QueueTableRecommendation> recommendations;
   final _QueueSpotlightTone? spotlightTone;
   final String? spotlightLabel;
+  final bool isSelected;
   final List<RestaurantTable> availableTables;
   final VoidCallback onReserve;
   final VoidCallback onSkip;
@@ -372,6 +377,7 @@ class _QueueEntryCard extends StatelessWidget {
     final compact = Responsive.isCompact(context);
     final canReserve = entry.status == QueueStatus.waiting;
     final spotlight = spotlightTone != null;
+    final highlighted = spotlight || isSelected;
     final waitedMinutes = entry.waitingMinutesSince(DateTime.now());
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,43 +486,50 @@ class _QueueEntryCard extends StatelessWidget {
       ],
     );
     final animatedCard = TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: spotlight ? 1 : 0),
+      tween: Tween<double>(begin: 0, end: highlighted ? 1 : 0),
       duration: const Duration(milliseconds: 520),
       curve: Curves.easeOutBack,
       builder: (context, glow, child) {
         final toneColor = _spotlightColor(spotlightTone);
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 360),
-          curve: Curves.easeOutCubic,
-          padding: EdgeInsets.all(compact ? 12 : 16),
-          decoration: BoxDecoration(
-            color: spotlight
-                ? Color.alphaBlend(
-                    toneColor.withValues(alpha: 0.08),
-                    const Color(0xFFF7F9FF),
-                  )
-                : const Color(0xFFF7F9FF),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: spotlight ? toneColor : const Color(0x1ABDC8D0),
-              width: spotlight ? 2.5 : 1,
+        return AnimatedScale(
+          duration: const Duration(milliseconds: 380),
+          curve: Curves.easeOutBack,
+          scale: spotlight ? 1.025 : (isSelected ? 1.01 : 1),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 360),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.all(compact ? 12 : 16),
+            decoration: BoxDecoration(
+              gradient: highlighted
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppColors.primaryTeal.withValues(alpha: 0.11),
+                        toneColor.withValues(alpha: 0.13),
+                        Colors.white.withValues(alpha: 0.96),
+                      ],
+                    )
+                  : null,
+              color: highlighted ? null : const Color(0xFFF7F9FF),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: highlighted
+                    ? toneColor.withValues(alpha: 0.46)
+                    : const Color(0x1ABDC8D0),
+                width: highlighted ? 1.6 : 1,
+              ),
+              boxShadow: [
+                if (highlighted)
+                  BoxShadow(
+                    color: toneColor.withValues(alpha: 0.16 + (glow * 0.08)),
+                    blurRadius: 24 + (glow * 8),
+                    offset: const Offset(0, 12),
+                  ),
+              ],
             ),
-            boxShadow: spotlight
-                ? [
-                    BoxShadow(
-                      color: toneColor.withValues(alpha: 0.34),
-                      blurRadius: 20,
-                      spreadRadius: 1,
-                    ),
-                    BoxShadow(
-                      color: toneColor.withValues(alpha: 0.18),
-                      blurRadius: 44,
-                      spreadRadius: 4,
-                    ),
-                  ]
-                : null,
+            child: content,
           ),
-          child: content,
         );
       },
     );
@@ -564,6 +577,15 @@ class _SharedSeatingPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Container(
+            width: 11,
+            height: 11,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFC8019),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
           Icon(
             Icons.group_add_rounded,
             size: compact ? 13 : 14,
@@ -601,7 +623,7 @@ class _QueueTableRecommendationStrip extends StatelessWidget {
     final spareSeats = recommendation.openSeats - partySize;
     final color = recommendation.tone == QueueTableRecommendationTone.best
         ? AppColors.successGreen
-        : AppColors.warningOrange;
+        : AppColors.highlightYellow;
     final rankLabel = recommendation.tone == QueueTableRecommendationTone.best
         ? 'Best'
         : 'Next';

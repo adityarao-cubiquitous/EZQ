@@ -1,13 +1,17 @@
 import {initializeApp} from "firebase-admin/app";
 import {
   FieldValue,
+  Timestamp,
   getFirestore,
 } from "firebase-admin/firestore";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
+import {onSchedule} from "firebase-functions/v2/scheduler";
 
 initializeApp();
 
 const db = getFirestore();
+const queueAutoExpiryMinutes = 90;
+const queueExpiryBatchSize = 400;
 
 type QueueStatus =
   | "waiting"
@@ -217,6 +221,37 @@ export const joinQueue = onCall(async (request) => {
     "web_guest",
   );
 });
+
+export const expireStaleQueueEntries = onSchedule(
+  {
+    schedule: "every 5 minutes",
+    timeZone: "Asia/Kolkata",
+  },
+  async () => {
+    const cutoff = Timestamp.fromMillis(
+      Date.now() - queueAutoExpiryMinutes * 60 * 1000,
+    );
+    const snapshot = await db
+      .collectionGroup("queueEntries")
+      .where("status", "==", "waiting" satisfies QueueStatus)
+      .where("joinedAt", "<=", cutoff)
+      .limit(queueExpiryBatchSize)
+      .get();
+
+    if (snapshot.empty) return;
+
+    const batch = db.batch();
+    for (const doc of snapshot.docs) {
+      batch.update(doc.ref, {
+        status: "expired" satisfies QueueStatus,
+        expiredAt: FieldValue.serverTimestamp(),
+        autoExpiredReason: "WAIT_EXCEEDED_90_MINUTES",
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  },
+);
 
 export const addWalkIn = onCall(async (request) => {
   const data = request.data as Record<string, unknown>;

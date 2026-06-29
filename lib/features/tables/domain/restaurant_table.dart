@@ -9,6 +9,8 @@ class RestaurantTable {
     required this.section,
     required this.status,
     required this.sortOrder,
+    this.occupancy = 0,
+    this.adjacentTableIds = const [],
     this.currentQueueEntryId,
     this.currentTokenCode,
     this.currentPartySize,
@@ -27,6 +29,8 @@ class RestaurantTable {
   final String tableType;
   final String section;
   final TableStatus status;
+  final int occupancy;
+  final List<String> adjacentTableIds;
   final String? currentQueueEntryId;
   final String? currentTokenCode;
   final int? currentPartySize;
@@ -38,6 +42,11 @@ class RestaurantTable {
   final DateTime? currentCycleStartAt;
   final DateTime? lastCycleStartAt;
   final DateTime? lastCycleEndAt;
+
+  int get remainingSeats => capacity - occupancy;
+
+  bool get isPartiallyOccupied =>
+      status == TableStatus.occupied && occupancy > 0 && occupancy < capacity;
 
   factory RestaurantTable.fromMap(String id, Map<String, dynamic> data) {
     DateTime? readDate(String key) {
@@ -57,6 +66,10 @@ class RestaurantTable {
       tableType: data['tableType'] as String? ?? '2-top',
       section: data['section'] as String? ?? 'main',
       status: TableStatus.fromWireName(data['status'] as String?),
+      occupancy: data['occupancy'] as int? ?? 0,
+      adjacentTableIds:
+          (data['adjacentTableIds'] as List<dynamic>?)?.cast<String>() ??
+              const [],
       currentQueueEntryId: data['currentQueueEntryId'] as String?,
       currentTokenCode: data['currentTokenCode'] as String?,
       currentPartySize: data['currentPartySize'] as int?,
@@ -77,6 +90,8 @@ class RestaurantTable {
     'tableType': tableType,
     'section': section,
     'status': status.wireName,
+    'occupancy': occupancy,
+    'adjacentTableIds': adjacentTableIds,
     'currentQueueEntryId': currentQueueEntryId,
     'currentTokenCode': currentTokenCode,
     'currentPartySize': currentPartySize,

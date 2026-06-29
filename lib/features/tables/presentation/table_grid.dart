@@ -502,7 +502,7 @@ class _TableCard extends StatelessWidget {
       TableStatus.occupied =>
         occupiedCount >= table.capacity
             ? AppColors.errorRed
-            : AppColors.warningOrange,
+            : AppColors.partialLavender,
       TableStatus.blocked => Colors.grey,
     };
   }
@@ -510,7 +510,7 @@ class _TableCard extends StatelessWidget {
   Color? _highlightColor() {
     return switch (highlightTone) {
       TableHighlightTone.best => AppColors.successGreen,
-      TableHighlightTone.nextBest => AppColors.warningOrange,
+      TableHighlightTone.nextBest => AppColors.highlightYellow,
       null => null,
     };
   }
