@@ -15,6 +15,9 @@ class Branch {
     this.averageTurnoverMinutes,
     this.restaurantId,
     this.restaurantName,
+    this.branchId,
+    this.queueUrl,
+    this.qrImageUrl,
     this.cuisine,
     this.logoUrl,
     this.latitude,
@@ -36,6 +39,9 @@ class Branch {
   final int? averageTurnoverMinutes;
   final String? restaurantId;
   final String? restaurantName;
+  final String? branchId;
+  final String? queueUrl;
+  final String? qrImageUrl;
   final String? cuisine;
   final String? logoUrl;
   final double? latitude;
@@ -60,6 +66,9 @@ class Branch {
       averageTurnoverMinutes: data['averageTurnoverMinutes'] as int?,
       restaurantId: data['restaurantId'] as String?,
       restaurantName: data['restaurantName'] as String?,
+      branchId: data['branchId'] as String? ?? id,
+      queueUrl: data['queueUrl'] as String?,
+      qrImageUrl: data['qrImageUrl'] as String?,
       cuisine: data['cuisine'] as String?,
       logoUrl: data['logoUrl'] as String?,
       latitude: (data['latitude'] as num?)?.toDouble(),
@@ -82,6 +91,9 @@ class Branch {
     'averageTurnoverMinutes': averageTurnoverMinutes,
     'restaurantId': restaurantId,
     'restaurantName': restaurantName,
+    'branchId': branchId ?? id,
+    'queueUrl': queueUrl,
+    'qrImageUrl': qrImageUrl,
     'cuisine': cuisine,
     'logoUrl': logoUrl,
     'latitude': latitude,

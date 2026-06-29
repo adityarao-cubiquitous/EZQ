@@ -592,6 +592,7 @@ Platform and backend features:
 
 - Firebase Hosting configured for Flutter web.
 - Firestore data model for restaurants, branches, tables, queue entries, and daily counters.
+- Branch documents use a standard QR identity schema: `restaurantId`, `restaurantName`, `branchId`, `name`, `qrSlug`, `queueUrl`, `qrImageUrl`, and `isActive`.
 - Firebase Auth integrated for manager accounts.
 - Firestore rules and indexes maintained in the repository.
 - Seed script for demo restaurant data.

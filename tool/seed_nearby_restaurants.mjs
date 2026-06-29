@@ -29,7 +29,7 @@ const restaurants = [
     id: 'cubbon-curry',
     name: 'Cubbon Curry',
     cuisine: 'South Indian',
-    branchId: 'indiranagar',
+    branchId: 'cubbon-curry-indiranagar',
     branchName: 'Indiranagar',
     area: 'Indiranagar',
     address: '12th Main Road, Indiranagar, Bengaluru',
@@ -40,7 +40,7 @@ const restaurants = [
     id: 'noodle-yard',
     name: 'Noodle Yard',
     cuisine: 'Asian',
-    branchId: 'indiranagar',
+    branchId: 'noodle-yard-indiranagar',
     branchName: 'Indiranagar',
     area: 'Indiranagar',
     address: 'CMH Road, Indiranagar, Bengaluru',
@@ -51,7 +51,7 @@ const restaurants = [
     id: 'taco-tawa',
     name: 'Taco Tawa',
     cuisine: 'Mexican-Indian',
-    branchId: 'indiranagar',
+    branchId: 'taco-tawa-indiranagar',
     branchName: 'Indiranagar',
     area: 'Indiranagar',
     address: '80 Feet Road, Indiranagar, Bengaluru',
@@ -62,7 +62,7 @@ const restaurants = [
     id: 'dosa-lab',
     name: 'Dosa Lab',
     cuisine: 'Modern South Indian',
-    branchId: 'indiranagar',
+    branchId: 'dosa-lab-indiranagar',
     branchName: 'Indiranagar',
     area: 'Indiranagar',
     address: 'Defence Colony, Indiranagar, Bengaluru',
@@ -148,6 +148,7 @@ const documents = Object.fromEntries(
       {
         restaurantId: restaurant.id,
         restaurantName: restaurant.name,
+        branchId: restaurant.branchId,
         name: restaurant.branchName,
         area: restaurant.area,
         address: restaurant.address,
@@ -156,6 +157,12 @@ const documents = Object.fromEntries(
         country: 'India',
         timezone: 'Asia/Kolkata',
         qrSlug: `${restaurant.id}-${restaurant.branchId}`,
+        queueUrl:
+          `https://ezq-dev-cubiquitous.web.app/customer/` +
+          `${restaurant.id}/${restaurant.branchId}`,
+        qrImageUrl:
+          `https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/` +
+          `qr-codes/${restaurant.id}-${restaurant.branchId}.png`,
         isActive: true,
         signedUp: true,
         cuisine: restaurant.cuisine,
