@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -19,16 +18,12 @@ import '../features/customer/presentation/table_ready_view.dart';
 import '../features/reports/presentation/daily_summary_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  const useFirebase = bool.fromEnvironment('USE_FIREBASE');
-  const useAppRoot = !kIsWeb && useFirebase;
-
   return GoRouter(
     routes: [
       GoRoute(
         path: '/',
-        redirect: (context, state) => useAppRoot
-            ? '/app/login'
-            : '/customer/${AppConstants.demoRestaurantId}/${AppConstants.demoBranchId}',
+        builder: (context, state) =>
+            const CustomerQrScannerScreen(appBackRoute: null),
       ),
       GoRoute(
         path: '/customer/:restaurantId/:branchId',
@@ -124,7 +119,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/app/scan',
-        builder: (context, state) => const CustomerQrScannerScreen(),
+        builder: (context, state) =>
+            const CustomerQrScannerScreen(appBackRoute: '/app/home'),
       ),
       GoRoute(
         path: '/app/queue/:queueEntryId',

@@ -2,6 +2,7 @@ import 'package:ezq/app/ezq_app.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 void main() {
   Future<void> pumpFrames(WidgetTester tester) async {
@@ -16,6 +17,15 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(const ProviderScope(child: EzqApp()));
+    await pumpFrames(tester);
+
+    expect(find.text('EZQ Camera Lens'), findsOneWidget);
+    expect(find.text('Open queue'), findsOneWidget);
+    expect(find.text('The Spice House'), findsNothing);
+
+    GoRouter.of(
+      tester.element(find.text('EZQ Camera Lens')),
+    ).go('/customer/the-spice-house/indiranagar');
     await pumpFrames(tester);
 
     expect(find.text('The Spice House'), findsOneWidget);
