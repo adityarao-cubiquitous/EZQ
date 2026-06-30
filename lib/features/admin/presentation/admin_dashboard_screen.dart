@@ -15,6 +15,7 @@ import '../../tables/domain/restaurant_table.dart';
 import '../../tables/domain/table_status.dart';
 import '../../tables/presentation/table_grid.dart';
 import '../../queue/presentation/queue_panel.dart';
+import 'qr_management_panel.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({
@@ -154,13 +155,25 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     tables: tables,
                     occupiedCountFor: occupiedFor,
                   );
+              final branchInfo = ref.watch(
+                branchQrInfoProvider((
+                  restaurantId: widget.restaurantId,
+                  branchId: widget.branchId,
+                )),
+              );
+              final branchName =
+                  branchInfo.maybeWhen(
+                    data: (info) => info.branchName,
+                    orElse: () => null,
+                  ) ??
+                  widget.branchId;
 
               return SafeArea(
                 bottom: false,
                 child: Column(
                   children: [
                     _AdminTopBar(
-                      branchName: 'Indiranagar',
+                      branchName: branchName,
                       freeTables: free,
                       occupiedTables: occupied,
                       waitingCount: liveQueue.length,
@@ -207,6 +220,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                                 .currentQueueEntryId],
                                         initialPartySize: initialPartySize,
                                       ),
+                                ),
+                                SizedBox(height: gap),
+                                QrManagementPanel(
+                                  restaurantId: widget.restaurantId,
+                                  branchId: widget.branchId,
                                 ),
                                 SizedBox(height: gap),
                                 QueuePanel(
@@ -304,48 +322,61 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 SizedBox(
                                   width: 390,
                                   child: SingleChildScrollView(
-                                    child: QueuePanel(
-                                      queue: queuePresentation.queue,
-                                      tableRecommendations:
-                                          queueTableRecommendations,
-                                      initialVisibleCount:
-                                          queuePresentation.initialVisibleCount,
-                                      spotlightEntryId: _spotlightQueueEntryId,
-                                      spotlightLabel: _spotlightLabel,
-                                      secondarySpotlightEntryId:
-                                          _secondarySpotlightQueueEntryId,
-                                      secondarySpotlightLabel:
-                                          _secondarySpotlightLabel,
-                                      autoScrollSpotlight: true,
-                                      availableTables: availableTables,
-                                      onReserve: (entry) => _reserveQueueEntry(
-                                        context: context,
-                                        entry: entry,
-                                        availableTables: availableTables,
-                                        occupiedCountFor: occupiedFor,
-                                      ),
-                                      onSkip: (entry) => _skipQueueEntry(
-                                        context: context,
-                                        entry: entry,
-                                        nextEntry: _nextQueueEntry(
-                                          liveQueue,
-                                          entry,
+                                    child: Column(
+                                      children: [
+                                        QrManagementPanel(
+                                          restaurantId: widget.restaurantId,
+                                          branchId: widget.branchId,
                                         ),
-                                      ),
-                                      onEntryTapped: (entry) =>
-                                          _handleQueueEntryTap(
-                                            entry,
-                                            tables,
-                                            occupiedFor,
-                                          ),
-                                      onRecommendationSelected:
-                                          (entry, recommendation) =>
-                                              _assignRecommendedTable(
+                                        SizedBox(height: gap),
+                                        QueuePanel(
+                                          queue: queuePresentation.queue,
+                                          tableRecommendations:
+                                              queueTableRecommendations,
+                                          initialVisibleCount: queuePresentation
+                                              .initialVisibleCount,
+                                          spotlightEntryId:
+                                              _spotlightQueueEntryId,
+                                          spotlightLabel: _spotlightLabel,
+                                          secondarySpotlightEntryId:
+                                              _secondarySpotlightQueueEntryId,
+                                          secondarySpotlightLabel:
+                                              _secondarySpotlightLabel,
+                                          autoScrollSpotlight: true,
+                                          availableTables: availableTables,
+                                          onReserve: (entry) =>
+                                              _reserveQueueEntry(
                                                 context: context,
                                                 entry: entry,
-                                                recommendation: recommendation,
-                                                tables: tables,
+                                                availableTables:
+                                                    availableTables,
+                                                occupiedCountFor: occupiedFor,
                                               ),
+                                          onSkip: (entry) => _skipQueueEntry(
+                                            context: context,
+                                            entry: entry,
+                                            nextEntry: _nextQueueEntry(
+                                              liveQueue,
+                                              entry,
+                                            ),
+                                          ),
+                                          onEntryTapped: (entry) =>
+                                              _handleQueueEntryTap(
+                                                entry,
+                                                tables,
+                                                occupiedFor,
+                                              ),
+                                          onRecommendationSelected:
+                                              (entry, recommendation) =>
+                                                  _assignRecommendedTable(
+                                                    context: context,
+                                                    entry: entry,
+                                                    recommendation:
+                                                        recommendation,
+                                                    tables: tables,
+                                                  ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),

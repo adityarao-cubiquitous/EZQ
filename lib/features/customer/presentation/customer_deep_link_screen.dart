@@ -3,20 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/loading_view.dart';
-import '../data/branch_identity_repository.dart';
+import '../data/restaurant_resolver_service.dart';
 import 'customer_join_queue_screen.dart';
 import 'customer_shell.dart';
 
 typedef CustomerBranchLinkArgs = ({String restaurantSlug, String branchSlug});
 
 final customerBranchLinkProvider =
-    FutureProvider.family<CustomerBranchLink, CustomerBranchLinkArgs>((
+    FutureProvider.family<RestaurantResolution, CustomerBranchLinkArgs>((
       ref,
       args,
     ) {
       return ref
-          .watch(branchIdentityRepositoryProvider)
-          .resolveCustomerBranch(
+          .watch(restaurantResolverServiceProvider)
+          .resolve(
             restaurantSlug: args.restaurantSlug,
             branchSlug: args.branchSlug,
           );
@@ -45,22 +45,24 @@ class CustomerDeepLinkScreen extends ConsumerWidget {
       loading: () => const LoadingView(),
       error: (error, _) => _screenFor(error),
       data: (data) => CustomerJoinQueueScreen(
-        restaurantId: data.restaurantId,
+        restaurantId: data.restaurant.id,
         branchId: branchSlug,
-        restaurantName: data.restaurantName,
-        branchName: data.branch.name,
+        restaurantName: data.branding.restaurantName,
+        branchName: data.branding.branchName,
       ),
     );
   }
 
   Widget _screenFor(Object error) {
-    if (error is CustomerDeepLinkException) {
+    if (error is RestaurantResolverException) {
       return switch (error.failure) {
-        CustomerDeepLinkFailure.restaurantClosed =>
+        RestaurantResolverFailure.restaurantClosed =>
           const RestaurantClosedScreen(),
-        CustomerDeepLinkFailure.branchNotFound => const BranchNotFoundScreen(),
-        CustomerDeepLinkFailure.branchInactive => const BranchInactiveScreen(),
-        CustomerDeepLinkFailure.restaurantNotFound =>
+        RestaurantResolverFailure.branchNotFound =>
+          const BranchNotFoundScreen(),
+        RestaurantResolverFailure.branchInactive =>
+          const BranchInactiveScreen(),
+        RestaurantResolverFailure.restaurantNotFound =>
           const RestaurantNotFoundScreen(),
       };
     }
