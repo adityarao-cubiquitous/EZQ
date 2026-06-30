@@ -21,10 +21,14 @@ class CustomerJoinQueueScreen extends ConsumerStatefulWidget {
     super.key,
     required this.restaurantId,
     required this.branchId,
+    this.restaurantName = 'The Spice House',
+    this.branchName = 'Indiranagar',
   });
 
   final String restaurantId;
   final String branchId;
+  final String restaurantName;
+  final String branchName;
 
   @override
   ConsumerState<CustomerJoinQueueScreen> createState() =>
@@ -238,7 +242,10 @@ class _CustomerJoinQueueScreenState
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Column(
           children: [
-            const _HeroHeader(),
+            _HeroHeader(
+              restaurantName: widget.restaurantName,
+              branchName: widget.branchName,
+            ),
             const SizedBox(height: 24),
             _JoinQueueCard(
               formKey: _formKey,
@@ -266,31 +273,34 @@ class _CustomerJoinQueueScreenState
 // ─────────────────────────── Hero header ─────────────────────────────────────
 
 class _HeroHeader extends StatelessWidget {
-  const _HeroHeader();
+  const _HeroHeader({required this.restaurantName, required this.branchName});
+
+  final String restaurantName;
+  final String branchName;
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       children: [
-        RestaurantLogo(size: 66),
-        SizedBox(height: 14),
+        const RestaurantLogo(size: 66),
+        const SizedBox(height: 14),
         StatusBadge(
-          label: 'Indiranagar Branch',
-          foreground: Color(0xFF006B79),
-          background: Color(0x8090EAFD),
+          label: '$branchName Branch',
+          foreground: const Color(0xFF006B79),
+          background: const Color(0x8090EAFD),
         ),
-        SizedBox(height: 14),
+        const SizedBox(height: 14),
         Text(
-          'The Spice House',
-          style: TextStyle(
+          restaurantName,
+          style: const TextStyle(
             color: AppColors.navyText,
             fontSize: 27,
             fontWeight: FontWeight.w800,
             height: 34 / 27,
           ),
         ),
-        SizedBox(height: 3),
-        Text(
+        const SizedBox(height: 3),
+        const Text(
           'Skip the wait, join the queue.',
           style: TextStyle(
             color: Color(0xFF3E484F),

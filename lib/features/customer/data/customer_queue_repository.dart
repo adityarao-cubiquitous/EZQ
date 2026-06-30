@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
@@ -10,6 +11,7 @@ import '../../../core/utils/validators.dart';
 import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
 import '../../recommendation/domain/customer_preferences.dart';
+import 'branch_identity_repository.dart';
 
 class JoinQueueRequest {
   const JoinQueueRequest({
@@ -79,30 +81,34 @@ abstract class CustomerQueueRepository {
 }
 
 class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
-  FirebaseCustomerQueueRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  FirebaseCustomerQueueRepository({
+    FirebaseFirestore? firestore,
+    BranchIdentityRepository? branchIdentityRepository,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _branchIdentityRepository =
+           branchIdentityRepository ??
+           FirebaseBranchIdentityRepository(firestore: firestore);
 
   final FirebaseFirestore _firestore;
+  final BranchIdentityRepository _branchIdentityRepository;
 
   @override
   Future<JoinQueueResult> joinQueue(JoinQueueRequest request) async {
+    final branchId = await _resolveBranchId(
+      restaurantId: request.restaurantId,
+      branchId: request.branchId,
+    );
     final businessDate = DateTimeUtils.businessDate();
     final phone = PhoneUtils.normalizeIndiaMobile(request.phone);
     final partySizeBand = Validators.partySizeBand(request.partySize);
     final branchRef = _firestore.doc(
-      FirestorePaths.branch(request.restaurantId, request.branchId),
+      FirestorePaths.branch(request.restaurantId, branchId),
     );
     final counterRef = _firestore.doc(
-      FirestorePaths.dailyCounter(
-        request.restaurantId,
-        request.branchId,
-        businessDate,
-      ),
+      FirestorePaths.dailyCounter(request.restaurantId, branchId, businessDate),
     );
     final queueRef = _firestore
-        .collection(
-          FirestorePaths.queueEntries(request.restaurantId, request.branchId),
-        )
+        .collection(FirestorePaths.queueEntries(request.restaurantId, branchId))
         .doc();
 
     return _firestore.runTransaction<JoinQueueResult>((transaction) async {
@@ -164,9 +170,20 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     required String branchId,
     required String queueEntryId,
   }) {
-    return _firestore
-        .doc(FirestorePaths.queueEntry(restaurantId, branchId, queueEntryId))
-        .snapshots()
+    return Stream.fromFuture(
+          _resolveBranchId(restaurantId: restaurantId, branchId: branchId),
+        )
+        .asyncExpand((resolvedBranchId) {
+          return _firestore
+              .doc(
+                FirestorePaths.queueEntry(
+                  restaurantId,
+                  resolvedBranchId,
+                  queueEntryId,
+                ),
+              )
+              .snapshots();
+        })
         .map((snapshot) {
           final data = snapshot.data();
           if (data == null) {
@@ -240,8 +257,12 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     required String phone,
     required Map<String, Object?> data,
   }) async {
+    final resolvedBranchId = await _resolveBranchId(
+      restaurantId: restaurantId,
+      branchId: branchId,
+    );
     final entryRef = _firestore.doc(
-      FirestorePaths.queueEntry(restaurantId, branchId, queueEntryId),
+      FirestorePaths.queueEntry(restaurantId, resolvedBranchId, queueEntryId),
     );
     await _firestore.runTransaction<void>((transaction) async {
       final snapshot = await transaction.get(entryRef);
@@ -256,6 +277,16 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     });
+  }
+
+  Future<String> _resolveBranchId({
+    required String restaurantId,
+    required String branchId,
+  }) {
+    return _branchIdentityRepository.resolveBranchId(
+      restaurantId: restaurantId,
+      branchSlugOrId: branchId,
+    );
   }
 }
 
@@ -351,8 +382,10 @@ final customerQueueRepositoryProvider = Provider<CustomerQueueRepository>((
 ) {
   const useFirebase = bool.fromEnvironment('USE_FIREBASE');
   const useEmulator = bool.fromEnvironment('USE_EMULATOR');
-  if (useFirebase || useEmulator) {
-    return FirebaseCustomerQueueRepository();
+  if (useFirebase || useEmulator || kIsWeb) {
+    return FirebaseCustomerQueueRepository(
+      branchIdentityRepository: ref.watch(branchIdentityRepositoryProvider),
+    );
   }
   return MockCustomerQueueRepository();
 });

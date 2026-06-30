@@ -15,6 +15,7 @@ import '../../tables/domain/restaurant_table.dart';
 import '../../tables/domain/table_status.dart';
 import '../../tables/presentation/table_grid.dart';
 import '../../queue/presentation/queue_panel.dart';
+import 'qr_management_panel.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({
@@ -154,16 +155,29 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     tables: tables,
                     occupiedCountFor: occupiedFor,
                   );
+              final branchInfo = ref.watch(
+                branchQrInfoProvider((
+                  restaurantId: widget.restaurantId,
+                  branchId: widget.branchId,
+                )),
+              );
+              final branchName =
+                  branchInfo.maybeWhen(
+                    data: (info) => info.branchName,
+                    orElse: () => null,
+                  ) ??
+                  widget.branchId;
 
               return SafeArea(
                 bottom: false,
                 child: Column(
                   children: [
                     _AdminTopBar(
-                      branchName: 'Indiranagar',
+                      branchName: branchName,
                       freeTables: free,
                       occupiedTables: occupied,
                       waitingCount: liveQueue.length,
+                      onQrManagement: _showQrManagementDialog,
                       onReports: () => context.go(
                         '/admin/${widget.restaurantId}/${widget.branchId}/reports',
                       ),
@@ -179,6 +193,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                             return ListView(
                               padding: EdgeInsets.all(pagePadding),
                               children: [
+                                QrManagementPanel(
+                                  restaurantId: widget.restaurantId,
+                                  branchId: widget.branchId,
+                                ),
+                                SizedBox(height: gap),
                                 TableGrid(
                                   tables: tables,
                                   tableHighlightTones: matchingHighlights,
@@ -304,48 +323,61 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 SizedBox(
                                   width: 390,
                                   child: SingleChildScrollView(
-                                    child: QueuePanel(
-                                      queue: queuePresentation.queue,
-                                      tableRecommendations:
-                                          queueTableRecommendations,
-                                      initialVisibleCount:
-                                          queuePresentation.initialVisibleCount,
-                                      spotlightEntryId: _spotlightQueueEntryId,
-                                      spotlightLabel: _spotlightLabel,
-                                      secondarySpotlightEntryId:
-                                          _secondarySpotlightQueueEntryId,
-                                      secondarySpotlightLabel:
-                                          _secondarySpotlightLabel,
-                                      autoScrollSpotlight: true,
-                                      availableTables: availableTables,
-                                      onReserve: (entry) => _reserveQueueEntry(
-                                        context: context,
-                                        entry: entry,
-                                        availableTables: availableTables,
-                                        occupiedCountFor: occupiedFor,
-                                      ),
-                                      onSkip: (entry) => _skipQueueEntry(
-                                        context: context,
-                                        entry: entry,
-                                        nextEntry: _nextQueueEntry(
-                                          liveQueue,
-                                          entry,
+                                    child: Column(
+                                      children: [
+                                        QrManagementPanel(
+                                          restaurantId: widget.restaurantId,
+                                          branchId: widget.branchId,
                                         ),
-                                      ),
-                                      onEntryTapped: (entry) =>
-                                          _handleQueueEntryTap(
-                                            entry,
-                                            tables,
-                                            occupiedFor,
-                                          ),
-                                      onRecommendationSelected:
-                                          (entry, recommendation) =>
-                                              _assignRecommendedTable(
+                                        SizedBox(height: gap),
+                                        QueuePanel(
+                                          queue: queuePresentation.queue,
+                                          tableRecommendations:
+                                              queueTableRecommendations,
+                                          initialVisibleCount: queuePresentation
+                                              .initialVisibleCount,
+                                          spotlightEntryId:
+                                              _spotlightQueueEntryId,
+                                          spotlightLabel: _spotlightLabel,
+                                          secondarySpotlightEntryId:
+                                              _secondarySpotlightQueueEntryId,
+                                          secondarySpotlightLabel:
+                                              _secondarySpotlightLabel,
+                                          autoScrollSpotlight: true,
+                                          availableTables: availableTables,
+                                          onReserve: (entry) =>
+                                              _reserveQueueEntry(
                                                 context: context,
                                                 entry: entry,
-                                                recommendation: recommendation,
-                                                tables: tables,
+                                                availableTables:
+                                                    availableTables,
+                                                occupiedCountFor: occupiedFor,
                                               ),
+                                          onSkip: (entry) => _skipQueueEntry(
+                                            context: context,
+                                            entry: entry,
+                                            nextEntry: _nextQueueEntry(
+                                              liveQueue,
+                                              entry,
+                                            ),
+                                          ),
+                                          onEntryTapped: (entry) =>
+                                              _handleQueueEntryTap(
+                                                entry,
+                                                tables,
+                                                occupiedFor,
+                                              ),
+                                          onRecommendationSelected:
+                                              (entry, recommendation) =>
+                                                  _assignRecommendedTable(
+                                                    context: context,
+                                                    entry: entry,
+                                                    recommendation:
+                                                        recommendation,
+                                                    tables: tables,
+                                                  ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -362,6 +394,31 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           );
         },
       ),
+    );
+  }
+
+  Future<void> _showQrManagementDialog() {
+    return showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('QR Management'),
+          contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          content: SizedBox(
+            width: _dialogWidth(context, 560),
+            child: QrManagementPanel(
+              restaurantId: widget.restaurantId,
+              branchId: widget.branchId,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1676,6 +1733,7 @@ class _AdminTopBar extends StatelessWidget {
     required this.freeTables,
     required this.occupiedTables,
     required this.waitingCount,
+    required this.onQrManagement,
     required this.onReports,
   });
 
@@ -1683,6 +1741,7 @@ class _AdminTopBar extends StatelessWidget {
   final int freeTables;
   final int occupiedTables;
   final int waitingCount;
+  final VoidCallback onQrManagement;
   final VoidCallback onReports;
 
   @override
@@ -1737,6 +1796,11 @@ class _AdminTopBar extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                    ),
+                    IconButton(
+                      tooltip: 'QR management',
+                      onPressed: onQrManagement,
+                      icon: const Icon(Icons.qr_code_2),
                     ),
                     IconButton(
                       tooltip: 'Daily summary',
@@ -1837,6 +1901,11 @@ class _AdminTopBar extends StatelessWidget {
                         builder: (context) => const _WalkInDialog(),
                       ),
                     ),
+                  ),
+                  IconButton(
+                    tooltip: 'QR management',
+                    onPressed: onQrManagement,
+                    icon: const Icon(Icons.qr_code_2),
                   ),
                   IconButton(
                     tooltip: 'Daily summary',
