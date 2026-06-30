@@ -1,6 +1,6 @@
 # EZQ UI Design Handout
 
-Last updated: June 25, 2026
+Last updated: June 30, 2026
 
 ## 1. Product Experience
 
@@ -160,6 +160,24 @@ Bottom tabs:
 
 The tabs must never route in a loop. Each tab should preserve the active queue entry when available.
 
+### Main App Camera Lens
+
+Primary job: let the main EZQ URL scan a restaurant QR without automatically opening a demo branch.
+
+Visible sections:
+
+- EZQ Camera Lens header.
+- Camera scanner frame.
+- QR code or EZQ link fallback field.
+- Nearby restaurants action.
+
+Behavior rules:
+
+- `/` must render the Camera Lens screen instead of redirecting to the demo restaurant.
+- Scanning a full EZQ customer URL routes directly to that restaurant branch queue.
+- Scanning a branch QR slug resolves the active branch from Firestore before routing.
+- The fallback field should support older mobile browsers or camera-permission edge cases.
+
 ### Join Queue Screen
 
 Primary job: let a customer join the queue quickly without authentication.
@@ -192,6 +210,7 @@ Behavior rules:
 
 - Join button is disabled while submitting.
 - Customer email login is not required.
+- Restaurant name and branch badge come from Firestore for the active branch route.
 - After successful join, route to queue status page.
 - Once joined, the join flow should not let the same customer accidentally join again from the same active context.
 
@@ -526,11 +545,13 @@ Recommended Figma component set:
 
 Customer:
 
+- `/`
 - `/customer/:restaurantSlug/:branchSlug`
 - `/customer/:restaurantSlug/:branchSlug/status/:queueEntryId`
 - `/customer/:restaurantSlug/:branchSlug/menu?queueEntryId=:queueEntryId`
 - `/customer/:restaurantSlug/:branchSlug/support`
 - `/customer/install`
+- `/app/scan`
 
 Manager:
 
@@ -557,6 +578,8 @@ Manager:
 
 Customer features:
 
+- Main URL Camera Lens with in-app QR scanning and manual QR/link fallback.
+- Firestore-backed restaurant and branch display on customer queue pages.
 - Guest join queue from restaurant branch URL.
 - Customer join form with name, mobile number, party size, and optional notes.
 - Exact party size selection from 1 to 20.
@@ -603,6 +626,9 @@ Platform and backend features:
 
 Customer flow:
 
+- The system shall show the Camera Lens screen at the main app URL without redirecting to a restaurant branch.
+- The system shall resolve scanned EZQ customer URLs and active branch QR slugs to the correct customer queue page.
+- The system shall display the customer page restaurant and branch names from Firestore for the resolved route.
 - The system shall allow a customer to join a restaurant branch queue without creating an account.
 - The system shall collect customer name, phone number, exact party size, and optional notes.
 - The system shall create a queue entry with waiting status and a token code.
@@ -645,6 +671,7 @@ Operational requirements:
 
 Customer user stories:
 
+- As a customer opening the main EZQ URL, I want an in-app camera lens so I can scan the restaurant QR and reach the correct queue.
 - As a walk-in customer, I want to scan a QR link and join the queue without creating an account so I can start waiting quickly.
 - As a customer, I want to enter my party size exactly so the restaurant can assign a suitable table.
 - As a customer, I want to see my token and queue position so I know my place in line.

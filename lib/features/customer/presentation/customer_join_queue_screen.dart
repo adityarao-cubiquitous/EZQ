@@ -11,6 +11,7 @@ import '../../../core/widgets/status_badge.dart';
 import '../../../core/utils/validators.dart';
 import '../../recommendation/domain/customer_preferences.dart';
 import '../../recommendation/domain/recommendation_types.dart';
+import '../data/customer_branch_repository.dart';
 import '../data/customer_queue_repository.dart';
 import '../domain/seating_preference_service.dart';
 import 'customer_shell.dart';
@@ -227,6 +228,17 @@ class _CustomerJoinQueueScreenState
 
   @override
   Widget build(BuildContext context) {
+    final branchDisplay = ref.watch(
+      customerBranchDisplayProvider((
+        restaurantId: widget.restaurantId,
+        branchId: widget.branchId,
+      )),
+    );
+    final canJoin = branchDisplay.maybeWhen(
+      data: (display) => display.canJoinQueue,
+      orElse: () => false,
+    );
+
     return CustomerShell(
       restaurantId: widget.restaurantId,
       branchId: widget.branchId,
@@ -238,7 +250,19 @@ class _CustomerJoinQueueScreenState
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Column(
           children: [
-            const _HeroHeader(),
+            branchDisplay.when(
+              loading: () => _HeroHeader(
+                restaurantName: widget.restaurantId,
+                branchName: widget.branchId,
+                loading: true,
+              ),
+              error: (error, _) => _BranchUnavailableHeader(error: error),
+              data: (display) => _HeroHeader(
+                restaurantName: display.restaurantName,
+                branchName: display.branchName,
+                inactive: !display.canJoinQueue,
+              ),
+            ),
             const SizedBox(height: 24),
             _JoinQueueCard(
               formKey: _formKey,
@@ -251,7 +275,7 @@ class _CustomerJoinQueueScreenState
               onEmptyTableOnlyChanged: (v) =>
                   setState(() => _emptyTableOnly = v),
               eta: _eta,
-              onJoin: _submitting ? null : _joinQueue,
+              onJoin: _submitting || !canJoin ? null : _joinQueue,
             ),
             const SizedBox(height: 18),
             const _FeaturedWaitCard(),
@@ -266,22 +290,90 @@ class _CustomerJoinQueueScreenState
 // ─────────────────────────── Hero header ─────────────────────────────────────
 
 class _HeroHeader extends StatelessWidget {
-  const _HeroHeader();
+  const _HeroHeader({
+    required this.restaurantName,
+    required this.branchName,
+    this.loading = false,
+    this.inactive = false,
+  });
+
+  final String restaurantName;
+  final String branchName;
+  final bool loading;
+  final bool inactive;
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       children: [
-        RestaurantLogo(size: 66),
-        SizedBox(height: 14),
+        const RestaurantLogo(size: 66),
+        const SizedBox(height: 14),
         StatusBadge(
-          label: 'Indiranagar Branch',
-          foreground: Color(0xFF006B79),
-          background: Color(0x8090EAFD),
+          label: loading
+              ? 'Loading branch'
+              : inactive
+              ? '$branchName unavailable'
+              : '$branchName Branch',
+          foreground: const Color(0xFF006B79),
+          background: const Color(0x8090EAFD),
         ),
-        SizedBox(height: 14),
+        const SizedBox(height: 14),
         Text(
-          'The Spice House',
+          restaurantName,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppColors.navyText,
+            fontSize: 27,
+            fontWeight: FontWeight.w800,
+            height: 34 / 27,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          inactive
+              ? 'This branch is not accepting queues right now.'
+              : 'Skip the wait, join the queue.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Color(0xFF3E484F),
+            fontSize: 17,
+            height: 25 / 17,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BranchUnavailableHeader extends StatelessWidget {
+  const _BranchUnavailableHeader({required this.error});
+
+  final Object error;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = error is CustomerBranchException
+        ? switch ((error as CustomerBranchException).failure) {
+            CustomerBranchFailure.restaurantNotFound =>
+              'This EZQ restaurant link is not available.',
+            CustomerBranchFailure.branchNotFound =>
+              'This branch link does not match an EZQ branch.',
+          }
+        : 'Could not load this restaurant right now.';
+
+    return Column(
+      children: [
+        const RestaurantLogo(size: 66),
+        const SizedBox(height: 14),
+        const StatusBadge(
+          label: 'Restaurant unavailable',
+          foreground: Color(0xFF8A1F1F),
+          background: Color(0xFFFFE4E4),
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          'Restaurant Not Found',
+          textAlign: TextAlign.center,
           style: TextStyle(
             color: AppColors.navyText,
             fontSize: 27,
@@ -289,13 +381,14 @@ class _HeroHeader extends StatelessWidget {
             height: 34 / 27,
           ),
         ),
-        SizedBox(height: 3),
+        const SizedBox(height: 6),
         Text(
-          'Skip the wait, join the queue.',
-          style: TextStyle(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
             color: Color(0xFF3E484F),
-            fontSize: 17,
-            height: 25 / 17,
+            fontSize: 15,
+            height: 1.4,
           ),
         ),
       ],

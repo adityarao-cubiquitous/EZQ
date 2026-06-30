@@ -220,7 +220,7 @@ def footer(canvas, doc):
     canvas.line(18 * mm, 11 * mm, A4[0] - 18 * mm, 11 * mm)
     canvas.setFillColor(colors.HexColor("#607D8B"))
     canvas.setFont("Helvetica", 7)
-    canvas.drawString(18 * mm, 7 * mm, "EZQ UI Design Handout - June 25, 2026")
+    canvas.drawString(18 * mm, 7 * mm, "EZQ UI Design Handout - June 30, 2026")
     canvas.drawRightString(A4[0] - 18 * mm, 7 * mm, f"Page {doc.page}")
     canvas.restoreState()
 
