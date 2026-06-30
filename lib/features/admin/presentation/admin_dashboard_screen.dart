@@ -23,6 +23,7 @@ import '../../tables/domain/table_status.dart';
 import '../../tables/presentation/table_grid.dart';
 import '../../queue/presentation/queue_panel.dart';
 import '../../customer/domain/seating_preference_service.dart';
+import 'qr_management_panel.dart';
 
 final _adminWalkInEtaProvider = StreamProvider.autoDispose
     .family<
@@ -429,6 +430,31 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }
   }
 
+  Future<void> _showQrManagementDialog() {
+    return showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('QR Management'),
+          contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          content: SizedBox(
+            width: math.min(MediaQuery.sizeOf(context).width - 48, 560.0),
+            child: QrManagementPanel(
+              restaurantId: widget.restaurantId,
+              branchId: widget.branchId,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tablesStream = ref
@@ -516,6 +542,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       selectedMetric: _selectedMetricFilter,
                       onMetricTap: _handleMetricTap,
                       onLogout: _logoutAdmin,
+                      onQrManagement: _showQrManagementDialog,
                       onReports: () => context.go(
                         '/admin/${widget.restaurantId}/${widget.branchId}/reports',
                       ),
@@ -2239,6 +2266,7 @@ class _AdminTopBar extends StatelessWidget {
     required this.selectedMetric,
     required this.onMetricTap,
     required this.onLogout,
+    required this.onQrManagement,
     required this.onReports,
   });
 
@@ -2252,6 +2280,7 @@ class _AdminTopBar extends StatelessWidget {
   final _TopMetricFilter? selectedMetric;
   final ValueChanged<_TopMetricFilter> onMetricTap;
   final VoidCallback onLogout;
+  final VoidCallback onQrManagement;
   final VoidCallback onReports;
 
   @override
@@ -2303,6 +2332,11 @@ class _AdminTopBar extends StatelessWidget {
                         branchName: branchName,
                         compact: true,
                       ),
+                    ),
+                    IconButton(
+                      tooltip: 'QR management',
+                      onPressed: onQrManagement,
+                      icon: const Icon(Icons.qr_code_2),
                     ),
                     IconButton(
                       tooltip: 'Daily summary',
@@ -2423,6 +2457,11 @@ class _AdminTopBar extends StatelessWidget {
                         ),
                       ),
                     ),
+                  ),
+                  IconButton(
+                    tooltip: 'QR management',
+                    onPressed: onQrManagement,
+                    icon: const Icon(Icons.qr_code_2),
                   ),
                   IconButton(
                     tooltip: 'Daily summary',
