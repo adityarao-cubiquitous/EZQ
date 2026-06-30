@@ -22,6 +22,7 @@ class FirebaseCustomerQrRepository implements CustomerQrRepository {
     final snapshot = await _firestore
         .collectionGroup('branches')
         .where('qrSlug', isEqualTo: slug)
+        .where('isActive', isEqualTo: true)
         .limit(1)
         .get();
     if (snapshot.docs.isEmpty) return null;
