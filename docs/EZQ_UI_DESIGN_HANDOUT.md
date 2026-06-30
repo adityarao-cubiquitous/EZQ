@@ -1,13 +1,13 @@
 # EZQ UI Design Handout
 
-Last updated: June 25, 2026
+Last updated: June 30, 2026
 
 ## 1. Product Experience
 
 EZQ is a mobile-first restaurant queue management experience for two audiences:
 
-- Customers: join a queue from a QR/web link, track their place, see remaining wait, view the uploaded menu PDF, use support, and stay engaged while waiting.
-- Managers: view table availability, seat the right table for a party, monitor wait duration, finish meals, and track table lifecycle timestamps.
+- Customers: join a queue from a QR/web link, scan an in-app QR code on iOS/Android, track their place, see remaining wait, view the uploaded menu PDF, use support, and stay engaged while waiting.
+- Managers: view table availability, seat the right table for a party, monitor wait duration, finish meals, undo recent seating mistakes, manage branch QR assets, and track table lifecycle timestamps.
 
 The design direction is clean, calm, and iOS-inspired: high clarity, restrained surfaces, soft depth, compact spacing, large touch targets, and a small number of meaningful status colors.
 
@@ -307,6 +307,7 @@ Top bar:
 - Occupied count.
 - Waiting count.
 - Walk-in action.
+- QR management icon.
 - Daily summary icon.
 
 ### Tables by Capacity
@@ -338,6 +339,14 @@ Table statuses:
 
 Cleaning is intentionally removed from the workflow. Legacy `cleaning` data should be treated as available.
 
+Table color rules:
+
+- Available tables use the light blue/aqua treatment.
+- Partially occupied tables use light lavender so they are distinct from next-best-fit yellow highlights.
+- Fully occupied tables use red.
+- Best-fit highlights use green.
+- Next-best-fit highlights use yellow.
+
 ### Live Queue
 
 Purpose: manager should understand who is waiting, how long they have waited, and which party to reserve next.
@@ -356,10 +365,21 @@ Queue card content:
 Reserve behavior:
 
 - Manager clicks `Reserve`.
-- App asks for table selection from a picklist of fitting available tables.
+- App asks for table selection from a picklist of fitting tables.
+- Best-fit and next-best-fit recommendations are color coded.
 - Free-text table entry is avoided to reduce manual errors.
 - Once selected, the queue entry becomes seated and the table becomes occupied directly.
 - Customer status updates to the seated/table-assigned flow.
+- Recommendation hand icons are actionable and assign the recommended table directly.
+- Recent seating mistakes can be undone from popup feedback and from the table tile for a short recovery window.
+
+Recommendation behavior:
+
+- Table-side clicks highlight the best queue parties for that table and scroll the live queue to the best-fit party.
+- Queue-side clicks highlight only the smallest fitting table set first.
+- Parties that accept shared seating may be recommended to compatible partially occupied tables or empty tables.
+- Parties that do not accept shared seating should be recommended only to empty tables.
+- Queue cards show a compact `Share` tag when a party accepts shared seating.
 
 Skip behavior:
 
@@ -380,13 +400,40 @@ Purpose: quick manual queue creation for guests who arrive without QR flow.
 Fields:
 
 - Name.
-- Phone.
-- Party size.
+- Phone, optional, numeric only when entered.
+- Party size picker matching the customer flow.
+- Seating preference with non-shared as the default and a visible share checkbox/card.
+- Live shared and non-shared wait estimates.
 - Notes.
 
-Future design note:
+Behavior:
 
-- Party size should become a numeric picker or bounded select, matching the customer flow.
+- Add to queue validates optional phone input as numeric and 10 digits when provided.
+- Walk-ins are created with queue preferences so table recommendations work the same way as customer-created queue entries.
+
+### QR Management
+
+Purpose: let branch staff and operators access the QR assets that route customers into the correct queue.
+
+Entry point:
+
+- QR icon in the admin top bar.
+
+Current capabilities:
+
+- Shows branch QR code preview.
+- Shows queue URL for the selected branch.
+- Copies the queue URL.
+- Downloads PNG and SVG QR assets.
+- Shares the queue link through the browser share/mail flow.
+- Opens a print-friendly QR view.
+- Uses bundled QR assets for demo restaurants and branches.
+
+Rules:
+
+- QR management is read/action focused in the app.
+- Regenerating or mutating QR metadata should stay behind an admin-safe backend path before it is exposed.
+- QR asset paths are configured as Flutter assets and exported through web-safe file actions.
 
 ### Reports
 
@@ -531,6 +578,11 @@ Customer:
 - `/customer/:restaurantSlug/:branchSlug/menu?queueEntryId=:queueEntryId`
 - `/customer/:restaurantSlug/:branchSlug/support`
 - `/customer/install`
+- `/app/login`
+- `/app/profile`
+- `/app/home`
+- `/app/nearby`
+- `/app/scan`
 
 Manager:
 
@@ -550,7 +602,15 @@ Manager:
 - Tables are sorted and grouped by capacity.
 - Finishing a meal captures completed party size and records table cycle timestamps.
 - Queue cards show how long the party has waited and what time they joined.
+- Queue recommendations should prefer the smallest fitting table and use green for best fit, yellow for next best fit.
+- Recent seating assignments should be undoable for a short recovery window.
+- Admin toasts are popup-style feedback, not bottom snackbars.
+- Walk-in queue entries support seating preference and live ETA context.
+- Branch QR management is available from the admin top bar.
 - Customer status includes ad space and hidden-object puzzle placeholder.
+- Mobile app customer auth uses phone/OTP, with a debug/default code flow for local testing.
+- Mobile app first-time customer profile captures first and last name and stores the signed-in customer profile.
+- Mobile app `/app/scan` opens the Camera Lens QR scanner and resolves direct customer links or active branch QR slugs.
 - Cubiquitous branding appears in powered-by placement.
 
 ## 15. Feature List Built So Far
@@ -558,11 +618,21 @@ Manager:
 Customer features:
 
 - Guest join queue from restaurant branch URL.
+- iOS/Android phone authentication entry at `/app/login`.
+- First-time mobile profile capture for first name and last name.
+- Customer mobile app home/nearby restaurant flow after login.
+- Camera Lens QR scanner at `/app/scan` using device camera.
+- QR scanner fallback for manually entering an EZQ link or QR code.
+- QR route resolver for direct `/customer/:restaurant/:branch` links and active branch `qrSlug` values.
 - Customer join form with name, mobile number, party size, and optional notes.
+- Mobile join form can prepopulate known signed-in customer name and phone number.
 - Exact party size selection from 1 to 20.
+- Seating preference selection for shared seating versus empty-table-only waiting.
+- Live shared and non-shared wait estimates in the mobile customer join flow.
 - Live customer status screen with token, party size, queue position, and remaining wait.
 - Customer seated/table-assigned state after manager seating.
 - Customer cancellation action while waiting.
+- Single-active-queue protection for signed-in mobile customers until the user cancels or the visit is completed.
 - Uploaded menu PDF viewing from branch configuration.
 - Customer support screen.
 - Customer shell with EZQ header, app install shortcut, and bottom tabs after queue entry exists.
@@ -579,33 +649,57 @@ Manager features:
 - Table tiles showing table number, status, capacity, occupied count, and token when linked.
 - Live queue panel backed by Firestore streams.
 - Queue cards showing token, customer, party size, wait duration, joined time, and actions.
-- Reserve action that opens a fitting available-table picker.
+- Queue cards showing compact share preference tag for parties open to shared seating.
+- Optimized queue recommendations with best-fit and next-best-fit table suggestions.
+- Reserve action that opens a fitting table picker with color-coded best and next-best options.
+- Actionable recommendation buttons on queue cards for direct table assignment.
+- Queue-card click highlights fitting tables and scrolls to the relevant table group.
+- Table-tile click highlights recommended queue parties and scrolls to the best-fit queue card.
 - Direct seating flow that sets queue entry to seated and table to occupied.
+- Undo seating action from popup feedback and recently seated table tiles.
 - Skip action for waiting queue entries.
 - Finish meal action on occupied tables.
 - Completed party size capture when finishing a meal.
 - Table lifecycle timestamp recording for cycle start and cycle end.
-- Walk-in dialog for manually adding a queue entry.
+- Walk-in dialog for manually adding a queue entry with party size picker, optional validated phone, notes, share preference, and live ETA context.
+- Clickable top metrics for free, occupied, and waiting filters.
+- Popup-style admin feedback toasts.
+- QR management dialog with preview, branch queue URL, copy, share, print, and PNG/SVG download actions.
 - Daily summary/report entry point from dashboard.
 
 Platform and backend features:
 
 - Firebase Hosting configured for Flutter web.
+- Firebase Hosting configured with no-cache headers for app shell files and full hosting responses to reduce stale deployments.
 - Firestore data model for restaurants, branches, tables, queue entries, and daily counters.
 - Firebase Auth integrated for manager accounts.
+- Firebase Auth phone sign-in integrated for mobile customer accounts.
 - Firestore rules and indexes maintained in the repository.
+- Firestore rules allow active branch reads for QR resolution and signed-in customers to manage only their own customer profile.
 - Seed script for demo restaurant data.
+- Queue seeding script for realistic table occupancy and waiting list scenarios.
+- QR asset generation and branch identity scripts for branch QR metadata.
+- Bundled QR assets for demo restaurants.
 - Firestore smoke test script for core queue/table flows.
 - Cloud Functions source present for production hardening path.
 - Flutter web build configured with Firebase runtime define.
+- iOS and Android camera permissions configured for the in-app QR scanner.
 
 ## 16. Functional Requirements Covered
 
 Customer flow:
 
 - The system shall allow a customer to join a restaurant branch queue without creating an account.
+- The system shall allow iOS/Android app customers to sign in with phone authentication.
+- The system shall capture first and last name for first-time mobile app customers.
+- The system shall allow app customers to scan an EZQ QR code using the device camera.
+- The system shall resolve scanned direct links and active branch QR slugs to the correct customer queue route.
 - The system shall collect customer name, phone number, exact party size, and optional notes.
+- The system shall prepopulate known signed-in customer name and phone number where available.
+- The system shall collect seating preference for shared seating or empty-table-only waiting.
+- The system shall show shared and non-shared wait estimates where live data is available.
 - The system shall create a queue entry with waiting status and a token code.
+- The system shall prevent a signed-in mobile customer from joining another restaurant queue while they have an active queue or seated visit.
 - The system shall show the customer their queue position and estimated remaining wait.
 - The system shall keep the active queue entry available across status, menu, and support navigation.
 - The system shall allow a waiting customer to cancel their queue entry.
@@ -620,9 +714,12 @@ Manager flow:
 - The system shall show live waiting queue entries for the selected branch.
 - The system shall show live table availability for the selected branch.
 - The system shall group tables by capacity and sort them for fast scanning.
-- The system shall allow a manager to reserve a waiting party only by selecting an available table that can fit the party.
+- The system shall recommend best-fit and next-best-fit tables for each waiting party.
+- The system shall recommend partially occupied tables only when the waiting party accepts shared seating and the table has enough spare seats.
+- The system shall allow a manager to reserve a waiting party by selecting a fitting table from recommendations or the table picker.
 - The system shall avoid free-text table assignment in the reserve flow.
 - The system shall immediately mark the selected queue entry as seated and the selected table as occupied.
+- The system shall allow a recent seating assignment to be undone during a short recovery window.
 - The system shall store assigned table details on the queue entry.
 - The system shall store current queue linkage on the occupied table.
 - The system shall allow a manager to skip a waiting party.
@@ -631,6 +728,9 @@ Manager flow:
 - The system shall return the table to available after the meal is finished.
 - The system shall mark the queue entry completed after the meal is finished.
 - The system shall record table cycle timestamps for reporting.
+- The system shall allow managers to create walk-in queue entries with party size, optional phone, notes, and share preference.
+- The system shall validate optional walk-in phone input when present.
+- The system shall expose QR management actions for branch QR preview, queue URL copy, QR download, share, and print.
 
 Operational requirements:
 
@@ -639,6 +739,8 @@ Operational requirements:
 - The system shall treat legacy `cleaning` table data as available.
 - The system shall keep customer-facing flows safe-area aware on mobile devices.
 - The system shall keep manager dashboard layouts usable across phone, tablet, and desktop widths.
+- The system shall preserve QR asset download/print behavior in Flutter web builds.
+- The system shall avoid stale Firebase Hosting app-shell caching after deployments.
 - The system shall keep Cloud Functions source aligned with app behavior for future backend hardening.
 
 ## 17. User Stories
@@ -646,7 +748,12 @@ Operational requirements:
 Customer user stories:
 
 - As a walk-in customer, I want to scan a QR link and join the queue without creating an account so I can start waiting quickly.
+- As a mobile app customer, I want to scan a restaurant QR with my camera so I can open the correct branch queue without typing.
+- As a mobile app customer, I want my known name and phone to prefill so joining a queue is fast.
+- As a mobile app customer, I want the app to stop me from joining multiple active restaurant queues so I do not create duplicate waits.
 - As a customer, I want to enter my party size exactly so the restaurant can assign a suitable table.
+- As a customer, I want to choose whether I am willing to share a table so my wait estimate and table assignment match my preference.
+- As a customer, I want to see shared and non-shared wait estimates so I can make an informed seating choice.
 - As a customer, I want to see my token and queue position so I know my place in line.
 - As a customer, I want to see my remaining wait time so I can decide whether to stay nearby.
 - As a customer, I want to open the menu while waiting so I can decide what to order before being seated.
@@ -660,19 +767,28 @@ Manager user stories:
 - As a manager, I want to log in securely so only staff can manage the queue.
 - As a manager, I want to see all waiting parties live so I can decide who to seat next.
 - As a manager, I want to see tables grouped by capacity so I can quickly find a good fit.
-- As a manager, I want to assign a party from a list of available fitting tables so I avoid table-number mistakes.
+- As a manager, I want best-fit and next-best-fit suggestions so I can seat parties quickly without wasting capacity.
+- As a manager, I want shared-seating parties matched to compatible partial tables so I can improve table utilization.
+- As a manager, I want non-sharing parties matched only to empty tables so I respect customer preference.
+- As a manager, I want to assign a party from a list of fitting tables so I avoid table-number mistakes.
+- As a manager, I want recommendation buttons to assign the suggested table directly so queue work is faster.
+- As a manager, I want table and queue clicks to scroll to the highlighted recommendation so I do not lose context.
 - As a manager, I want the reserve action to seat the party immediately so I do not need a second mark-seated step.
+- As a manager, I want to undo a recent reservation if I make a mistake so I can recover without manual data fixes.
 - As a manager, I want occupied table tiles to show token and party occupancy so I can understand current floor usage.
 - As a manager, I want to finish a meal from the table tile so I can free the table for the next party.
 - As a manager, I want to record how many guests finished so reports match actual service.
 - As a manager, I want to skip a waiting customer so the live queue stays actionable when someone is unavailable.
 - As a manager, I want dashboard metrics for free, occupied, and waiting counts so I can monitor pressure at a glance.
-- As a manager, I want a walk-in dialog so staff can add guests who did not use the QR flow.
+- As a manager, I want a walk-in dialog with party size picker, optional validated phone, and share preference so staff can add guests who did not use the QR flow.
+- As a manager, I want QR management actions in the dashboard so I can copy, download, share, or print the branch QR code.
 
 Admin and operator user stories:
 
 - As an operator, I want seeded demo data so I can test the app without manually building a restaurant branch.
+- As an operator, I want realistic queue seed data so I can test table recommendation behavior under pressure.
 - As an operator, I want smoke tests for Firestore flows so I can verify queue and table behavior after changes.
+- As an operator, I want bundled QR assets and branch QR metadata so branch onboarding can be demonstrated end to end.
 - As a product owner, I want menu and waiting-game media fields in branch configuration so content can be managed per location.
 - As a product owner, I want lifecycle timestamps stored so future reports can measure seating and table turnover.
 
@@ -680,9 +796,8 @@ Admin and operator user stories:
 
 - Add backend upload UI for menu PDF.
 - Add backend upload UI for hidden-object puzzle image.
-- Convert walk-in party size text field to numeric picker.
 - Add empty states for no waiting queue and no available tables.
 - Add loading skeletons for admin dashboard panels.
-- Add explicit confirmation toast when reserve succeeds.
 - Add no-show handling if the party does not arrive after being called.
 - Add visual design handoff screens in Figma for the latest admin dashboard.
+- Move QR metadata regeneration behind an admin-safe backend function before exposing it in production UI.
