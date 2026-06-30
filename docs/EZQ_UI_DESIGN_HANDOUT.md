@@ -210,6 +210,7 @@ Behavior rules:
 
 - Join button is disabled while submitting.
 - Customer email login is not required.
+- Restaurant name and branch badge come from Firestore for the active branch route.
 - After successful join, route to queue status page.
 - Once joined, the join flow should not let the same customer accidentally join again from the same active context.
 
@@ -578,6 +579,7 @@ Manager:
 Customer features:
 
 - Main URL Camera Lens with in-app QR scanning and manual QR/link fallback.
+- Firestore-backed restaurant and branch display on customer queue pages.
 - Guest join queue from restaurant branch URL.
 - Customer join form with name, mobile number, party size, and optional notes.
 - Exact party size selection from 1 to 20.
@@ -626,6 +628,7 @@ Customer flow:
 
 - The system shall show the Camera Lens screen at the main app URL without redirecting to a restaurant branch.
 - The system shall resolve scanned EZQ customer URLs and active branch QR slugs to the correct customer queue page.
+- The system shall display the customer page restaurant and branch names from Firestore for the resolved route.
 - The system shall allow a customer to join a restaurant branch queue without creating an account.
 - The system shall collect customer name, phone number, exact party size, and optional notes.
 - The system shall create a queue entry with waiting status and a token code.

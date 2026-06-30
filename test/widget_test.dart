@@ -1,8 +1,30 @@
 import 'package:ezq/app/ezq_app.dart';
+import 'package:ezq/features/customer/data/customer_branch_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+
+class _TestCustomerBranchRepository implements CustomerBranchRepository {
+  const _TestCustomerBranchRepository();
+
+  @override
+  Stream<CustomerBranchDisplay> watchBranchDisplay({
+    required String restaurantId,
+    required String branchId,
+  }) {
+    return Stream.value(
+      CustomerBranchDisplay(
+        restaurantId: restaurantId,
+        branchId: branchId,
+        restaurantName: 'The Spice House',
+        branchName: 'Indiranagar',
+        isRestaurantActive: true,
+        isBranchActive: true,
+      ),
+    );
+  }
+}
 
 void main() {
   Future<void> pumpFrames(WidgetTester tester) async {
@@ -16,7 +38,16 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const ProviderScope(child: EzqApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          customerBranchRepositoryProvider.overrideWithValue(
+            const _TestCustomerBranchRepository(),
+          ),
+        ],
+        child: const EzqApp(),
+      ),
+    );
     await pumpFrames(tester);
 
     expect(find.text('EZQ Camera Lens'), findsOneWidget);
