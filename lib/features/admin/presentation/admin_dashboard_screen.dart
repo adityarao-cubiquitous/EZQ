@@ -177,6 +177,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       freeTables: free,
                       occupiedTables: occupied,
                       waitingCount: liveQueue.length,
+                      onQrManagement: _showQrManagementDialog,
                       onReports: () => context.go(
                         '/admin/${widget.restaurantId}/${widget.branchId}/reports',
                       ),
@@ -192,6 +193,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                             return ListView(
                               padding: EdgeInsets.all(pagePadding),
                               children: [
+                                QrManagementPanel(
+                                  restaurantId: widget.restaurantId,
+                                  branchId: widget.branchId,
+                                ),
+                                SizedBox(height: gap),
                                 TableGrid(
                                   tables: tables,
                                   tableHighlightTones: matchingHighlights,
@@ -220,11 +226,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                                 .currentQueueEntryId],
                                         initialPartySize: initialPartySize,
                                       ),
-                                ),
-                                SizedBox(height: gap),
-                                QrManagementPanel(
-                                  restaurantId: widget.restaurantId,
-                                  branchId: widget.branchId,
                                 ),
                                 SizedBox(height: gap),
                                 QueuePanel(
@@ -393,6 +394,31 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           );
         },
       ),
+    );
+  }
+
+  Future<void> _showQrManagementDialog() {
+    return showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('QR Management'),
+          contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          content: SizedBox(
+            width: _dialogWidth(context, 560),
+            child: QrManagementPanel(
+              restaurantId: widget.restaurantId,
+              branchId: widget.branchId,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1707,6 +1733,7 @@ class _AdminTopBar extends StatelessWidget {
     required this.freeTables,
     required this.occupiedTables,
     required this.waitingCount,
+    required this.onQrManagement,
     required this.onReports,
   });
 
@@ -1714,6 +1741,7 @@ class _AdminTopBar extends StatelessWidget {
   final int freeTables;
   final int occupiedTables;
   final int waitingCount;
+  final VoidCallback onQrManagement;
   final VoidCallback onReports;
 
   @override
@@ -1768,6 +1796,11 @@ class _AdminTopBar extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                    ),
+                    IconButton(
+                      tooltip: 'QR management',
+                      onPressed: onQrManagement,
+                      icon: const Icon(Icons.qr_code_2),
                     ),
                     IconButton(
                       tooltip: 'Daily summary',
@@ -1868,6 +1901,11 @@ class _AdminTopBar extends StatelessWidget {
                         builder: (context) => const _WalkInDialog(),
                       ),
                     ),
+                  ),
+                  IconButton(
+                    tooltip: 'QR management',
+                    onPressed: onQrManagement,
+                    icon: const Icon(Icons.qr_code_2),
                   ),
                   IconButton(
                     tooltip: 'Daily summary',
