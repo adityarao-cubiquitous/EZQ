@@ -24,6 +24,7 @@ class QueuePanel extends StatefulWidget {
     required this.onSkip,
     this.onEntryTapped,
     this.onRecommendationSelected,
+    this.onNoAvailableTables,
   });
 
   final List<QueueEntry> queue;
@@ -43,6 +44,7 @@ class QueuePanel extends StatefulWidget {
     QueueTableRecommendation recommendation,
   )?
   onRecommendationSelected;
+  final VoidCallback? onNoAvailableTables;
 
   @override
   State<QueuePanel> createState() => _QueuePanelState();
@@ -143,6 +145,7 @@ class _QueuePanelState extends State<QueuePanel> {
                       availableTables: widget.availableTables,
                       onReserve: () => widget.onReserve(entry),
                       onSkip: () => widget.onSkip(entry),
+                      onNoAvailableTables: widget.onNoAvailableTables,
                       onTap: widget.onEntryTapped != null
                           ? () => widget.onEntryTapped!(entry)
                           : null,
@@ -352,6 +355,7 @@ class _QueueEntryCard extends StatelessWidget {
     required this.availableTables,
     required this.onReserve,
     required this.onSkip,
+    this.onNoAvailableTables,
     this.onTap,
     this.onRecommendationSelected,
   });
@@ -363,6 +367,7 @@ class _QueueEntryCard extends StatelessWidget {
   final List<RestaurantTable> availableTables;
   final VoidCallback onReserve;
   final VoidCallback onSkip;
+  final VoidCallback? onNoAvailableTables;
   final VoidCallback? onTap;
   final void Function(QueueTableRecommendation recommendation)?
   onRecommendationSelected;
@@ -457,6 +462,7 @@ class _QueueEntryCard extends StatelessWidget {
                 availableTables: availableTables,
                 statusLabel: entry.status.wireName,
                 onReserve: onReserve,
+                onNoAvailableTables: onNoAvailableTables,
               ),
               const SizedBox(height: 8),
               _SkipAction(canSkip: canReserve, onSkip: onSkip),
@@ -471,6 +477,7 @@ class _QueueEntryCard extends StatelessWidget {
                   availableTables: availableTables,
                   statusLabel: entry.status.wireName,
                   onReserve: onReserve,
+                  onNoAvailableTables: onNoAvailableTables,
                 ),
               ),
               const SizedBox(width: 8),
@@ -534,7 +541,7 @@ class _QueueEntryCard extends StatelessWidget {
   Color _spotlightColor(_QueueSpotlightTone? tone) {
     return switch (tone) {
       _QueueSpotlightTone.best => AppColors.successGreen,
-      _QueueSpotlightTone.nextBest => AppColors.warningOrange,
+      _QueueSpotlightTone.nextBest => AppColors.recommendationYellow,
       null => AppColors.accentPurple,
     };
   }
@@ -601,7 +608,7 @@ class _QueueTableRecommendationStrip extends StatelessWidget {
     final spareSeats = recommendation.openSeats - partySize;
     final color = recommendation.tone == QueueTableRecommendationTone.best
         ? AppColors.successGreen
-        : AppColors.warningOrange;
+        : AppColors.recommendationYellow;
     final rankLabel = recommendation.tone == QueueTableRecommendationTone.best
         ? 'Best'
         : 'Next';
@@ -727,8 +734,11 @@ class _RecommendationChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = switch (tone) {
       _QueueSpotlightTone.best => AppColors.successGreen,
-      _QueueSpotlightTone.nextBest => AppColors.warningOrange,
+      _QueueSpotlightTone.nextBest => AppColors.recommendationYellow,
     };
+    final foreground = color.computeLuminance() > 0.56
+        ? AppColors.navyText
+        : Colors.white;
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -747,16 +757,12 @@ class _RecommendationChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.auto_awesome_rounded,
-              size: 14,
-              color: Colors.white,
-            ),
+            Icon(Icons.auto_awesome_rounded, size: 14, color: foreground),
             const SizedBox(width: 5),
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: foreground,
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
               ),
@@ -811,12 +817,14 @@ class _ReserveAction extends StatelessWidget {
     required this.availableTables,
     required this.statusLabel,
     required this.onReserve,
+    this.onNoAvailableTables,
   });
 
   final bool canReserve;
   final List<RestaurantTable> availableTables;
   final String statusLabel;
   final VoidCallback onReserve;
+  final VoidCallback? onNoAvailableTables;
 
   @override
   Widget build(BuildContext context) {
@@ -825,11 +833,7 @@ class _ReserveAction extends StatelessWidget {
     }
     return EzqButton(
       label: 'Reserve',
-      onPressed: availableTables.isEmpty
-          ? () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No available tables right now.')),
-            )
-          : onReserve,
+      onPressed: availableTables.isEmpty ? onNoAvailableTables : onReserve,
     );
   }
 }

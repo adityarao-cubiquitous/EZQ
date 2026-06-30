@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -123,6 +124,174 @@ bool _adminTableCanFitParty(
   return table.capacity - currentPartySize >= partySize;
 }
 
+void _showAdminPopup(
+  BuildContext context, {
+  required String message,
+  _AdminPopupTone tone = _AdminPopupTone.info,
+  String? actionLabel,
+  VoidCallback? onAction,
+  Duration duration = const Duration(seconds: 3),
+}) {
+  ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) return;
+
+  late final OverlayEntry entry;
+  var removed = false;
+
+  void removeEntry() {
+    if (removed) return;
+    removed = true;
+    entry.remove();
+  }
+
+  entry = OverlayEntry(
+    builder: (context) => _AdminPopupToast(
+      message: message,
+      tone: tone,
+      actionLabel: actionLabel,
+      onAction: onAction == null
+          ? null
+          : () {
+              removeEntry();
+              onAction();
+            },
+      onDismiss: removeEntry,
+    ),
+  );
+  overlay.insert(entry);
+  Future<void>.delayed(duration, removeEntry);
+}
+
+enum _AdminPopupTone { info, success, warning, error }
+
+class _AdminPopupToast extends StatelessWidget {
+  const _AdminPopupToast({
+    required this.message,
+    required this.tone,
+    required this.onDismiss,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String message;
+  final _AdminPopupTone tone;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (tone) {
+      _AdminPopupTone.info => AppColors.primaryTeal,
+      _AdminPopupTone.success => AppColors.successGreen,
+      _AdminPopupTone.warning => AppColors.warningOrange,
+      _AdminPopupTone.error => AppColors.errorRed,
+    };
+    final icon = switch (tone) {
+      _AdminPopupTone.info => Icons.info_outline_rounded,
+      _AdminPopupTone.success => Icons.check_circle_rounded,
+      _AdminPopupTone.warning => Icons.warning_amber_rounded,
+      _AdminPopupTone.error => Icons.error_outline_rounded,
+    };
+
+    return Positioned(
+      top: MediaQuery.paddingOf(context).top + 84,
+      left: 18,
+      right: 18,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Material(
+          color: Colors.transparent,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.94, end: 1),
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            builder: (context, scale, child) {
+              return Transform.scale(
+                scale: scale,
+                child: Opacity(opacity: scale.clamp(0.0, 1.0), child: child),
+              );
+            },
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: color.withValues(alpha: 0.22)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.18),
+                      blurRadius: 28,
+                      offset: const Offset(0, 14),
+                    ),
+                    const BoxShadow(
+                      color: Color(0x1A001E2B),
+                      blurRadius: 32,
+                      offset: Offset(0, 18),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Icon(icon, color: color, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          message,
+                          style: const TextStyle(
+                            color: AppColors.navyText,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            height: 1.25,
+                          ),
+                        ),
+                      ),
+                      if (actionLabel != null && onAction != null) ...[
+                        const SizedBox(width: 12),
+                        TextButton(
+                          onPressed: onAction,
+                          style: TextButton.styleFrom(
+                            foregroundColor: color,
+                            textStyle: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          child: Text(actionLabel!),
+                        ),
+                      ],
+                      IconButton(
+                        tooltip: 'Dismiss',
+                        onPressed: onDismiss,
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        color: AppColors.mutedText,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({
     super.key,
@@ -177,12 +346,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             .map((id) => highlightedById[id]?.tableNumber)
             .whereType<String>()
             .join(', ');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
+        _showAdminPopup(
+          context,
+          message:
               '${_preferenceLabel(entry)} tables for ${entry.tokenCode}: $tableNumbers',
-            ),
-          ),
         );
       }
     }
@@ -242,9 +409,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     });
     ScaffoldMessenger.of(context).clearSnackBars();
     if (!isDeselecting) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(filter.snackBarLabel)));
+      _showAdminPopup(context, message: filter.snackBarLabel);
     }
   }
 
@@ -256,9 +421,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       context.go('/admin/login');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      _showAdminPopup(
         context,
-      ).showSnackBar(SnackBar(content: Text('Could not logout: $error')));
+        message: 'Could not logout: $error',
+        tone: _AdminPopupTone.error,
+      );
     }
   }
 
@@ -394,6 +561,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                                 .currentQueueEntryId],
                                         initialPartySize: initialPartySize,
                                       ),
+                                  onUndoReservation: (table) =>
+                                      _undoSeatFromTableTile(
+                                        context: context,
+                                        table: table,
+                                      ),
                                 ),
                                 SizedBox(height: gap),
                                 QueuePanel(
@@ -415,6 +587,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                     entry: entry,
                                     availableTables: availableTables,
                                     occupiedCountFor: occupiedFor,
+                                  ),
+                                  onNoAvailableTables: () => _showAdminPopup(
+                                    context,
+                                    message: 'No available tables right now.',
+                                    tone: _AdminPopupTone.warning,
                                   ),
                                   onSkip: (entry) => _skipQueueEntry(
                                     context: context,
@@ -485,6 +662,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                                 initialPartySize:
                                                     initialPartySize,
                                               ),
+                                      onUndoReservation: (table) =>
+                                          _undoSeatFromTableTile(
+                                            context: context,
+                                            table: table,
+                                          ),
                                     ),
                                   ),
                                 ),
@@ -511,6 +693,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                         entry: entry,
                                         availableTables: availableTables,
                                         occupiedCountFor: occupiedFor,
+                                      ),
+                                      onNoAvailableTables: () => _showAdminPopup(
+                                        context,
+                                        message:
+                                            'No available tables right now.',
+                                        tone: _AdminPopupTone.warning,
                                       ),
                                       onSkip: (entry) => _skipQueueEntry(
                                         context: context,
@@ -584,24 +772,22 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }) async {
     final table = _tableById(tables, recommendation.tableId);
     if (table == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
+      _showAdminPopup(
+        context,
+        message:
             '${recommendation.tableNumber} is no longer available in this view.',
-          ),
-        ),
+        tone: _AdminPopupTone.warning,
       );
       return;
     }
 
     if (recommendation.isShared) {
       _clearTableGridSelection();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
+      _showAdminPopup(
+        context,
+        message:
             'Shared seating for ${recommendation.tableNumber} needs multi-party table support. Pick an empty-table recommendation for now.',
-          ),
-        ),
+        tone: _AdminPopupTone.warning,
       );
       return;
     }
@@ -658,18 +844,96 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       );
       if (!context.mounted) return;
       _clearTableGridSelection();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
+      _showAdminPopup(
+        context,
+        message:
             '${entry.tokenCode} seated at ${table.tableNumber}. Table is now occupied.',
-          ),
-        ),
+        tone: _AdminPopupTone.success,
+        actionLabel: 'Undo',
+        duration: const Duration(seconds: 7),
+        onAction: () {
+          unawaited(
+            _undoSeatQueueEntryAtTable(
+              context: context,
+              entry: entry,
+              table: table,
+            ),
+          );
+        },
       );
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
+      _showAdminPopup(
         context,
-      ).showSnackBar(SnackBar(content: Text('Could not seat party: $error')));
+        message: 'Could not seat party: $error',
+        tone: _AdminPopupTone.error,
+      );
+    }
+  }
+
+  Future<void> _undoSeatQueueEntryAtTable({
+    required BuildContext context,
+    required QueueEntry entry,
+    required RestaurantTable table,
+  }) async {
+    try {
+      await ref
+          .read(tableRepositoryProvider)
+          .undoReservation(
+            restaurantId: widget.restaurantId,
+            branchId: widget.branchId,
+            queueEntryId: entry.id,
+            tableId: table.id,
+          );
+      if (!context.mounted) return;
+      _clearTableGridSelection();
+      _showAdminPopup(
+        context,
+        message:
+            '${entry.tokenCode} moved back to waiting. ${table.tableNumber} is available again.',
+        tone: _AdminPopupTone.success,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      _showAdminPopup(
+        context,
+        message: 'Could not undo reservation: $error',
+        tone: _AdminPopupTone.error,
+      );
+    }
+  }
+
+  Future<void> _undoSeatFromTableTile({
+    required BuildContext context,
+    required RestaurantTable table,
+  }) async {
+    final queueEntryId = table.currentQueueEntryId;
+    if (queueEntryId == null) return;
+    final tokenCode = table.currentTokenCode ?? 'Party';
+    try {
+      await ref
+          .read(tableRepositoryProvider)
+          .undoReservation(
+            restaurantId: widget.restaurantId,
+            branchId: widget.branchId,
+            queueEntryId: queueEntryId,
+            tableId: table.id,
+          );
+      if (!context.mounted) return;
+      _clearTableGridSelection();
+      _showAdminPopup(
+        context,
+        message:
+            '$tokenCode moved back to waiting. ${table.tableNumber} is available again.',
+        tone: _AdminPopupTone.success,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      _showAdminPopup(
+        context,
+        message: 'Could not undo reservation: $error',
+        tone: _AdminPopupTone.error,
+      );
     }
   }
 
@@ -718,9 +982,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       },
     );
     if (!context.mounted) return;
-    ScaffoldMessenger.of(
+    _showAdminPopup(
       context,
-    ).showSnackBar(SnackBar(content: Text('${entry.tokenCode} skipped')));
+      message: '${entry.tokenCode} skipped',
+      tone: _AdminPopupTone.success,
+    );
   }
 
   Future<void> _completeMeal({
@@ -757,12 +1023,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           completedPartySize: completedPartySize,
         );
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
+    _showAdminPopup(
+      context,
+      message:
           '${table.tableNumber} marked available. $completedPartySize guests finished.',
-        ),
-      ),
+      tone: _AdminPopupTone.success,
     );
   }
 
@@ -818,12 +1083,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
     if (recommendations.isEmpty) {
       _clearTableGridSelection();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
+      _showAdminPopup(
+        context,
+        message:
             'No waiting party fits the $openSeats open ${openSeats == 1 ? 'seat' : 'seats'} at ${table.tableNumber}.',
-          ),
-        ),
+        tone: _AdminPopupTone.warning,
       );
       return;
     }
@@ -837,13 +1101,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       nextLabel: 'Next best fit for ${table.tableNumber}',
     );
     final nextText = nextEntry == null ? '' : ' · Next: ${nextEntry.tokenCode}';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
+    _showAdminPopup(
+      context,
+      message:
           'Best fit: ${bestEntry.tokenCode} for ${table.tableNumber} ($openSeats open ${openSeats == 1 ? 'seat' : 'seats'})$nextText',
-        ),
-        duration: const Duration(milliseconds: 1800),
-      ),
+      duration: const Duration(milliseconds: 2200),
     );
   }
 
@@ -1626,6 +1888,8 @@ class _ReserveTableDialog extends StatefulWidget {
 class _ReserveTableDialogState extends State<_ReserveTableDialog> {
   late final List<RestaurantTable> _sortedAvailableTables =
       _sortedTablesForParty();
+  late final Map<String, QueueTableRecommendationTone> _recommendationTones =
+      _recommendationTonesForTables();
   late RestaurantTable? _selectedTable = _bestInitialTable();
 
   List<RestaurantTable> _sortedTablesForParty() {
@@ -1639,6 +1903,34 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
   RestaurantTable? _bestInitialTable() {
     if (_sortedAvailableTables.isEmpty) return null;
     return _sortedAvailableTables.first;
+  }
+
+  Map<String, QueueTableRecommendationTone> _recommendationTonesForTables() {
+    if (_sortedAvailableTables.isEmpty) return const {};
+
+    final wasteByTable = {
+      for (final table in _sortedAvailableTables)
+        table.id:
+            table.capacity -
+            widget.occupiedCountFor(table) -
+            widget.entry.partySize,
+    };
+    final bestWaste = wasteByTable.values.reduce(math.min);
+    int? nextWaste;
+    for (final waste in wasteByTable.values.toList()..sort()) {
+      if (waste > bestWaste) {
+        nextWaste = waste;
+        break;
+      }
+    }
+
+    return {
+      for (final entry in wasteByTable.entries)
+        if (entry.value == bestWaste)
+          entry.key: QueueTableRecommendationTone.best
+        else if (nextWaste != null && entry.value == nextWaste)
+          entry.key: QueueTableRecommendationTone.nextBest,
+    };
   }
 
   void _submit() {
@@ -1694,7 +1986,18 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
                   for (final table in _sortedAvailableTables)
                     DropdownMenuItem<RestaurantTable>(
                       value: table,
-                      child: Text(_tableOptionLabel(table)),
+                      child: _ReserveTableOption(
+                        label: _tableOptionLabel(table),
+                        tone: _recommendationTones[table.id],
+                      ),
+                    ),
+                ],
+                selectedItemBuilder: (context) => [
+                  for (final table in _sortedAvailableTables)
+                    _ReserveTableOption(
+                      label: _tableOptionLabel(table),
+                      tone: _recommendationTones[table.id],
+                      compact: true,
                     ),
                 ],
                 onChanged: (table) {
@@ -1724,10 +2027,89 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
   }
 
   String _tableOptionLabel(RestaurantTable table) {
+    final openSeats = table.capacity - widget.occupiedCountFor(table);
     final fitLabel = table.capacity == widget.entry.partySize
         ? 'exact fit'
         : 'fits';
-    return '${table.tableNumber} · ${table.capacity} seats · $fitLabel';
+    return '${table.tableNumber} · $openSeats seats · $fitLabel';
+  }
+}
+
+class _ReserveTableOption extends StatelessWidget {
+  const _ReserveTableOption({
+    required this.label,
+    required this.tone,
+    this.compact = false,
+  });
+
+  final String label;
+  final QueueTableRecommendationTone? tone;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (tone) {
+      QueueTableRecommendationTone.best => AppColors.successGreen,
+      QueueTableRecommendationTone.nextBest => AppColors.recommendationYellow,
+      null => AppColors.mutedText,
+    };
+    final toneForeground = color.computeLuminance() > 0.56
+        ? AppColors.navyText
+        : color;
+    final toneLabel = switch (tone) {
+      QueueTableRecommendationTone.best => 'Best',
+      QueueTableRecommendationTone.nextBest => 'Next',
+      null => null,
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 0 : 10,
+        vertical: compact ? 0 : 9,
+      ),
+      decoration: BoxDecoration(
+        color: tone == null || compact
+            ? Colors.transparent
+            : color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: tone == null || compact
+            ? null
+            : Border.all(color: color.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        children: [
+          if (toneLabel != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: compact ? 0.12 : 0.16),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                toneLabel,
+                style: TextStyle(
+                  color: toneForeground,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: tone == null ? AppColors.navyText : toneForeground,
+                fontWeight: tone == null ? FontWeight.w600 : FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -2186,7 +2568,6 @@ class _WalkInDialogState extends ConsumerState<_WalkInDialog> {
         ref
             .read(seatingPreferenceServiceProvider)
             .computeEtaEstimate(partySize: _partySize);
-    final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     try {
       final result = await ref
@@ -2212,12 +2593,18 @@ class _WalkInDialogState extends ConsumerState<_WalkInDialog> {
           );
       if (!mounted) return;
       navigator.pop();
-      messenger.showSnackBar(
-        SnackBar(content: Text('${result.tokenCode} walk-in added to queue')),
+      _showAdminPopup(
+        navigator.context,
+        message: '${result.tokenCode} walk-in added to queue',
+        tone: _AdminPopupTone.success,
       );
     } catch (error) {
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+      _showAdminPopup(
+        context,
+        message: error.toString(),
+        tone: _AdminPopupTone.error,
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

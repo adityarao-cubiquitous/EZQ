@@ -20,6 +20,13 @@ abstract class TableRepository {
     required String tableId,
   });
 
+  Future<void> undoReservation({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+    required String tableId,
+  });
+
   Future<void> updateTableStatus({
     required String restaurantId,
     required String branchId,
@@ -128,6 +135,78 @@ class FirebaseTableRepository implements TableRepository {
       transaction.set(counterRef, {
         'totalSeated': FieldValue.increment(1),
         'updatedAt': assignedAt,
+      }, SetOptions(merge: true));
+    });
+  }
+
+  @override
+  Future<void> undoReservation({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+    required String tableId,
+  }) async {
+    final tableRef = _firestore.doc(
+      FirestorePaths.table(restaurantId, branchId, tableId),
+    );
+    final entryRef = _firestore.doc(
+      FirestorePaths.queueEntry(restaurantId, branchId, queueEntryId),
+    );
+    final counterRef = _firestore.doc(
+      FirestorePaths.dailyCounter(
+        restaurantId,
+        branchId,
+        DateTimeUtils.businessDate(),
+      ),
+    );
+
+    await _firestore.runTransaction<void>((transaction) async {
+      final tableSnapshot = await transaction.get(tableRef);
+      final entrySnapshot = await transaction.get(entryRef);
+      if (!tableSnapshot.exists || !entrySnapshot.exists) {
+        throw StateError('Table or queue entry not found.');
+      }
+
+      final tableData = tableSnapshot.data();
+      final entryData = entrySnapshot.data();
+      final tableQueueEntryId = tableData?['currentQueueEntryId'] as String?;
+      final assignedTableId = entryData?['assignedTableId'] as String?;
+      final entryStatus = QueueStatus.fromWireName(
+        entryData?['status'] as String?,
+      );
+
+      if (tableQueueEntryId != queueEntryId ||
+          assignedTableId != tableId ||
+          entryStatus != QueueStatus.seated) {
+        throw StateError('This reservation can no longer be undone.');
+      }
+
+      final undoneAt = FieldValue.serverTimestamp();
+      transaction.update(tableRef, {
+        'status': TableStatus.available.wireName,
+        'currentQueueEntryId': null,
+        'currentTokenCode': null,
+        'currentPartySize': null,
+        'reservedAt': null,
+        'occupiedAt': null,
+        'currentCycleStartAt': null,
+        'currentCycleSource': null,
+        'updatedAt': undoneAt,
+      });
+      transaction.update(entryRef, {
+        'status': QueueStatus.waiting.wireName,
+        'assignedTableId': null,
+        'assignedTableNumber': null,
+        'reservedAt': null,
+        'seatedAt': null,
+        'tableCycleStartAt': null,
+        'tableCycleSource': null,
+        'reservationUndoAt': undoneAt,
+        'updatedAt': undoneAt,
+      });
+      transaction.set(counterRef, {
+        'totalSeated': FieldValue.increment(-1),
+        'updatedAt': undoneAt,
       }, SetOptions(merge: true));
     });
   }
@@ -277,6 +356,14 @@ class MockTableRepository implements TableRepository {
 
   @override
   Future<void> reserveTable({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+    required String tableId,
+  }) async {}
+
+  @override
+  Future<void> undoReservation({
     required String restaurantId,
     required String branchId,
     required String queueEntryId,

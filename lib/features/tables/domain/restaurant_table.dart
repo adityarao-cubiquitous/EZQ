@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'table_status.dart';
 
 class RestaurantTable {
@@ -19,6 +21,7 @@ class RestaurantTable {
     this.currentCycleStartAt,
     this.lastCycleStartAt,
     this.lastCycleEndAt,
+    this.updatedAt,
   });
 
   final String id;
@@ -38,15 +41,14 @@ class RestaurantTable {
   final DateTime? currentCycleStartAt;
   final DateTime? lastCycleStartAt;
   final DateTime? lastCycleEndAt;
+  final DateTime? updatedAt;
 
   factory RestaurantTable.fromMap(String id, Map<String, dynamic> data) {
     DateTime? readDate(String key) {
       final value = data[key];
       if (value is DateTime) return value;
       if (value is String) return DateTime.tryParse(value);
-      if (value != null && value.runtimeType.toString() == 'Timestamp') {
-        return (value as dynamic).toDate() as DateTime;
-      }
+      if (value is Timestamp) return value.toDate();
       return null;
     }
 
@@ -68,6 +70,7 @@ class RestaurantTable {
       currentCycleStartAt: readDate('currentCycleStartAt'),
       lastCycleStartAt: readDate('lastCycleStartAt'),
       lastCycleEndAt: readDate('lastCycleEndAt'),
+      updatedAt: readDate('updatedAt'),
     );
   }
 
@@ -88,5 +91,6 @@ class RestaurantTable {
     'currentCycleStartAt': currentCycleStartAt?.toIso8601String(),
     'lastCycleStartAt': lastCycleStartAt?.toIso8601String(),
     'lastCycleEndAt': lastCycleEndAt?.toIso8601String(),
+    'updatedAt': updatedAt?.toIso8601String(),
   };
 }

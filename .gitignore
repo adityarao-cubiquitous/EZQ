@@ -40,6 +40,9 @@ migrate_working_dir/
 functions/node_modules/
 functions/lib/
 
+# Local tool dependency output
+tool/node_modules/
+
 # Local/generated document artifacts
 tmp/
 output/

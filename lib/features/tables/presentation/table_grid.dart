@@ -16,6 +16,7 @@ class TableGrid extends StatefulWidget {
     this.onTableRecommendationTap,
     this.onEmptySpaceTap,
     this.onMealFinished,
+    this.onUndoReservation,
     this.matchingTableIds = const {},
     this.tableHighlightTones = const {},
     this.highlightScrollKey,
@@ -28,6 +29,7 @@ class TableGrid extends StatefulWidget {
   final VoidCallback? onEmptySpaceTap;
   final void Function(RestaurantTable table, int initialPartySize)?
   onMealFinished;
+  final void Function(RestaurantTable table)? onUndoReservation;
   final Set<String> matchingTableIds;
   final Map<String, TableHighlightTone> tableHighlightTones;
   final Object? highlightScrollKey;
@@ -150,6 +152,9 @@ class _TableGridState extends State<TableGrid> {
                               widget.completedPartySizeFor?.call(table) ??
                                   table.capacity,
                             ),
+                      onUndoReservation: widget.onUndoReservation == null
+                          ? null
+                          : () => widget.onUndoReservation!(table),
                     ),
                   );
                 },
@@ -296,8 +301,11 @@ class _TableCard extends StatelessWidget {
     required this.occupiedSince,
     required this.onTableRecommendationTap,
     required this.onMealFinished,
+    required this.onUndoReservation,
     this.highlightTone,
   });
+
+  static const _undoWindow = Duration(minutes: 5);
 
   final RestaurantTable table;
   final DateTime now;
@@ -305,6 +313,7 @@ class _TableCard extends StatelessWidget {
   final DateTime? occupiedSince;
   final VoidCallback? onTableRecommendationTap;
   final VoidCallback? onMealFinished;
+  final VoidCallback? onUndoReservation;
   final TableHighlightTone? highlightTone;
 
   @override
@@ -323,6 +332,12 @@ class _TableCard extends StatelessWidget {
         table.status == TableStatus.occupied &&
         table.currentQueueEntryId != null &&
         onMealFinished != null;
+    final undoMinutesLeft = _undoMinutesLeft();
+    final canUndoReservation =
+        table.status == TableStatus.occupied &&
+        table.currentQueueEntryId != null &&
+        onUndoReservation != null &&
+        undoMinutesLeft != null;
     final remainingSeats = table.capacity - occupiedCount;
     final canSuggestParty =
         onTableRecommendationTap != null &&
@@ -453,25 +468,26 @@ class _TableCard extends StatelessWidget {
               ),
               if (canFinishMeal) ...[
                 const SizedBox(width: 8),
-                Tooltip(
-                  message: 'Finish meal',
-                  child: SizedBox.square(
-                    dimension: 32,
-                    child: FilledButton(
-                      onPressed: onMealFinished,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.deepTeal,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size.square(32),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                      child: const Icon(Icons.done_all, size: 16),
+                if (canUndoReservation) ...[
+                  _TableTileIconButton(
+                    message: 'Undo seating (${undoMinutesLeft}m left)',
+                    icon: Icons.undo_rounded,
+                    backgroundColor: const Color(0xFFFFF7E8),
+                    foregroundColor: AppColors.warningOrange,
+                    borderColor: AppColors.warningOrange.withValues(
+                      alpha: 0.32,
                     ),
+                    onPressed: onUndoReservation,
                   ),
+                  const SizedBox(width: 6),
+                ],
+                _TableTileIconButton(
+                  message: 'Finish meal',
+                  icon: Icons.done_all,
+                  backgroundColor: AppColors.deepTeal,
+                  foregroundColor: Colors.white,
+                  borderColor: AppColors.deepTeal,
+                  onPressed: onMealFinished,
                 ),
               ],
             ],
@@ -502,7 +518,7 @@ class _TableCard extends StatelessWidget {
       TableStatus.occupied =>
         occupiedCount >= table.capacity
             ? AppColors.errorRed
-            : AppColors.warningOrange,
+            : AppColors.partialLavender,
       TableStatus.blocked => Colors.grey,
     };
   }
@@ -510,7 +526,7 @@ class _TableCard extends StatelessWidget {
   Color? _highlightColor() {
     return switch (highlightTone) {
       TableHighlightTone.best => AppColors.successGreen,
-      TableHighlightTone.nextBest => AppColors.warningOrange,
+      TableHighlightTone.nextBest => AppColors.recommendationYellow,
       TableHighlightTone.free => AppColors.primaryTeal,
       TableHighlightTone.occupied => AppColors.errorRed,
       null => null,
@@ -548,6 +564,62 @@ class _TableCard extends StatelessWidget {
     final minutes = now.difference(startedAt).inMinutes;
     return minutes < 0 ? 0 : minutes;
   }
+
+  int? _undoMinutesLeft() {
+    final startedAt = _undoWindowStartedAt();
+    if (startedAt == null) return null;
+    final elapsed = now.difference(startedAt);
+    if (elapsed.isNegative || elapsed > _undoWindow) return null;
+    final remaining = _undoWindow - elapsed;
+    return remaining.inMinutes.clamp(1, _undoWindow.inMinutes);
+  }
+
+  DateTime? _undoWindowStartedAt() {
+    return table.reservedAt ?? table.occupiedAt ?? table.updatedAt;
+  }
+}
+
+class _TableTileIconButton extends StatelessWidget {
+  const _TableTileIconButton({
+    required this.message,
+    required this.icon,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.borderColor,
+    required this.onPressed,
+  });
+
+  final String message;
+  final IconData icon;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final Color borderColor;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: message,
+      child: SizedBox.square(
+        dimension: 32,
+        child: FilledButton(
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            backgroundColor: backgroundColor,
+            foregroundColor: foregroundColor,
+            padding: EdgeInsets.zero,
+            minimumSize: const Size.square(32),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+              side: BorderSide(color: borderColor),
+            ),
+          ),
+          child: Icon(icon, size: 16),
+        ),
+      ),
+    );
+  }
 }
 
 class _TableHighlightPill extends StatelessWidget {
@@ -558,6 +630,9 @@ class _TableHighlightPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final foreground = color.computeLuminance() > 0.56
+        ? AppColors.navyText
+        : Colors.white;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -574,8 +649,8 @@ class _TableHighlightPill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: foreground,
           fontSize: 11,
           fontWeight: FontWeight.w900,
         ),

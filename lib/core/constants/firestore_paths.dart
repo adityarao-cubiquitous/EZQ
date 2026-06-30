@@ -3,8 +3,11 @@ class FirestorePaths {
 
   static String restaurant(String restaurantId) => 'restaurants/$restaurantId';
 
+  static String branches(String restaurantId) =>
+      '${restaurant(restaurantId)}/branches';
+
   static String branch(String restaurantId, String branchId) =>
-      '${restaurant(restaurantId)}/branches/$branchId';
+      '${branches(restaurantId)}/$branchId';
 
   static String tables(String restaurantId, String branchId) =>
       '${branch(restaurantId, branchId)}/tables';

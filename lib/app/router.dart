@@ -9,6 +9,7 @@ import '../features/auth/presentation/customer_name_profile_screen.dart';
 import '../features/auth/presentation/customer_phone_auth_screen.dart';
 import '../features/auth/presentation/admin_login_screen.dart';
 import '../features/customer/presentation/app_install_prompt.dart';
+import '../features/customer/presentation/customer_deep_link_screen.dart';
 import '../features/customer/presentation/customer_join_queue_screen.dart';
 import '../features/customer/presentation/customer_menu_screen.dart';
 import '../features/customer/presentation/customer_queue_status_screen.dart';
@@ -21,6 +22,7 @@ import '../features/reports/presentation/daily_summary_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   const useFirebase = bool.fromEnvironment('USE_FIREBASE');
+  final useFirebaseCustomerRoutes = useFirebase || kIsWeb;
   const useAppRoot = !kIsWeb && useFirebase;
 
   return GoRouter(
@@ -33,10 +35,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/customer/:restaurantId/:branchId',
-        builder: (context, state) => CustomerJoinQueueScreen(
-          restaurantId: state.pathParameters['restaurantId']!,
-          branchId: state.pathParameters['branchId']!,
-        ),
+        builder: (context, state) {
+          if (!useFirebaseCustomerRoutes) {
+            return CustomerJoinQueueScreen(
+              restaurantId: state.pathParameters['restaurantId']!,
+              branchId: state.pathParameters['branchId']!,
+            );
+          }
+          return CustomerDeepLinkScreen(
+            restaurantSlug: state.pathParameters['restaurantId']!,
+            branchSlug: state.pathParameters['branchId']!,
+          );
+        },
       ),
       GoRoute(
         path: '/customer/:restaurantId/:branchId/status/:queueEntryId',
@@ -129,7 +139,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/app/scan',
-        builder: (context, state) => const CustomerQrScannerScreen(),
+        builder: (context, state) =>
+            const CustomerQrScannerScreen(appBackRoute: '/app/home'),
       ),
       GoRoute(
         path: '/app/queue/:queueEntryId',

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +14,7 @@ import '../../../core/widgets/ezq_button.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
+import '../data/branch_identity_repository.dart';
 import '../data/customer_queue_repository.dart';
 import 'customer_shell.dart';
 import 'restaurant_logo.dart';
@@ -650,11 +652,21 @@ typedef HiddenObjectImageArgs = ({String restaurantId, String branchId});
 final hiddenObjectImageProvider =
     StreamProvider.family<String?, HiddenObjectImageArgs>((ref, args) {
       const useFirebase = bool.fromEnvironment('USE_FIREBASE');
-      if (!useFirebase) return Stream.value(null);
+      if (!useFirebase && !kIsWeb) return Stream.value(null);
 
-      return FirebaseFirestore.instance
-          .doc(FirestorePaths.branch(args.restaurantId, args.branchId))
-          .snapshots()
+      return Stream.fromFuture(
+            ref
+                .read(branchIdentityRepositoryProvider)
+                .resolveBranchId(
+                  restaurantId: args.restaurantId,
+                  branchSlugOrId: args.branchId,
+                ),
+          )
+          .asyncExpand((resolvedBranchId) {
+            return FirebaseFirestore.instance
+                .doc(FirestorePaths.branch(args.restaurantId, resolvedBranchId))
+                .snapshots();
+          })
           .map((snapshot) {
             final data = snapshot.data() ?? <String, dynamic>{};
             return data['hiddenObjectPuzzleImageUrl'] as String? ??
