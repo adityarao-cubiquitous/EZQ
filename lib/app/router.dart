@@ -11,6 +11,7 @@ import '../features/auth/presentation/admin_login_screen.dart';
 import '../features/customer/presentation/app_install_prompt.dart';
 import '../features/customer/presentation/customer_deep_link_screen.dart';
 import '../features/customer/presentation/customer_join_queue_screen.dart';
+import '../features/customer/presentation/customer_landing_screen.dart';
 import '../features/customer/presentation/customer_menu_screen.dart';
 import '../features/customer/presentation/customer_queue_status_screen.dart';
 import '../features/customer/presentation/customer_qr_scanner_screen.dart';
@@ -23,15 +24,12 @@ import '../features/reports/presentation/daily_summary_screen.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   const useFirebase = bool.fromEnvironment('USE_FIREBASE');
   final useFirebaseCustomerRoutes = useFirebase || kIsWeb;
-  const useAppRoot = !kIsWeb && useFirebase;
 
   return GoRouter(
     routes: [
       GoRoute(
         path: '/',
-        redirect: (context, state) => useAppRoot
-            ? '/app/login'
-            : '/customer/${AppConstants.demoRestaurantId}/${AppConstants.demoBranchId}',
+        builder: (context, state) => const CustomerLandingScreen(),
       ),
       GoRoute(
         path: '/customer/:restaurantId/:branchId',
