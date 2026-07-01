@@ -1599,7 +1599,15 @@ class _InlineReadyCard extends ConsumerWidget {
             width: double.infinity,
             height: 52,
             child: OutlinedButton(
-              onPressed: () => context.go('/customer/install'),
+              onPressed: () => context.go(
+                Uri(
+                  path: '/customer/install',
+                  queryParameters: {
+                    'returnTo':
+                        '/customer/$restaurantId/$branchId/status/${entry.id}',
+                  },
+                ).toString(),
+              ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.deepTeal,
                 side: const BorderSide(color: AppColors.line),

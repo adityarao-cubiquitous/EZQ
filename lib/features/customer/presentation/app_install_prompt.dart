@@ -11,6 +11,8 @@ class AppInstallPrompt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final returnTo = _safeCustomerReturnPath(context);
+
     return CustomerShell(
       restaurantId: AppConstants.demoRestaurantId,
       branchId: AppConstants.demoBranchId,
@@ -56,7 +58,7 @@ class AppInstallPrompt extends StatelessWidget {
                     if (context.canPop()) {
                       context.pop();
                     } else {
-                      context.go('/customer/the-spice-house/indiranagar');
+                      context.go(returnTo ?? '/');
                     }
                   },
                   child: const Text('Continue in browser'),
@@ -68,6 +70,19 @@ class AppInstallPrompt extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _safeCustomerReturnPath(BuildContext context) {
+  final value = GoRouterState.of(context).uri.queryParameters['returnTo'];
+  if (value == null || value.isEmpty) return null;
+
+  final uri = Uri.tryParse(value);
+  if (uri == null || uri.hasScheme || uri.hasAuthority) return null;
+  if (!value.startsWith('/customer/') ||
+      value.startsWith('/customer/install')) {
+    return null;
+  }
+  return value;
 }
 
 class _Benefit extends StatelessWidget {
