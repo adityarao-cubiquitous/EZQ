@@ -558,7 +558,6 @@ async function loadBranches() {
     for (const branchDoc of branchDocs) {
       const pathBranchId = documentId(branchDoc.name);
       const branchData = parseFirestoreFields(branchDoc.fields);
-      const branchId = branchData.branchId ?? pathBranchId;
       branches.push({
         restaurantId,
         restaurantName:
@@ -567,7 +566,7 @@ async function loadBranches() {
           restaurantData.name ??
           restaurantId,
         pathBranchId,
-        branchId,
+        branchSlug: branchData.branchSlug ?? pathBranchId,
         path: `restaurants/${restaurantId}/branches/${pathBranchId}`,
         data: branchData,
       });
@@ -650,7 +649,6 @@ async function main() {
     const metadata = {
       restaurantId: branch.restaurantId,
       restaurantName: branch.restaurantName,
-      branchId: branch.branchId,
       branchSlug: branch.branchSlug,
       qrSlug,
       queueUrl,
@@ -687,7 +685,6 @@ async function main() {
     generatedAssets.push({
       restaurantId: branch.restaurantId,
       restaurantName: branch.restaurantName,
-      branchId: branch.branchId,
       branchSlug: branch.branchSlug,
       branchName: branch.data.name ?? branch.branchSlug,
       qrSlug,

@@ -2285,7 +2285,7 @@ class _AdminTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 960;
+    final compact = MediaQuery.sizeOf(context).width < 1100;
     final tablet = Responsive.isTablet(context);
     final horizontalPadding = compact ? 14.0 : 32.0;
     return Container(

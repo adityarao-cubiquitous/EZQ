@@ -31,7 +31,6 @@ const documents = {
   'restaurants/the-spice-house/branches/indiranagar': {
     restaurantId: 'the-spice-house',
     restaurantName: 'The Spice House',
-    branchId: 'indiranagar',
     branchSlug: 'indiranagar',
     name: 'Indiranagar',
     area: 'Indiranagar',

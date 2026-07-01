@@ -31,14 +31,14 @@ class FirebaseMenuRepository implements MenuRepository {
     required String branchId,
   }) {
     return Stream.fromFuture(
-          _branchIdentityRepository.resolveBranchId(
+          _branchIdentityRepository.resolveBranchSlug(
             restaurantId: restaurantId,
-            branchSlugOrId: branchId,
+            branchSlug: branchId,
           ),
         )
-        .asyncExpand((resolvedBranchId) {
+        .asyncExpand((resolvedBranchSlug) {
           return _firestore
-              .doc(FirestorePaths.branch(restaurantId, resolvedBranchId))
+              .doc(FirestorePaths.branch(restaurantId, resolvedBranchSlug))
               .snapshots();
         })
         .asyncMap((branchSnapshot) async {

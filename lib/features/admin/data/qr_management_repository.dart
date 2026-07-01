@@ -8,7 +8,6 @@ const _hostingOrigin = 'https://ezq-dev-cubiquitous.web.app';
 class BranchQrInfo {
   const BranchQrInfo({
     required this.restaurantId,
-    required this.branchId,
     required this.branchSlug,
     required this.branchName,
     required this.queueUrl,
@@ -20,7 +19,6 @@ class BranchQrInfo {
   });
 
   final String restaurantId;
-  final String branchId;
   final String branchSlug;
   final String branchName;
   final String queueUrl;
@@ -42,19 +40,19 @@ class QrManagementRepository {
 
   Stream<BranchQrInfo> watchBranchQrInfo({
     required String restaurantId,
-    required String branchId,
+    required String branchSlug,
   }) {
     return _firestore
-        .doc(FirestorePaths.branch(restaurantId, branchId))
+        .doc(FirestorePaths.branch(restaurantId, branchSlug))
         .snapshots()
         .map((snapshot) {
           final data = snapshot.data();
           if (!snapshot.exists || data == null) {
-            throw StateError('Branch $branchId was not found.');
+            throw StateError('Branch $branchSlug was not found.');
           }
           return _fromBranchData(
             restaurantId: restaurantId,
-            branchId: snapshot.id,
+            branchSlug: snapshot.id,
             data: data,
           );
         });
@@ -62,10 +60,9 @@ class QrManagementRepository {
 
   BranchQrInfo _fromBranchData({
     required String restaurantId,
-    required String branchId,
+    required String branchSlug,
     required Map<String, dynamic> data,
   }) {
-    final branchSlug = data['branchSlug'] as String? ?? branchId;
     final branchName = data['name'] as String? ?? branchSlug;
     final qrSlug = data['qrSlug'] as String? ?? '$restaurantId-$branchSlug';
     final queueUrl =
@@ -77,7 +74,6 @@ class QrManagementRepository {
 
     return BranchQrInfo(
       restaurantId: restaurantId,
-      branchId: data['branchId'] as String? ?? branchId,
       branchSlug: branchSlug,
       branchName: branchName,
       queueUrl: queueUrl,

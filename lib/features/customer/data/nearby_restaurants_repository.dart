@@ -132,7 +132,6 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
-        branchId: 'indiranagar',
         branchSlug: 'indiranagar',
         qrSlug: 'the-spice-house-indiranagar',
         queueUrl:
@@ -148,7 +147,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6408,
       ),
       const Branch(
-        id: 'cubbon-curry-indiranagar',
+        id: 'indiranagar',
         restaurantId: 'cubbon-curry',
         restaurantName: 'Cubbon Curry',
         name: 'Indiranagar',
@@ -157,7 +156,6 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
-        branchId: 'cubbon-curry-indiranagar',
         branchSlug: 'indiranagar',
         qrSlug: 'cubbon-curry-indiranagar',
         queueUrl:
@@ -173,7 +171,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6418,
       ),
       const Branch(
-        id: 'noodle-yard-indiranagar',
+        id: 'indiranagar',
         restaurantId: 'noodle-yard',
         restaurantName: 'Noodle Yard',
         name: 'Indiranagar',
@@ -182,7 +180,6 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
-        branchId: 'noodle-yard-indiranagar',
         branchSlug: 'indiranagar',
         qrSlug: 'noodle-yard-indiranagar',
         queueUrl:
@@ -198,7 +195,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6387,
       ),
       const Branch(
-        id: 'taco-tawa-indiranagar',
+        id: 'indiranagar',
         restaurantId: 'taco-tawa',
         restaurantName: 'Taco Tawa',
         name: 'Indiranagar',
@@ -207,7 +204,6 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
-        branchId: 'taco-tawa-indiranagar',
         branchSlug: 'indiranagar',
         qrSlug: 'taco-tawa-indiranagar',
         queueUrl:
@@ -223,7 +219,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6432,
       ),
       const Branch(
-        id: 'dosa-lab-indiranagar',
+        id: 'indiranagar',
         restaurantId: 'dosa-lab',
         restaurantName: 'Dosa Lab',
         name: 'Indiranagar',
@@ -232,7 +228,6 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
-        branchId: 'dosa-lab-indiranagar',
         branchSlug: 'indiranagar',
         qrSlug: 'dosa-lab-indiranagar',
         queueUrl:
@@ -257,7 +252,6 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
-        branchId: 'hal-2nd-stage',
         branchSlug: 'hal-2nd-stage',
         qrSlug: 'pasta-pepper-hal-2nd-stage',
         queueUrl:
@@ -282,7 +276,6 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
-        branchId: 'domlur-edge',
         branchSlug: 'domlur-edge',
         qrSlug: 'biryani-bay-domlur-edge',
         queueUrl:
@@ -307,7 +300,6 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
-        branchId: 'indiranagar-metro',
         branchSlug: 'indiranagar-metro',
         qrSlug: 'momo-mill-indiranagar-metro',
         queueUrl:
@@ -332,7 +324,6 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
-        branchId: '12th-main',
         branchSlug: '12th-main',
         qrSlug: 'salad-studio-12th-main',
         queueUrl:
@@ -357,7 +348,6 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         state: 'Karnataka',
         country: 'India',
         timezone: 'Asia/Kolkata',
-        branchId: 'old-airport-road',
         branchSlug: 'old-airport-road',
         qrSlug: 'grill-garden-old-airport-road',
         queueUrl:

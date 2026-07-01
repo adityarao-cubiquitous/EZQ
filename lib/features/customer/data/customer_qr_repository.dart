@@ -33,11 +33,11 @@ class FirebaseCustomerQrRepository implements CustomerQrRepository {
 
     final restaurantId =
         data['restaurantId'] as String? ?? doc.reference.parent.parent?.id;
-    final branchId = doc.id;
-    if (!_isRouteSegment(restaurantId) || !_isRouteSegment(branchId)) {
+    final branchSlug = data['branchSlug'] as String? ?? doc.id;
+    if (!_isRouteSegment(restaurantId) || !_isRouteSegment(branchSlug)) {
       return null;
     }
-    return '/customer/$restaurantId/$branchId';
+    return '/customer/$restaurantId/$branchSlug';
   }
 }
 

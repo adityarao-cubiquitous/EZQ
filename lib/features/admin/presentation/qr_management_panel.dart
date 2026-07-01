@@ -17,7 +17,7 @@ final branchQrInfoProvider = StreamProvider.family<BranchQrInfo, BranchQrArgs>((
       .watch(qrManagementRepositoryProvider)
       .watchBranchQrInfo(
         restaurantId: args.restaurantId,
-        branchId: args.branchId,
+        branchSlug: args.branchId,
       );
 });
 

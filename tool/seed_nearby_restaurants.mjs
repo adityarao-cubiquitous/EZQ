@@ -18,7 +18,6 @@ const restaurants = [
     id: 'the-spice-house',
     name: 'The Spice House',
     cuisine: 'Modern Indian',
-    branchId: 'indiranagar',
     branchName: 'Indiranagar',
     area: 'Indiranagar',
     address: '100 Feet Road, Indiranagar, Bengaluru',
@@ -29,7 +28,6 @@ const restaurants = [
     id: 'cubbon-curry',
     name: 'Cubbon Curry',
     cuisine: 'South Indian',
-    branchId: 'cubbon-curry-indiranagar',
     branchName: 'Indiranagar',
     area: 'Indiranagar',
     address: '12th Main Road, Indiranagar, Bengaluru',
@@ -40,7 +38,6 @@ const restaurants = [
     id: 'noodle-yard',
     name: 'Noodle Yard',
     cuisine: 'Asian',
-    branchId: 'noodle-yard-indiranagar',
     branchName: 'Indiranagar',
     area: 'Indiranagar',
     address: 'CMH Road, Indiranagar, Bengaluru',
@@ -51,7 +48,6 @@ const restaurants = [
     id: 'taco-tawa',
     name: 'Taco Tawa',
     cuisine: 'Mexican-Indian',
-    branchId: 'taco-tawa-indiranagar',
     branchName: 'Indiranagar',
     area: 'Indiranagar',
     address: '80 Feet Road, Indiranagar, Bengaluru',
@@ -62,7 +58,6 @@ const restaurants = [
     id: 'dosa-lab',
     name: 'Dosa Lab',
     cuisine: 'Modern South Indian',
-    branchId: 'dosa-lab-indiranagar',
     branchName: 'Indiranagar',
     area: 'Indiranagar',
     address: 'Defence Colony, Indiranagar, Bengaluru',
@@ -73,7 +68,6 @@ const restaurants = [
     id: 'pasta-pepper',
     name: 'Pasta Pepper',
     cuisine: 'Italian',
-    branchId: 'hal-2nd-stage',
     branchName: 'HAL 2nd Stage',
     area: 'HAL 2nd Stage',
     address: 'Double Road, HAL 2nd Stage, Bengaluru',
@@ -84,7 +78,6 @@ const restaurants = [
     id: 'biryani-bay',
     name: 'Biryani Bay',
     cuisine: 'Hyderabadi',
-    branchId: 'domlur-edge',
     branchName: 'Domlur Edge',
     area: 'Domlur',
     address: 'Domlur Service Road, Bengaluru',
@@ -95,7 +88,6 @@ const restaurants = [
     id: 'momo-mill',
     name: 'Momo Mill',
     cuisine: 'Tibetan',
-    branchId: 'indiranagar-metro',
     branchName: 'Indiranagar Metro',
     area: 'Indiranagar',
     address: 'Near Indiranagar Metro Station, Bengaluru',
@@ -106,7 +98,6 @@ const restaurants = [
     id: 'salad-studio',
     name: 'Salad Studio',
     cuisine: 'Healthy Bowls',
-    branchId: '12th-main',
     branchName: '12th Main',
     area: 'Indiranagar',
     address: '12th Main, Indiranagar, Bengaluru',
@@ -117,7 +108,6 @@ const restaurants = [
     id: 'grill-garden',
     name: 'Grill Garden',
     cuisine: 'Barbecue',
-    branchId: 'old-airport-road',
     branchName: 'Old Airport Road',
     area: 'Old Airport Road',
     address: 'Old Airport Road, Bengaluru',
@@ -126,79 +116,72 @@ const restaurants = [
   },
 ];
 
+function slugify(value) {
+  return String(value ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 const documents = Object.fromEntries(
-  restaurants.flatMap((restaurant) => [
-    [
-      `restaurants/${restaurant.id}`,
-      {
-        name: restaurant.name,
-        brandName: restaurant.name,
-        cuisine: restaurant.cuisine,
-        city: 'Bengaluru',
-        contactPhone: '+919900000000',
-        isActive: true,
-        signedUp: true,
-        logoUrl: null,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    [
-      `restaurants/${restaurant.id}/branches/${restaurant.branchId}`,
-      {
-        restaurantId: restaurant.id,
-        restaurantName: restaurant.name,
-        branchId: restaurant.branchId,
-        branchSlug: restaurant.branchName
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-+|-+$/g, ''),
-        name: restaurant.branchName,
-        area: restaurant.area,
-        address: restaurant.address,
-        city: 'Bengaluru',
-        state: 'Karnataka',
-        country: 'India',
-        timezone: 'Asia/Kolkata',
-        qrSlug: `${restaurant.id}-${restaurant.branchName
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-+|-+$/g, '')}`,
-        queueUrl:
-          `https://ezq-dev-cubiquitous.web.app/customer/` +
-          `${restaurant.id}/${restaurant.branchName
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')}`,
-        qrImageUrl:
-          `https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/` +
-          `qr-codes/${restaurant.id}-${restaurant.branchName
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')}.png`,
-        qrSvgUrl:
-          `https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/` +
-          `qr-codes/${restaurant.id}-${restaurant.branchName
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')}.svg`,
-        isActive: true,
-        signedUp: true,
-        cuisine: restaurant.cuisine,
-        logoUrl: null,
-        latitude: restaurant.latitude,
-        longitude: restaurant.longitude,
-        averageDiningMinutes: 35,
-        averageCleaningMinutes: 5,
-        holdMinutes: 5,
-        averageTurnoverMinutes: 40,
-        menuPdfUrl: '/demo-menu.pdf',
-        menuPreviewImageUrl: '/demo-menu-page-1.png',
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-  ]),
+  restaurants.flatMap((restaurant) => {
+    const branchSlug = slugify(restaurant.branchName);
+    const qrSlug = `${restaurant.id}-${branchSlug}`;
+    return [
+      [
+        `restaurants/${restaurant.id}`,
+        {
+          name: restaurant.name,
+          brandName: restaurant.name,
+          cuisine: restaurant.cuisine,
+          city: 'Bengaluru',
+          contactPhone: '+919900000000',
+          isActive: true,
+          signedUp: true,
+          logoUrl: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+      [
+        `restaurants/${restaurant.id}/branches/${branchSlug}`,
+        {
+          restaurantId: restaurant.id,
+          restaurantName: restaurant.name,
+          branchSlug,
+          name: restaurant.branchName,
+          area: restaurant.area,
+          address: restaurant.address,
+          city: 'Bengaluru',
+          state: 'Karnataka',
+          country: 'India',
+          timezone: 'Asia/Kolkata',
+          qrSlug,
+          queueUrl: `https://ezq-dev-cubiquitous.web.app/customer/${restaurant.id}/${branchSlug}`,
+          qrImageUrl:
+            `https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/` +
+            `qr-codes/${qrSlug}.png`,
+          qrSvgUrl:
+            `https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/` +
+            `qr-codes/${qrSlug}.svg`,
+          isActive: true,
+          signedUp: true,
+          cuisine: restaurant.cuisine,
+          logoUrl: null,
+          latitude: restaurant.latitude,
+          longitude: restaurant.longitude,
+          averageDiningMinutes: 35,
+          averageCleaningMinutes: 5,
+          holdMinutes: 5,
+          averageTurnoverMinutes: 40,
+          menuPdfUrl: '/demo-menu.pdf',
+          menuPreviewImageUrl: '/demo-menu-page-1.png',
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+    ];
+  }),
 );
 
 function firestoreValue(value) {

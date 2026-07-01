@@ -29,13 +29,13 @@ class CustomerJoinQueueScreen extends ConsumerStatefulWidget {
   const CustomerJoinQueueScreen({
     super.key,
     required this.restaurantId,
-    required this.branchId,
-    this.restaurantName = 'The Spice House',
-    this.branchName = 'Indiranagar',
+    required this.branchSlug,
+    required this.restaurantName,
+    required this.branchName,
   });
 
   final String restaurantId;
-  final String branchId;
+  final String branchSlug;
   final String restaurantName;
   final String branchName;
 
@@ -270,7 +270,7 @@ class _CustomerJoinQueueScreenState
       final result = await repository.joinQueue(
         JoinQueueRequest(
           restaurantId: widget.restaurantId,
-          branchId: widget.branchId,
+          branchId: widget.branchSlug,
           customerName: _nameController.text,
           phone: _phoneController.text,
           partySize: _partySize,
@@ -288,7 +288,7 @@ class _CustomerJoinQueueScreenState
       );
       if (!mounted) return;
       context.go(
-        '/customer/${widget.restaurantId}/${widget.branchId}/status/${result.queueEntryId}',
+        '/customer/${widget.restaurantId}/${widget.branchSlug}/status/${result.queueEntryId}',
       );
     } on ActiveQueueConflictException catch (error) {
       if (!mounted) return;
@@ -317,7 +317,7 @@ class _CustomerJoinQueueScreenState
         : ref.watch(
             _liveSeatingEtaProvider((
               restaurantId: widget.restaurantId,
-              branchId: widget.branchId,
+              branchId: widget.branchSlug,
               partySize: _partySize,
             )),
           );
@@ -326,7 +326,7 @@ class _CustomerJoinQueueScreenState
 
     return CustomerShell(
       restaurantId: widget.restaurantId,
-      branchId: widget.branchId,
+      branchId: widget.branchSlug,
       activeTab: CustomerTab.join,
       appBackRoute: '/app/home',
       footer: const CustomerFooter(),
