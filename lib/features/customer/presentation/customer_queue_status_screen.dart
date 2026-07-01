@@ -661,14 +661,16 @@ final hiddenObjectImageProvider =
       return Stream.fromFuture(
             ref
                 .read(branchIdentityRepositoryProvider)
-                .resolveBranchId(
+                .resolveBranchSlug(
                   restaurantId: args.restaurantId,
-                  branchSlugOrId: args.branchId,
+                  branchSlug: args.branchId,
                 ),
           )
-          .asyncExpand((resolvedBranchId) {
+          .asyncExpand((resolvedBranchSlug) {
             return FirebaseFirestore.instance
-                .doc(FirestorePaths.branch(args.restaurantId, resolvedBranchId))
+                .doc(
+                  FirestorePaths.branch(args.restaurantId, resolvedBranchSlug),
+                )
                 .snapshots();
           })
           .map((snapshot) {

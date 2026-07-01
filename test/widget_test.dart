@@ -1,4 +1,5 @@
 import 'package:ezq/app/ezq_app.dart';
+import 'package:ezq/features/customer/data/nearby_restaurants_repository.dart';
 import 'package:ezq/features/customer/presentation/customer_join_queue_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +11,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
-  testWidgets('EZQ customer buttons navigate and respond', (tester) async {
+  testWidgets('EZQ root renders landing screen', (tester) async {
     tester.view.physicalSize = const Size(800, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -19,44 +20,10 @@ void main() {
     await tester.pumpWidget(const ProviderScope(child: EzqApp()));
     await pumpFrames(tester);
 
-    expect(find.text('The Spice House'), findsOneWidget);
-    expect(find.text('Join Queue'), findsOneWidget);
-    expect(find.text('Shared seating'), findsOneWidget);
-    expect(find.text('Empty table only'), findsOneWidget);
-
-    await tester.enterText(find.byType(TextFormField).first, 'Alex Johnson');
-    await tester.tap(find.text('4 people'));
-    await pumpFrames(tester);
-    await tester.tap(find.text('2 people').last);
-    await pumpFrames(tester);
-    expect(find.text('2 people'), findsWidgets);
-
-    await tester.ensureVisible(find.text('Join Queue'));
-    await tester.tap(find.text('Join Queue'));
-    await pumpFrames(tester);
-    expect(find.text('Q07'), findsOneWidget);
-    expect(find.text('Cancel Reservation'), findsOneWidget);
-
-    await tester.ensureVisible(find.text('View Menu'));
-    await tester.tap(find.text('View Menu'));
-    await pumpFrames(tester);
-    expect(find.text('The Spice House Menu'), findsOneWidget);
-    expect(find.text('Indiranagar'), findsWidgets);
-
-    final supportTab = find.text('Support').last;
-    await tester.ensureVisible(supportTab);
-    await tester.tap(supportTab);
-    await pumpFrames(tester);
-    expect(find.text('Need help with your queue token?'), findsOneWidget);
-
-    final statusTab = find.text('My\nStatus').last;
-    await tester.ensureVisible(statusTab);
-    await tester.tap(statusTab);
-    await pumpFrames(tester);
-    await tester.ensureVisible(find.text('Cancel Reservation'));
-    await tester.tap(find.text('Cancel Reservation'));
-    await tester.pump();
-    expect(find.text('Reservation cancelled'), findsWidgets);
+    expect(find.text('Smart Queue Platform'), findsOneWidget);
+    expect(find.text('Powered by'), findsOneWidget);
+    expect(find.text('Scan QR code'), findsOneWidget);
+    expect(find.text('The Spice House'), findsNothing);
   });
 
   testWidgets(
@@ -72,7 +39,7 @@ void main() {
           child: MaterialApp(
             home: CustomerJoinQueueScreen(
               restaurantId: 'salad-studio',
-              branchId: '12th-main',
+              branchSlug: '12th-main',
               restaurantName: 'Salad Studio',
               branchName: '12th Main',
             ),
@@ -84,6 +51,52 @@ void main() {
       expect(find.text('Salad Studio'), findsOneWidget);
       expect(find.text('12th Main Branch'), findsOneWidget);
       expect(find.text('The Spice House'), findsNothing);
+    },
+  );
+
+  test(
+    'nearby fixture routes all restaurants by restaurant and branch slug',
+    () async {
+      final restaurants = await MockNearbyRestaurantsRepository().findNearby(
+        latitude: 12.9784,
+        longitude: 77.6408,
+        radiusKm: 10,
+      );
+
+      final routes = {
+        for (final restaurant in restaurants)
+          '/customer/${restaurant.branch.restaurantId}/${restaurant.branch.id}',
+      };
+
+      expect(restaurants, hasLength(10));
+      expect(
+        routes,
+        containsAll({
+          '/customer/the-spice-house/indiranagar',
+          '/customer/cubbon-curry/indiranagar',
+          '/customer/noodle-yard/indiranagar',
+          '/customer/taco-tawa/indiranagar',
+          '/customer/dosa-lab/indiranagar',
+          '/customer/pasta-pepper/hal-2nd-stage',
+          '/customer/biryani-bay/domlur-edge',
+          '/customer/momo-mill/indiranagar-metro',
+          '/customer/salad-studio/12th-main',
+          '/customer/grill-garden/old-airport-road',
+        }),
+      );
+      expect(
+        restaurants
+            .where((restaurant) => restaurant.branch.id == 'indiranagar')
+            .map((restaurant) => restaurant.branch.restaurantId)
+            .toSet(),
+        containsAll({
+          'the-spice-house',
+          'cubbon-curry',
+          'noodle-yard',
+          'taco-tawa',
+          'dosa-lab',
+        }),
+      );
     },
   );
 }

@@ -123,9 +123,9 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Future<JoinQueueResult> joinQueue(JoinQueueRequest request) async {
-    final branchId = await _resolveBranchId(
+    final branchSlug = await _resolveBranchSlug(
       restaurantId: request.restaurantId,
-      branchId: request.branchId,
+      branchSlug: request.branchId,
     );
     final businessDate = DateTimeUtils.businessDate();
     final phone = PhoneUtils.normalizeIndiaMobile(request.phone);
@@ -141,13 +141,19 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
 
     final partySizeBand = Validators.partySizeBand(request.partySize);
     final branchRef = _firestore.doc(
-      FirestorePaths.branch(request.restaurantId, branchId),
+      FirestorePaths.branch(request.restaurantId, branchSlug),
     );
     final counterRef = _firestore.doc(
-      FirestorePaths.dailyCounter(request.restaurantId, branchId, businessDate),
+      FirestorePaths.dailyCounter(
+        request.restaurantId,
+        branchSlug,
+        businessDate,
+      ),
     );
     final queueRef = _firestore
-        .collection(FirestorePaths.queueEntries(request.restaurantId, branchId))
+        .collection(
+          FirestorePaths.queueEntries(request.restaurantId, branchSlug),
+        )
         .doc();
 
     return _firestore.runTransaction<JoinQueueResult>((transaction) async {
@@ -210,14 +216,14 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     required String queueEntryId,
   }) {
     return Stream.fromFuture(
-          _resolveBranchId(restaurantId: restaurantId, branchId: branchId),
+          _resolveBranchSlug(restaurantId: restaurantId, branchSlug: branchId),
         )
-        .asyncExpand((resolvedBranchId) {
+        .asyncExpand((resolvedBranchSlug) {
           return _firestore
               .doc(
                 FirestorePaths.queueEntry(
                   restaurantId,
-                  resolvedBranchId,
+                  resolvedBranchSlug,
                   queueEntryId,
                 ),
               )
@@ -296,12 +302,12 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     required String phone,
     required Map<String, Object?> data,
   }) async {
-    final resolvedBranchId = await _resolveBranchId(
+    final resolvedBranchSlug = await _resolveBranchSlug(
       restaurantId: restaurantId,
-      branchId: branchId,
+      branchSlug: branchId,
     );
     final entryRef = _firestore.doc(
-      FirestorePaths.queueEntry(restaurantId, resolvedBranchId, queueEntryId),
+      FirestorePaths.queueEntry(restaurantId, resolvedBranchSlug, queueEntryId),
     );
     await _firestore.runTransaction<void>((transaction) async {
       final snapshot = await transaction.get(entryRef);
@@ -388,13 +394,13 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     );
   }
 
-  Future<String> _resolveBranchId({
+  Future<String> _resolveBranchSlug({
     required String restaurantId,
-    required String branchId,
+    required String branchSlug,
   }) {
-    return _branchIdentityRepository.resolveBranchId(
+    return _branchIdentityRepository.resolveBranchSlug(
       restaurantId: restaurantId,
-      branchSlugOrId: branchId,
+      branchSlug: branchSlug,
     );
   }
 }

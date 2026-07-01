@@ -46,7 +46,7 @@ class CustomerDeepLinkScreen extends ConsumerWidget {
       error: (error, _) => _screenFor(error),
       data: (data) => CustomerJoinQueueScreen(
         restaurantId: data.restaurantId,
-        branchId: branchSlug,
+        branchSlug: data.branch.id,
         restaurantName: data.restaurantName,
         branchName: data.branch.name,
       ),

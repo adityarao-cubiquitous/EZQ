@@ -36,9 +36,9 @@ abstract class BranchIdentityRepository {
     required String branchSlug,
   });
 
-  Future<String> resolveBranchId({
+  Future<String> resolveBranchSlug({
     required String restaurantId,
-    required String branchSlugOrId,
+    required String branchSlug,
   });
 }
 
@@ -69,34 +69,15 @@ class FirebaseBranchIdentityRepository implements BranchIdentityRepository {
       );
     }
 
-    final directBranchSnapshot = await _firestore
+    final branchSnapshot = await _firestore
         .doc(FirestorePaths.branch(restaurantSlug, branchSlug))
         .get();
-    QueryDocumentSnapshot<Map<String, dynamic>>? branchQueryDoc;
-    DocumentSnapshot<Map<String, dynamic>>? branchSnapshot =
-        directBranchSnapshot.exists ? directBranchSnapshot : null;
-
-    if (branchSnapshot == null) {
-      final slugSnapshot = await _firestore
-          .collection(FirestorePaths.branches(restaurantSlug))
-          .where('branchSlug', isEqualTo: branchSlug)
-          .limit(2)
-          .get();
-      if (slugSnapshot.docs.isEmpty) {
-        throw const CustomerDeepLinkException(
-          CustomerDeepLinkFailure.branchNotFound,
-        );
-      }
-      if (slugSnapshot.docs.length > 1) {
-        throw const CustomerDeepLinkException(
-          CustomerDeepLinkFailure.branchNotFound,
-        );
-      }
-      branchQueryDoc = slugSnapshot.docs.single;
+    final branchData = branchSnapshot.data();
+    if (!branchSnapshot.exists || branchData == null) {
+      throw const CustomerDeepLinkException(
+        CustomerDeepLinkFailure.branchNotFound,
+      );
     }
-
-    final branchId = branchSnapshot?.id ?? branchQueryDoc!.id;
-    final branchData = branchSnapshot?.data() ?? branchQueryDoc!.data();
     if (branchData['isActive'] != true) {
       throw const CustomerDeepLinkException(
         CustomerDeepLinkFailure.branchInactive,
@@ -110,38 +91,20 @@ class FirebaseBranchIdentityRepository implements BranchIdentityRepository {
           restaurantData['brandName'] as String? ??
           restaurantData['name'] as String? ??
           restaurantSlug,
-      branch: Branch.fromMap(branchId, branchData),
+      branch: Branch.fromMap(branchSnapshot.id, branchData),
     );
   }
 
   @override
-  Future<String> resolveBranchId({
+  Future<String> resolveBranchSlug({
     required String restaurantId,
-    required String branchSlugOrId,
+    required String branchSlug,
   }) async {
-    final directRef = _firestore.doc(
-      FirestorePaths.branch(restaurantId, branchSlugOrId),
-    );
-    final directSnapshot = await directRef.get();
-    if (directSnapshot.exists) return branchSlugOrId;
-
-    final slugSnapshot = await _firestore
-        .collection(FirestorePaths.branches(restaurantId))
-        .where('branchSlug', isEqualTo: branchSlugOrId)
-        .limit(2)
+    final snapshot = await _firestore
+        .doc(FirestorePaths.branch(restaurantId, branchSlug))
         .get();
-
-    if (slugSnapshot.docs.length == 1) {
-      final data = slugSnapshot.docs.single.data();
-      return data['branchId'] as String? ?? slugSnapshot.docs.single.id;
-    }
-    if (slugSnapshot.docs.length > 1) {
-      throw StateError(
-        'Multiple branches match slug $branchSlugOrId for $restaurantId.',
-      );
-    }
-
-    throw StateError('Branch $branchSlugOrId was not found for $restaurantId.');
+    if (snapshot.exists) return branchSlug;
+    throw StateError('Branch $branchSlug was not found for $restaurantId.');
   }
 }
 
@@ -156,7 +119,6 @@ class PassthroughBranchIdentityRepository implements BranchIdentityRepository {
       restaurantName: restaurantSlug,
       branch: Branch(
         id: branchSlug,
-        branchId: branchSlug,
         branchSlug: branchSlug,
         name: branchSlug,
         address: '',
@@ -174,11 +136,11 @@ class PassthroughBranchIdentityRepository implements BranchIdentityRepository {
   }
 
   @override
-  Future<String> resolveBranchId({
+  Future<String> resolveBranchSlug({
     required String restaurantId,
-    required String branchSlugOrId,
+    required String branchSlug,
   }) async {
-    return branchSlugOrId;
+    return branchSlug;
   }
 }
 

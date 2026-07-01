@@ -158,28 +158,6 @@ function requireUnique(items, key) {
   }
 }
 
-function duplicateValueSet(items, key) {
-  const counts = new Map();
-  for (const item of items) {
-    counts.set(item[key], (counts.get(item[key]) ?? 0) + 1);
-  }
-  return new Set(
-    [...counts.entries()]
-      .filter(([, count]) => count > 1)
-      .map(([value]) => value),
-  );
-}
-
-function branchIdFor(restaurantId, pathBranchId, duplicatePathBranchIds) {
-  if (!duplicatePathBranchIds.has(pathBranchId)) {
-    return pathBranchId;
-  }
-  if (restaurantId === 'the-spice-house' && pathBranchId === 'indiranagar') {
-    return pathBranchId;
-  }
-  return `${restaurantId}-${pathBranchId}`;
-}
-
 function slugify(value) {
   return String(value ?? '')
     .trim()
@@ -189,20 +167,20 @@ function slugify(value) {
     .replace(/^-+|-+$/g, '');
 }
 
-function branchSlugFor(branchId, data) {
+function branchSlugFor(pathBranchId, data) {
   const existing = data.branchSlug;
   if (typeof existing === 'string' && existing.trim().length > 0) {
     return slugify(existing);
   }
-  return slugify(data.name) || slugify(branchId);
+  return slugify(data.name) || slugify(pathBranchId);
 }
 
-function qrSlugFor(restaurantId, branchId, data) {
+function qrSlugFor(restaurantId, branchSlug, data) {
   const existing = data.qrSlug;
   if (typeof existing === 'string' && existing.trim().length > 0) {
     return existing.trim();
   }
-  return `${restaurantId}-${branchId}`;
+  return `${restaurantId}-${branchSlug}`;
 }
 
 function qrImageUrlFor(qrSlug, data) {
@@ -277,7 +255,6 @@ async function main() {
     }
   }
 
-  const duplicatePathBranchIds = duplicateValueSet(branchRecords, 'pathBranchId');
   const branchUpdates = [];
 
   for (const record of branchRecords) {
@@ -288,18 +265,13 @@ async function main() {
       pathBranchId,
       branchData,
     } = record;
-      const branchId = branchIdFor(
-        restaurantId,
-        pathBranchId,
-        duplicatePathBranchIds,
-      );
+      const branchSlug = branchSlugFor(pathBranchId, branchData);
       const restaurantName =
         branchData.restaurantName ??
         restaurantData.brandName ??
         restaurantData.name ??
         restaurantId;
-      const qrSlug = qrSlugFor(restaurantId, branchId, branchData);
-      const branchSlug = branchSlugFor(branchId, branchData);
+      const qrSlug = qrSlugFor(restaurantId, branchSlug, branchData);
       const queueUrl = `${hostingOrigin}/customer/${restaurantId}/${branchSlug}`;
       const qrImageUrl = qrImageUrlFor(qrSlug, branchData);
       const isActive =
@@ -309,28 +281,29 @@ async function main() {
       const update = {
         restaurantId,
         restaurantName,
-        branchId,
         branchSlug,
-        name: branchData.name ?? branchId,
+        name: branchData.name ?? branchSlug,
         qrSlug,
         queueUrl,
         qrImageUrl,
         isActive,
         updatedAt: new Date().toISOString(),
       };
-      const targetPath = `restaurants/${restaurantId}/branches/${branchId}`;
+      const targetPath = `restaurants/${restaurantId}/branches/${branchSlug}`;
+      const mergedUpdate = { ...branchData, ...update };
+      delete mergedUpdate.branchId;
 
       branchUpdates.push({
         path,
         targetPath,
-        branchId,
+        branchSlug,
         qrSlug,
-        update: { ...branchData, ...update },
+        update: mergedUpdate,
         shouldMoveDocument: path !== targetPath,
       });
   }
 
-  requireUnique(branchUpdates, 'branchId');
+  requireUnique(branchUpdates, 'targetPath');
   requireUnique(branchUpdates, 'qrSlug');
 
   for (const { path, targetPath, update, shouldMoveDocument } of branchUpdates) {

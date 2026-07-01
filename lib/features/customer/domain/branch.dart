@@ -15,7 +15,6 @@ class Branch {
     this.averageTurnoverMinutes,
     this.restaurantId,
     this.restaurantName,
-    this.branchId,
     this.branchSlug,
     this.queueUrl,
     this.qrImageUrl,
@@ -41,7 +40,6 @@ class Branch {
   final int? averageTurnoverMinutes;
   final String? restaurantId;
   final String? restaurantName;
-  final String? branchId;
   final String? branchSlug;
   final String? queueUrl;
   final String? qrImageUrl;
@@ -70,8 +68,7 @@ class Branch {
       averageTurnoverMinutes: data['averageTurnoverMinutes'] as int?,
       restaurantId: data['restaurantId'] as String?,
       restaurantName: data['restaurantName'] as String?,
-      branchId: data['branchId'] as String? ?? id,
-      branchSlug: data['branchSlug'] as String?,
+      branchSlug: data['branchSlug'] as String? ?? id,
       queueUrl: data['queueUrl'] as String?,
       qrImageUrl: data['qrImageUrl'] as String?,
       qrSvgUrl: data['qrSvgUrl'] as String?,
@@ -97,7 +94,6 @@ class Branch {
     'averageTurnoverMinutes': averageTurnoverMinutes,
     'restaurantId': restaurantId,
     'restaurantName': restaurantName,
-    'branchId': branchId ?? id,
     'branchSlug': branchSlug,
     'queueUrl': queueUrl,
     'qrImageUrl': qrImageUrl,
