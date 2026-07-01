@@ -86,6 +86,8 @@ class CustomerShell extends StatelessWidget {
                           ),
                         ),
                         _CustomerTopBar(
+                          restaurantId: restaurantId,
+                          branchId: branchId,
                           topInset: safePadding.top,
                           horizontalInset: horizontalInset,
                           appBackRoute: appBackRoute,
@@ -190,11 +192,15 @@ class CustomerFooter extends StatelessWidget {
 
 class _CustomerTopBar extends ConsumerWidget {
   const _CustomerTopBar({
+    required this.restaurantId,
+    required this.branchId,
     required this.topInset,
     required this.horizontalInset,
     required this.appBackRoute,
   });
 
+  final String restaurantId;
+  final String branchId;
   final double topInset;
   final double horizontalInset;
   final String? appBackRoute;
@@ -204,6 +210,9 @@ class _CustomerTopBar extends ConsumerWidget {
     final authUser = ref.watch(customerAuthStateProvider).asData?.value;
     final debugPhone = ref.watch(debugCustomerPhoneSessionProvider).value;
     final showLogout = !kIsWeb && (authUser != null || debugPhone != null);
+    final installReturnTo = restaurantId.isEmpty || branchId.isEmpty
+        ? null
+        : '/customer/$restaurantId/$branchId';
 
     return Positioned(
       top: 0,
@@ -253,7 +262,7 @@ class _CustomerTopBar extends ConsumerWidget {
                   ],
                 ),
                 if (kIsWeb)
-                  const _InstallAppButton()
+                  _InstallAppButton(returnTo: installReturnTo)
                 else if (showLogout)
                   _AppLogoutButton(
                     onPressed: () async {
@@ -332,17 +341,24 @@ class _AppBackButton extends StatelessWidget {
 }
 
 class _InstallAppButton extends StatelessWidget {
-  const _InstallAppButton();
+  const _InstallAppButton({required this.returnTo});
+
+  final String? returnTo;
 
   @override
   Widget build(BuildContext context) {
+    final installRoute = Uri(
+      path: '/customer/install',
+      queryParameters: returnTo == null ? null : {'returnTo': returnTo!},
+    ).toString();
+
     return Semantics(
       button: true,
       label: 'Download the EZQ app',
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => context.go('/customer/install'),
+          onTap: () => context.go(installRoute),
           borderRadius: BorderRadius.circular(999),
           child: Ink(
             height: 36,
