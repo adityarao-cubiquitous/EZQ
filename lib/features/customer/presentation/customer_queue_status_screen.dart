@@ -116,7 +116,11 @@ class _StatusContent extends ConsumerWidget {
       child: Column(
         children: [
           if (ready)
-            _InlineReadyCard(entry: entry)
+            _InlineReadyCard(
+              restaurantId: restaurantId,
+              branchId: branchId,
+              entry: entry,
+            )
           else if (seated)
             _InlineSeatedCard(entry: entry)
           else if (expired)
@@ -1501,8 +1505,14 @@ class _HourglassPainter extends CustomPainter {
 }
 
 class _InlineReadyCard extends ConsumerWidget {
-  const _InlineReadyCard({required this.entry});
+  const _InlineReadyCard({
+    required this.restaurantId,
+    required this.branchId,
+    required this.entry,
+  });
 
+  final String restaurantId;
+  final String branchId;
   final QueueEntry entry;
 
   @override
@@ -1571,8 +1581,8 @@ class _InlineReadyCard extends ConsumerWidget {
               await ref
                   .read(customerQueueRepositoryProvider)
                   .markOnTheWay(
-                    restaurantId: 'the-spice-house',
-                    branchId: 'indiranagar',
+                    restaurantId: restaurantId,
+                    branchId: branchId,
                     queueEntryId: entry.id,
                     phone: entry.phone,
                   );
