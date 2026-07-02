@@ -40,49 +40,63 @@ class CustomerQueueStatusScreen extends ConsumerWidget {
         queueEntryId: queueEntryId,
       )),
     );
+    final branchLink = ref.watch(
+      customerStatusBranchProvider((
+        restaurantSlug: restaurantId,
+        branchSlug: branchId,
+      )),
+    );
     return CustomerShell(
       restaurantId: restaurantId,
       branchId: branchId,
       activeTab: CustomerTab.status,
       queueEntryId: queueEntryId,
       appBackRoute: '/app/home',
-      child: queueEntry.when(
-        data: (entry) {
-          if (entry.status == QueueStatus.expired) {
+      child: branchLink.when(
+        data: (branchLink) => queueEntry.when(
+          data: (entry) {
+            if (entry.status == QueueStatus.expired) {
+              return _StatusContent(
+                restaurantId: restaurantId,
+                branchId: branchId,
+                queueEntryId: queueEntryId,
+                branchLink: branchLink,
+                entry: entry,
+                expired: true,
+              );
+            }
+            if (entry.status == QueueStatus.reserved ||
+                entry.status == QueueStatus.onTheWay) {
+              return _StatusContent(
+                restaurantId: restaurantId,
+                branchId: branchId,
+                queueEntryId: queueEntryId,
+                branchLink: branchLink,
+                entry: entry,
+                ready: true,
+              );
+            }
+            if (entry.status == QueueStatus.seated) {
+              return _StatusContent(
+                restaurantId: restaurantId,
+                branchId: branchId,
+                queueEntryId: queueEntryId,
+                branchLink: branchLink,
+                entry: entry,
+                seated: true,
+              );
+            }
             return _StatusContent(
               restaurantId: restaurantId,
               branchId: branchId,
               queueEntryId: queueEntryId,
+              branchLink: branchLink,
               entry: entry,
-              expired: true,
             );
-          }
-          if (entry.status == QueueStatus.reserved ||
-              entry.status == QueueStatus.onTheWay) {
-            return _StatusContent(
-              restaurantId: restaurantId,
-              branchId: branchId,
-              queueEntryId: queueEntryId,
-              entry: entry,
-              ready: true,
-            );
-          }
-          if (entry.status == QueueStatus.seated) {
-            return _StatusContent(
-              restaurantId: restaurantId,
-              branchId: branchId,
-              queueEntryId: queueEntryId,
-              entry: entry,
-              seated: true,
-            );
-          }
-          return _StatusContent(
-            restaurantId: restaurantId,
-            branchId: branchId,
-            queueEntryId: queueEntryId,
-            entry: entry,
-          );
-        },
+          },
+          error: (error, _) => ErrorView(message: error.toString()),
+          loading: () => const SizedBox(height: 700, child: LoadingView()),
+        ),
         error: (error, _) => ErrorView(message: error.toString()),
         loading: () => const SizedBox(height: 700, child: LoadingView()),
       ),
@@ -90,11 +104,27 @@ class CustomerQueueStatusScreen extends ConsumerWidget {
   }
 }
 
+typedef CustomerStatusBranchArgs = ({String restaurantSlug, String branchSlug});
+
+final customerStatusBranchProvider =
+    FutureProvider.family<CustomerBranchLink, CustomerStatusBranchArgs>((
+      ref,
+      args,
+    ) {
+      return ref
+          .watch(branchIdentityRepositoryProvider)
+          .resolveCustomerBranch(
+            restaurantSlug: args.restaurantSlug,
+            branchSlug: args.branchSlug,
+          );
+    });
+
 class _StatusContent extends ConsumerWidget {
   const _StatusContent({
     required this.restaurantId,
     required this.branchId,
     required this.queueEntryId,
+    required this.branchLink,
     required this.entry,
     this.ready = false,
     this.seated = false,
@@ -104,6 +134,7 @@ class _StatusContent extends ConsumerWidget {
   final String restaurantId;
   final String branchId;
   final String queueEntryId;
+  final CustomerBranchLink branchLink;
   final QueueEntry entry;
   final bool ready;
   final bool seated;
@@ -122,11 +153,11 @@ class _StatusContent extends ConsumerWidget {
               entry: entry,
             )
           else if (seated)
-            _InlineSeatedCard(entry: entry)
+            _InlineSeatedCard(entry: entry, branchLink: branchLink)
           else if (expired)
             _AutoExpiredCard(entry: entry)
           else
-            _QueueStatusCard(entry: entry),
+            _QueueStatusCard(entry: entry, branchLink: branchLink),
           if (!expired) ...[
             const SizedBox(height: 14),
             _StatusActions(
@@ -1016,12 +1047,15 @@ const _sceneItems = [
 ];
 
 class _QueueStatusCard extends StatelessWidget {
-  const _QueueStatusCard({required this.entry});
+  const _QueueStatusCard({required this.entry, required this.branchLink});
 
   final QueueEntry entry;
+  final CustomerBranchLink branchLink;
 
   @override
   Widget build(BuildContext context) {
+    final restaurantName = branchLink.restaurantName;
+    final branchName = branchLink.branch.name;
     return _Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1035,14 +1069,25 @@ class _QueueStatusCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'The Spice House',
+                    Text(
+                      restaurantName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: AppColors.navyText,
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      branchName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.deepTeal,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -1685,12 +1730,14 @@ class _ReadyMetric extends StatelessWidget {
 }
 
 class _InlineSeatedCard extends StatelessWidget {
-  const _InlineSeatedCard({required this.entry});
+  const _InlineSeatedCard({required this.entry, required this.branchLink});
 
   final QueueEntry entry;
+  final CustomerBranchLink branchLink;
 
   @override
   Widget build(BuildContext context) {
+    final restaurantName = branchLink.restaurantName;
     return _Card(
       child: Column(
         children: [
@@ -1710,7 +1757,7 @@ class _InlineSeatedCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'You have been seated at ${entry.assignedTableNumber ?? 'your table'} at The Spice House.',
+            'You have been seated at ${entry.assignedTableNumber ?? 'your table'} at $restaurantName.',
             textAlign: TextAlign.center,
             style: const TextStyle(color: Color(0xFF3E484F), fontSize: 16),
           ),
