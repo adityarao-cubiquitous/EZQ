@@ -167,12 +167,12 @@ function slugify(value) {
     .replace(/^-+|-+$/g, '');
 }
 
-function branchSlugFor(pathBranchId, data) {
-  const existing = data.branchSlug;
-  if (typeof existing === 'string' && existing.trim().length > 0) {
-    return slugify(existing);
+function branchSlugFor(restaurantId, pathBranchId) {
+  const legacyPrefix = `${restaurantId}-`;
+  if (pathBranchId.startsWith(legacyPrefix)) {
+    return slugify(pathBranchId.slice(legacyPrefix.length));
   }
-  return slugify(data.name) || slugify(pathBranchId);
+  return slugify(pathBranchId);
 }
 
 function qrSlugFor(restaurantId, branchSlug, data) {
@@ -265,7 +265,7 @@ async function main() {
       pathBranchId,
       branchData,
     } = record;
-      const branchSlug = branchSlugFor(pathBranchId, branchData);
+      const branchSlug = branchSlugFor(restaurantId, pathBranchId);
       const restaurantName =
         branchData.restaurantName ??
         restaurantData.brandName ??
@@ -281,7 +281,6 @@ async function main() {
       const update = {
         restaurantId,
         restaurantName,
-        branchSlug,
         name: branchData.name ?? branchSlug,
         qrSlug,
         queueUrl,
@@ -292,6 +291,7 @@ async function main() {
       const targetPath = `restaurants/${restaurantId}/branches/${branchSlug}`;
       const mergedUpdate = { ...branchData, ...update };
       delete mergedUpdate.branchId;
+      delete mergedUpdate.branchSlug;
 
       branchUpdates.push({
         path,
@@ -307,7 +307,7 @@ async function main() {
   requireUnique(branchUpdates, 'qrSlug');
 
   for (const { path, targetPath, update, shouldMoveDocument } of branchUpdates) {
-    const mask = Object.keys(update)
+    const mask = [...new Set([...Object.keys(update), 'branchId', 'branchSlug'])]
       .map((field) => `updateMask.fieldPaths=${encodeURIComponent(field)}`)
       .join('&');
     await firestoreRequest(
