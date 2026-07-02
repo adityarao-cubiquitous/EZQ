@@ -236,8 +236,8 @@ async function listCollection(collectionPath) {
   return documents;
 }
 
-async function patchDocument(path, data) {
-  const mask = Object.keys(data)
+async function patchDocument(path, data, deleteFields = []) {
+  const mask = [...new Set([...Object.keys(data), ...deleteFields])]
     .map((field) => `updateMask.fieldPaths=${encodeURIComponent(field)}`)
     .join('&');
   await firestoreRequest(
@@ -253,15 +253,7 @@ class QueueUrlGenerator {
   }
 
   baseBranchSlug(branch) {
-    const existing = branch.data.branchSlug;
-    if (typeof existing === 'string' && existing.trim().length > 0) {
-      return slugify(existing);
-    }
-    return (
-      slugify(branch.data.name) ||
-      slugify(branch.pathBranchId.replace(`${branch.restaurantId}-`, '')) ||
-      slugify(branch.pathBranchId)
-    );
+    return slugify(branch.pathBranchId);
   }
 
   assignBranchSlugs(branches) {
@@ -425,7 +417,7 @@ class QrService {
   }
 
   async saveQrMetadata({ path, metadata }) {
-    await patchDocument(path, metadata);
+    await patchDocument(path, metadata, ['branchId', 'branchSlug']);
   }
 
   async saveLocalAsset({ restaurantId, branchSlug, extension, body }) {
@@ -566,7 +558,7 @@ async function loadBranches() {
           restaurantData.name ??
           restaurantId,
         pathBranchId,
-        branchSlug: branchData.branchSlug ?? pathBranchId,
+        branchSlug: pathBranchId,
         path: `restaurants/${restaurantId}/branches/${pathBranchId}`,
         data: branchData,
       });
@@ -649,7 +641,6 @@ async function main() {
     const metadata = {
       restaurantId: branch.restaurantId,
       restaurantName: branch.restaurantName,
-      branchSlug: branch.branchSlug,
       qrSlug,
       queueUrl,
       qrImageUrl: pngAsset.downloadUrl,

@@ -148,7 +148,6 @@ const documents = Object.fromEntries(
         {
           restaurantId: restaurant.id,
           restaurantName: restaurant.name,
-          branchSlug,
           name: restaurant.branchName,
           area: restaurant.area,
           address: restaurant.address,

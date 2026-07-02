@@ -31,7 +31,6 @@ const documents = {
   'restaurants/the-spice-house/branches/indiranagar': {
     restaurantId: 'the-spice-house',
     restaurantName: 'The Spice House',
-    branchSlug: 'indiranagar',
     name: 'Indiranagar',
     area: 'Indiranagar',
     address: '100 Feet Road, Indiranagar, Bengaluru',
