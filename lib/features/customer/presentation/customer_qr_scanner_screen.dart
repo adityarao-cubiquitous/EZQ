@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,7 +23,7 @@ class CustomerQrScannerScreen extends ConsumerStatefulWidget {
 
 class _CustomerQrScannerScreenState
     extends ConsumerState<CustomerQrScannerScreen> {
-  late final MobileScannerController _scannerController;
+  MobileScannerController? _scannerController;
   final TextEditingController _manualCodeController = TextEditingController();
   bool _isResolving = false;
   String? _message;
@@ -30,17 +31,19 @@ class _CustomerQrScannerScreenState
   @override
   void initState() {
     super.initState();
-    _scannerController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
-      facing: CameraFacing.back,
-      formats: const [BarcodeFormat.qrCode],
-    );
+    if (!kIsWeb) {
+      _scannerController = MobileScannerController(
+        detectionSpeed: DetectionSpeed.noDuplicates,
+        facing: CameraFacing.back,
+        formats: const [BarcodeFormat.qrCode],
+      );
+    }
   }
 
   @override
   void dispose() {
     _manualCodeController.dispose();
-    _scannerController.dispose();
+    _scannerController?.dispose();
     super.dispose();
   }
 
@@ -203,7 +206,7 @@ class _ScannerFrame extends StatelessWidget {
     required this.onDetect,
   });
 
-  final MobileScannerController controller;
+  final MobileScannerController? controller;
   final bool isResolving;
   final void Function(BarcodeCapture capture) onDetect;
 
@@ -231,8 +234,11 @@ class _ScannerFrame extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              MobileScanner(controller: controller, onDetect: onDetect),
-              const _ScanOverlay(),
+              if (controller == null)
+                const _CameraFallback()
+              else
+                MobileScanner(controller: controller!, onDetect: onDetect),
+              if (controller != null) const _ScanOverlay(),
               if (isResolving)
                 const ColoredBox(
                   color: Color(0x66000000),
@@ -240,6 +246,74 @@ class _ScannerFrame extends StatelessWidget {
                     child: CircularProgressIndicator(color: Colors.white),
                   ),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CameraFallback extends StatelessWidget {
+  const _CameraFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFFEFFAFF), Color(0xFFF8FBFF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0x332CB3E4)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x1A12A9DC),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.qr_code_2_rounded,
+                  color: AppColors.deepTeal,
+                  size: 34,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Camera scan is mobile-only',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.navyText,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Paste an EZQ link or QR code below to open the queue.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.mutedText,
+                  fontSize: 14,
+                  height: 1.35,
+                ),
+              ),
             ],
           ),
         ),
