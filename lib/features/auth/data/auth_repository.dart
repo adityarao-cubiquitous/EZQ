@@ -11,6 +11,16 @@ import '../../../core/utils/phone_utils.dart';
 abstract class AuthRepository {
   Future<void> signInAdmin({required String email, required String password});
 
+  Future<PhoneCodeRequestResult> startAdminPhoneSignIn({
+    required String phone,
+    int? resendToken,
+  });
+
+  Future<UserCredential> confirmAdminSmsCode({
+    required String verificationId,
+    required String smsCode,
+  });
+
   Future<void> signOut();
 }
 
@@ -296,6 +306,86 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<PhoneCodeRequestResult> startAdminPhoneSignIn({
+    required String phone,
+    int? resendToken,
+  }) async {
+    final normalizedPhone = PhoneUtils.normalizeIndiaMobile(phone);
+    final completer = Completer<PhoneCodeRequestResult>();
+    await _preparePhoneVerification();
+
+    void completeOnce(PhoneCodeRequestResult result) {
+      if (!completer.isCompleted) completer.complete(result);
+    }
+
+    void completeErrorOnce(Object error, StackTrace stackTrace) {
+      if (!completer.isCompleted) completer.completeError(error, stackTrace);
+    }
+
+    await _auth.verifyPhoneNumber(
+      phoneNumber: normalizedPhone,
+      forceResendingToken: resendToken,
+      timeout: const Duration(seconds: 60),
+      verificationCompleted: (credential) async {
+        try {
+          await _auth.signInWithCredential(credential);
+          completeOnce(
+            PhoneCodeRequestResult(
+              verificationId: credential.verificationId ?? '',
+              autoVerified: true,
+              phoneNumber: normalizedPhone,
+            ),
+          );
+        } catch (error, stackTrace) {
+          completeErrorOnce(error, stackTrace);
+        }
+      },
+      verificationFailed: (error) {
+        completeErrorOnce(
+          StateError(error.message ?? error.code),
+          StackTrace.current,
+        );
+      },
+      codeSent: (verificationId, resendToken) {
+        completeOnce(
+          PhoneCodeRequestResult(
+            verificationId: verificationId,
+            resendToken: resendToken,
+            phoneNumber: normalizedPhone,
+          ),
+        );
+      },
+      codeAutoRetrievalTimeout: (verificationId) {
+        completeOnce(
+          PhoneCodeRequestResult(
+            verificationId: verificationId,
+            phoneNumber: normalizedPhone,
+          ),
+        );
+      },
+    );
+
+    return completer.future;
+  }
+
+  Future<void> _preparePhoneVerification() async {
+    if (kIsWeb || !kDebugMode) return;
+    await _auth.setSettings(appVerificationDisabledForTesting: true);
+  }
+
+  @override
+  Future<UserCredential> confirmAdminSmsCode({
+    required String verificationId,
+    required String smsCode,
+  }) async {
+    final credential = PhoneAuthProvider.credential(
+      verificationId: verificationId,
+      smsCode: smsCode,
+    );
+    return _auth.signInWithCredential(credential);
+  }
+
+  @override
   Future<void> signOut() => _auth.signOut();
 }
 
@@ -305,6 +395,28 @@ class MockAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {}
+
+  @override
+  Future<PhoneCodeRequestResult> startAdminPhoneSignIn({
+    required String phone,
+    int? resendToken,
+  }) async {
+    return PhoneCodeRequestResult(
+      verificationId: 'mock-admin-verification-id',
+      resendToken: 1,
+      phoneNumber: PhoneUtils.normalizeIndiaMobile(phone),
+    );
+  }
+
+  @override
+  Future<UserCredential> confirmAdminSmsCode({
+    required String verificationId,
+    required String smsCode,
+  }) {
+    throw UnsupportedError(
+      'Admin phone authentication requires Firebase. Run with USE_FIREBASE=true.',
+    );
+  }
 
   @override
   Future<void> signOut() async {}

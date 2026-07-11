@@ -20,7 +20,7 @@ class FirebaseCustomerQrRepository implements CustomerQrRepository {
     if (!_isRouteSegment(slug)) return null;
 
     final snapshot = await _firestore
-        .collectionGroup('branches')
+        .collection('restaurantBranches')
         .where('qrSlug', isEqualTo: slug)
         .where('isActive', isEqualTo: true)
         .limit(1)
@@ -31,13 +31,9 @@ class FirebaseCustomerQrRepository implements CustomerQrRepository {
     final data = doc.data();
     if (data['isActive'] == false) return null;
 
-    final restaurantId =
-        data['restaurantId'] as String? ?? doc.reference.parent.parent?.id;
-    final branchSlug = doc.id;
-    if (!_isRouteSegment(restaurantId) || !_isRouteSegment(branchSlug)) {
-      return null;
-    }
-    return '/customer/$restaurantId/$branchSlug';
+    final restaurantBranchId = doc.id;
+    if (!_isRouteSegment(restaurantBranchId)) return null;
+    return '/customer/$restaurantBranchId';
   }
 }
 
@@ -50,21 +46,39 @@ String? _customerRouteFromQrValue(String rawValue) {
   final uri = Uri.tryParse(value);
   if (uri == null) return null;
 
+  final restaurantBranchId =
+      uri.queryParameters['restaurantBranchId'] ??
+      uri.queryParameters['outletId'];
+  if (_isRouteSegment(restaurantBranchId)) {
+    return '/customer/$restaurantBranchId';
+  }
+
   final restaurantId =
       uri.queryParameters['restaurantId'] ?? uri.queryParameters['restaurant'];
   final branchId =
       uri.queryParameters['branchId'] ?? uri.queryParameters['branch'];
   if (_isRouteSegment(restaurantId) && _isRouteSegment(branchId)) {
-    return '/customer/$restaurantId/$branchId';
+    return restaurantId == branchId
+        ? '/customer/$restaurantId'
+        : '/customer/$restaurantId-$branchId';
   }
 
   final pathSegments = uri.pathSegments;
   final customerIndex = pathSegments.indexOf('customer');
+  if (customerIndex >= 0 && pathSegments.length > customerIndex + 1) {
+    final restaurantBranch = pathSegments[customerIndex + 1];
+    if (_isRouteSegment(restaurantBranch) &&
+        pathSegments.length == customerIndex + 2) {
+      return '/customer/$restaurantBranch';
+    }
+  }
   if (customerIndex >= 0 && pathSegments.length > customerIndex + 2) {
     final restaurant = pathSegments[customerIndex + 1];
     final branch = pathSegments[customerIndex + 2];
     if (_isRouteSegment(restaurant) && _isRouteSegment(branch)) {
-      return '/customer/$restaurant/$branch';
+      return restaurant == branch
+          ? '/customer/$restaurant'
+          : '/customer/$restaurant-$branch';
     }
   }
 

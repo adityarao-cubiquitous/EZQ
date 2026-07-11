@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../core/constants/app_constants.dart';
 import '../features/admin/presentation/admin_dashboard_screen.dart';
-import '../features/admin/presentation/branch_selector_screen.dart';
 import '../features/auth/presentation/customer_name_profile_screen.dart';
 import '../features/auth/presentation/customer_phone_auth_screen.dart';
 import '../features/auth/presentation/admin_login_screen.dart';
@@ -20,6 +19,7 @@ import '../features/customer/presentation/nearby_restaurants_screen.dart';
 import '../features/customer/presentation/seated_view.dart';
 import '../features/customer/presentation/table_ready_view.dart';
 import '../features/reports/presentation/daily_summary_screen.dart';
+import '../features/rest_onboarding/presentation/screens/restaurant_onboarding_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   const useFirebase = bool.fromEnvironment('USE_FIREBASE');
@@ -30,6 +30,77 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/',
         builder: (context, state) => const CustomerLandingScreen(),
+      ),
+      GoRoute(
+        path: '/customer/:restaurantBranchId',
+        builder: (context, state) {
+          final restaurantBranchId =
+              state.pathParameters['restaurantBranchId']!;
+          return CustomerDeepLinkScreen(
+            restaurantSlug: restaurantBranchId,
+            branchSlug: restaurantBranchId,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/customer/:restaurantBranchId/status/:queueEntryId',
+        builder: (context, state) {
+          final restaurantBranchId =
+              state.pathParameters['restaurantBranchId']!;
+          return CustomerQueueStatusScreen(
+            restaurantId: restaurantBranchId,
+            branchId: restaurantBranchId,
+            queueEntryId: state.pathParameters['queueEntryId']!,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/customer/:restaurantBranchId/ready/:queueEntryId',
+        builder: (context, state) {
+          final restaurantBranchId =
+              state.pathParameters['restaurantBranchId']!;
+          return TableReadyView(
+            restaurantId: restaurantBranchId,
+            branchId: restaurantBranchId,
+            queueEntryId: state.pathParameters['queueEntryId']!,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/customer/:restaurantBranchId/seated/:queueEntryId',
+        builder: (context, state) {
+          final restaurantBranchId =
+              state.pathParameters['restaurantBranchId']!;
+          return SeatedView(
+            restaurantId: restaurantBranchId,
+            branchId: restaurantBranchId,
+            queueEntryId: state.pathParameters['queueEntryId']!,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/customer/:restaurantBranchId/menu',
+        builder: (context, state) {
+          final restaurantBranchId =
+              state.pathParameters['restaurantBranchId']!;
+          return CustomerMenuScreen(
+            restaurantId: restaurantBranchId,
+            branchId: restaurantBranchId,
+            queueEntryId: state.uri.queryParameters['queueEntryId'],
+          );
+        },
+      ),
+      GoRoute(
+        path: '/customer/:restaurantBranchId/support',
+        builder: (context, state) {
+          final restaurantBranchId =
+              state.pathParameters['restaurantBranchId']!;
+          return CustomerSupportScreen(
+            restaurantId: restaurantBranchId,
+            branchId: restaurantBranchId,
+            queueEntryId: state.uri.queryParameters['queueEntryId'],
+          );
+        },
       ),
       GoRoute(
         path: '/customer/:restaurantSlug/:branchSlug',
@@ -103,10 +174,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AdminLoginScreen(),
       ),
       GoRoute(
-        path: '/admin/:restaurantSlug/branches',
-        builder: (context, state) => BranchSelectorScreen(
-          restaurantId: state.pathParameters['restaurantSlug']!,
-        ),
+        path: '/admin/register/onboarding',
+        builder: (context, state) => const RestaurantOnboardingScreen(),
+      ),
+      GoRoute(
+        path: '/admin/:restaurantBranchId/dashboard',
+        builder: (context, state) {
+          final restaurantBranchId =
+              state.pathParameters['restaurantBranchId']!;
+          return AdminDashboardScreen(
+            restaurantId: restaurantBranchId,
+            branchId: restaurantBranchId,
+          );
+        },
       ),
       GoRoute(
         path: '/admin/:restaurantSlug/:branchSlug/dashboard',

@@ -1,6 +1,8 @@
 import {initializeApp} from "firebase-admin/app";
+import {getAuth} from "firebase-admin/auth";
 import {
   FieldValue,
+  GeoPoint,
   getFirestore,
 } from "firebase-admin/firestore";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
@@ -8,6 +10,7 @@ import {HttpsError, onCall} from "firebase-functions/v2/https";
 initializeApp();
 
 const db = getFirestore();
+const auth = getAuth();
 
 type QueueStatus =
   | "waiting"
@@ -31,12 +34,70 @@ interface JoinQueueInput {
   appSource?: "web" | "android" | "ios" | "admin_walkin";
 }
 
+function assertPlatformProvisioner(uid: string | undefined, token: Record<string, unknown> | undefined) {
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Platform provisioning login required");
+  }
+  if (token?.platformProvisioner !== true) {
+    throw new HttpsError("permission-denied", "Platform provisioning access required");
+  }
+}
+
 function requireString(data: Record<string, unknown>, key: string): string {
   const value = data[key];
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new HttpsError("invalid-argument", `${key} is required`);
   }
   return value.trim();
+}
+
+function optionalString(data: Record<string, unknown>, key: string): string | null {
+  const value = data[key];
+  if (value == null) return null;
+  if (typeof value !== "string") {
+    throw new HttpsError("invalid-argument", `${key} must be a string`);
+  }
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+function optionalRecord(data: Record<string, unknown>, key: string): Record<string, unknown> | null {
+  const value = data[key];
+  if (value == null) return null;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new HttpsError("invalid-argument", `${key} must be an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function requireGeoPoint(data: Record<string, unknown>): GeoPoint | null {
+  const value = data.geoPoint;
+  if (value == null) return null;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new HttpsError("invalid-argument", "geoPoint must be an object");
+  }
+  const point = value as Record<string, unknown>;
+  const latitude = point.latitude;
+  const longitude = point.longitude;
+  if (typeof latitude !== "number" || typeof longitude !== "number") {
+    throw new HttpsError("invalid-argument", "geoPoint latitude and longitude are required");
+  }
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    throw new HttpsError("invalid-argument", "geoPoint is outside valid latitude/longitude bounds");
+  }
+  return new GeoPoint(latitude, longitude);
+}
+
+function normalizeSlug(value: string, key: string): string {
+  const slug = value.trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+    throw new HttpsError("invalid-argument", `${key} must use lowercase letters, numbers, and hyphens`);
+  }
+  return slug;
+}
+
+function createDisplayName(restaurantName: string, branchName: string): string {
+  return `${restaurantName} - ${branchName}`;
 }
 
 function requirePartySize(data: Record<string, unknown>): number {
@@ -75,8 +136,13 @@ function businessDate(): string {
   }).format(new Date());
 }
 
+function restaurantBranchIdFromRoute(restaurantId: string, branchId: string): string {
+  if (restaurantId === branchId) return restaurantId;
+  return `${restaurantId}-${branchId}`;
+}
+
 function branchPath(restaurantId: string, branchId: string): string {
-  return `restaurants/${restaurantId}/branches/${branchId}`;
+  return `restaurantBranches/${restaurantBranchIdFromRoute(restaurantId, branchId)}`;
 }
 
 function queueEntriesPath(restaurantId: string, branchId: string): string {
@@ -112,12 +178,12 @@ async function assertAdminAccess(
   if (!uid) {
     throw new HttpsError("unauthenticated", "Admin login required");
   }
-  const adminSnap = await db.doc(`restaurants/${restaurantId}/admins/${uid}`).get();
+  const restaurantBranchId = restaurantBranchIdFromRoute(restaurantId, branchId);
+  const adminSnap = await db.doc(`admins/${uid}`).get();
   if (!adminSnap.exists || adminSnap.get("isActive") !== true) {
     throw new HttpsError("permission-denied", "No admin access");
   }
-  const branchIds = adminSnap.get("branchIds") as string[] | undefined;
-  if (!branchIds?.includes(branchId)) {
+  if (adminSnap.get("restaurantBranchId") !== restaurantBranchId) {
     throw new HttpsError("permission-denied", "No branch access");
   }
 }
@@ -201,6 +267,250 @@ async function createQueueEntry(input: JoinQueueInput, sessionType: string) {
     };
   });
 }
+
+export const createRestaurantBranch = onCall(async (request) => {
+  assertPlatformProvisioner(request.auth?.uid, request.auth?.token);
+  const data = request.data as Record<string, unknown>;
+  const restaurantBranchId = normalizeSlug(
+    requireString(data, "restaurantBranchId"),
+    "restaurantBranchId",
+  );
+  const slug = normalizeSlug(requireString(data, "slug"), "slug");
+  const restaurantName = requireString(data, "restaurantName");
+  const branchName = requireString(data, "branchName");
+  const area = requireString(data, "area");
+  const address = requireString(data, "address");
+  const qrSlug = normalizeSlug(requireString(data, "qrSlug"), "qrSlug");
+  const geoPoint = requireGeoPoint(data);
+  const subscription = optionalRecord(data, "subscription") ?? {
+    plan: "starter",
+    status: "trial",
+  };
+  const branchRef = db.doc(`restaurantBranches/${restaurantBranchId}`);
+  const duplicateSlugQuery = db
+    .collection("restaurantBranches")
+    .where("slug", "==", slug)
+    .limit(1);
+
+  await db.runTransaction(async (transaction) => {
+    const [branchSnap, duplicateSlugSnap] = await Promise.all([
+      transaction.get(branchRef),
+      transaction.get(duplicateSlugQuery),
+    ]);
+
+    if (branchSnap.exists) {
+      throw new HttpsError(
+        "already-exists",
+        `restaurantBranches/${restaurantBranchId} already exists`,
+      );
+    }
+    const duplicateSlugDoc = duplicateSlugSnap.docs.find((doc) => doc.id !== restaurantBranchId);
+    if (duplicateSlugDoc) {
+      throw new HttpsError(
+        "already-exists",
+        `slug ${slug} is already used by restaurantBranches/${duplicateSlugDoc.id}`,
+      );
+    }
+
+    transaction.create(branchRef, {
+      id: restaurantBranchId,
+      slug,
+      restaurantName,
+      branchName,
+      displayName: createDisplayName(restaurantName, branchName),
+      area,
+      address,
+      geoPoint,
+      subscription,
+      qrSlug,
+      isActive: true,
+      onboardingCompleted: false,
+      floorCount: 0,
+      totalTables: 0,
+      totalSeats: 0,
+      capacityTypes: [],
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  return {
+    restaurantBranchId,
+    path: `restaurantBranches/${restaurantBranchId}`,
+  };
+});
+
+export const assignRestaurantBranchAdmin = onCall(async (request) => {
+  assertPlatformProvisioner(request.auth?.uid, request.auth?.token);
+  const data = request.data as Record<string, unknown>;
+  const uid = requireString(data, "uid");
+  const restaurantBranchId = normalizeSlug(
+    requireString(data, "restaurantBranchId"),
+    "restaurantBranchId",
+  );
+  const role = requireString(data, "role");
+  const name = optionalString(data, "name");
+  const email = optionalString(data, "email");
+  const phone = optionalString(data, "phone");
+  const isActive = typeof data.isActive === "boolean" ? data.isActive : true;
+  const branchRef = db.doc(`restaurantBranches/${restaurantBranchId}`);
+  const adminRef = db.doc(`admins/${uid}`);
+
+  await db.runTransaction(async (transaction) => {
+    const [branchSnap, adminSnap] = await Promise.all([
+      transaction.get(branchRef),
+      transaction.get(adminRef),
+    ]);
+
+    if (!branchSnap.exists) {
+      throw new HttpsError(
+        "failed-precondition",
+        `restaurantBranches/${restaurantBranchId} must exist before assigning an admin`,
+      );
+    }
+
+    if (adminSnap.exists) {
+      const currentRestaurantBranchId = adminSnap.get("restaurantBranchId") as string | undefined;
+      if (currentRestaurantBranchId !== restaurantBranchId) {
+        throw new HttpsError(
+          "already-exists",
+          `admins/${uid} is already assigned to restaurantBranches/${currentRestaurantBranchId ?? ""}`,
+        );
+      }
+      transaction.update(adminRef, {
+        uid,
+        restaurantBranchId,
+        role,
+        ...(name ? {name} : {}),
+        ...(email ? {email} : {}),
+        ...(phone ? {phone: normalizePhone(phone)} : {}),
+        isActive,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+
+    transaction.create(adminRef, {
+      uid,
+      ...(name ? {name} : {}),
+      ...(email ? {email} : {}),
+      ...(phone ? {phone: normalizePhone(phone)} : {}),
+      restaurantBranchId,
+      role,
+      isActive,
+      onboardingCompleted: false,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  return {
+    uid,
+    restaurantBranchId,
+    path: `admins/${uid}`,
+  };
+});
+
+export const provisionRestaurantBranchAdmin = onCall(async (request) => {
+  assertPlatformProvisioner(request.auth?.uid, request.auth?.token);
+  const data = request.data as Record<string, unknown>;
+  const phone = normalizePhone(requireString(data, "phone"));
+  const restaurantBranchId = normalizeSlug(
+    requireString(data, "restaurantBranchId"),
+    "restaurantBranchId",
+  );
+  const role = requireString(data, "role");
+  const name = optionalString(data, "name");
+  const email = optionalString(data, "email");
+  const isActive = typeof data.isActive === "boolean" ? data.isActive : true;
+  const branchRef = db.doc(`restaurantBranches/${restaurantBranchId}`);
+
+  let adminUser;
+  try {
+    adminUser = await auth.getUserByPhoneNumber(phone);
+  } catch (error: unknown) {
+    const code = (error as {code?: string}).code;
+    if (code !== "auth/user-not-found") throw error;
+    adminUser = await auth.createUser({
+      phoneNumber: phone,
+      displayName: name ?? undefined,
+      email: email ?? undefined,
+      disabled: !isActive,
+    });
+  }
+
+  if (
+    (name && adminUser.displayName !== name) ||
+    (email && adminUser.email !== email) ||
+    adminUser.disabled === isActive
+  ) {
+    adminUser = await auth.updateUser(adminUser.uid, {
+      displayName: name ?? adminUser.displayName,
+      email: email ?? adminUser.email,
+      disabled: !isActive,
+    });
+  }
+
+  const adminRef = db.doc(`admins/${adminUser.uid}`);
+
+  await db.runTransaction(async (transaction) => {
+    const [branchSnap, adminSnap] = await Promise.all([
+      transaction.get(branchRef),
+      transaction.get(adminRef),
+    ]);
+
+    if (!branchSnap.exists) {
+      throw new HttpsError(
+        "failed-precondition",
+        `restaurantBranches/${restaurantBranchId} must exist before assigning an admin`,
+      );
+    }
+
+    if (adminSnap.exists) {
+      const currentRestaurantBranchId = adminSnap.get("restaurantBranchId") as string | undefined;
+      if (currentRestaurantBranchId !== restaurantBranchId) {
+        throw new HttpsError(
+          "already-exists",
+          `admins/${adminUser.uid} is already assigned to restaurantBranches/${currentRestaurantBranchId ?? ""}`,
+        );
+      }
+      transaction.update(adminRef, {
+        uid: adminUser.uid,
+        name: name ?? adminSnap.get("name") ?? adminUser.displayName ?? "",
+        email: email ?? adminSnap.get("email") ?? adminUser.email ?? "",
+        phone,
+        restaurantBranchId,
+        role,
+        isActive,
+        authProvider: "phone",
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+
+    transaction.create(adminRef, {
+      uid: adminUser.uid,
+      name: name ?? adminUser.displayName ?? "",
+      email: email ?? adminUser.email ?? "",
+      phone,
+      restaurantBranchId,
+      role,
+      isActive,
+      authProvider: "phone",
+      onboardingCompleted: false,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  return {
+    uid: adminUser.uid,
+    phone,
+    restaurantBranchId,
+    authProvider: "phone",
+    path: `admins/${adminUser.uid}`,
+  };
+});
 
 export const joinQueue = onCall(async (request) => {
   const data = request.data as Record<string, unknown>;

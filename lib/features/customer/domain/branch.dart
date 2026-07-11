@@ -52,9 +52,27 @@ class Branch {
   bool get hasLocation => latitude != null && longitude != null;
 
   factory Branch.fromMap(String id, Map<String, dynamic> data) {
+    final geoPoint = data['geoPoint'] ?? data['geoLocation'];
+    double? geoLatitude;
+    double? geoLongitude;
+    if (geoPoint != null) {
+      try {
+        geoLatitude = (geoPoint.latitude as num?)?.toDouble();
+        geoLongitude = (geoPoint.longitude as num?)?.toDouble();
+      } catch (_) {
+        if (geoPoint is Map<String, dynamic>) {
+          geoLatitude = (geoPoint['latitude'] as num?)?.toDouble();
+          geoLongitude = (geoPoint['longitude'] as num?)?.toDouble();
+        }
+      }
+    }
     return Branch(
       id: id,
-      name: data['name'] as String? ?? '',
+      name:
+          data['branchName'] as String? ??
+          data['name'] as String? ??
+          data['displayName'] as String? ??
+          '',
       address: data['address'] as String? ?? '',
       city: data['city'] as String? ?? '',
       state: data['state'] as String? ?? '',
@@ -74,8 +92,8 @@ class Branch {
       qrSvgUrl: data['qrSvgUrl'] as String?,
       cuisine: data['cuisine'] as String?,
       logoUrl: data['logoUrl'] as String?,
-      latitude: (data['latitude'] as num?)?.toDouble(),
-      longitude: (data['longitude'] as num?)?.toDouble(),
+      latitude: (data['latitude'] as num?)?.toDouble() ?? geoLatitude,
+      longitude: (data['longitude'] as num?)?.toDouble() ?? geoLongitude,
     );
   }
 

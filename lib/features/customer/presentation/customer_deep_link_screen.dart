@@ -20,7 +20,7 @@ final customerBranchLinkProvider =
             restaurantSlug: args.restaurantSlug,
             branchSlug: args.branchSlug,
           );
-    });
+    }, retry: (_, _) => null);
 
 class CustomerDeepLinkScreen extends ConsumerWidget {
   const CustomerDeepLinkScreen({
