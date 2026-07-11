@@ -6,15 +6,16 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isRestaurantAdmin(restaurantId) {
+    function isRootRestaurantBranchAdmin(restaurantBranchId) {
       return isSignedIn()
-        && exists(/databases/$(database)/documents/restaurants/$(restaurantId)/admins/$(request.auth.uid))
-        && get(/databases/$(database)/documents/restaurants/$(restaurantId)/admins/$(request.auth.uid)).data.isActive == true;
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.restaurantBranchId == restaurantBranchId
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isActive == true;
     }
 
-    function isActiveBranch(restaurantId, branchId) {
-      return exists(/databases/$(database)/documents/restaurants/$(restaurantId)/branches/$(branchId))
-        && get(/databases/$(database)/documents/restaurants/$(restaurantId)/branches/$(branchId)).data.isActive == true;
+    function isActiveRestaurantBranch(restaurantBranchId) {
+      return exists(/databases/$(database)/documents/restaurantBranches/$(restaurantBranchId))
+        && get(/databases/$(database)/documents/restaurantBranches/$(restaurantBranchId)).data.isActive == true;
     }
 
     function isOwnPhoneCustomerProfile(customerId) {
@@ -60,43 +61,6 @@ service cloud.firestore {
         ]);
     }
 
-    match /restaurants/{restaurantId} {
-      allow read: if resource.data.isActive == true || isRestaurantAdmin(restaurantId);
-      allow write: if false;
-
-      match /branches/{branchId} {
-        allow read: if resource.data.isActive == true || isRestaurantAdmin(restaurantId);
-        allow write: if false;
-
-        match /tables/{tableId} {
-          allow read: if true;
-          allow update: if isActiveBranch(restaurantId, branchId);
-          allow create, delete: if false;
-        }
-
-        match /queueEntries/{queueEntryId} {
-          allow read: if true;
-          allow create: if isActiveBranch(restaurantId, branchId)
-            && request.resource.data.status == 'waiting'
-            && request.resource.data.customerName is string
-            && request.resource.data.phone is string
-            && request.resource.data.partySize is int;
-          allow update: if isActiveBranch(restaurantId, branchId);
-          allow delete: if false;
-        }
-
-        match /dailyCounters/{businessDate} {
-          allow read: if isActiveBranch(restaurantId, branchId) || isRestaurantAdmin(restaurantId);
-          allow write: if isActiveBranch(restaurantId, branchId);
-        }
-      }
-
-      match /admins/{adminUserId} {
-        allow read: if isRestaurantAdmin(restaurantId);
-        allow write: if false;
-      }
-    }
-
     match /customers/{customerId} {
       allow read: if isSignedIn() && request.auth.uid == customerId;
       allow create: if isOwnPhoneCustomerProfile(customerId)
@@ -112,12 +76,69 @@ service cloud.firestore {
       }
     }
 
-    match /{path=**}/queueEntries/{queueEntryId} {
-      allow read: if true;
+    match /admins/{adminUserId} {
+      allow read: if isSignedIn() && request.auth.uid == adminUserId;
+      allow update: if isSignedIn()
+        && request.auth.uid == adminUserId
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'onboardingCompleted',
+          'onboardedAt'
+        ])
+        && request.resource.data.restaurantBranchId == resource.data.restaurantBranchId;
+      allow create, delete: if false;
     }
 
-    match /{path=**}/branches/{branchId} {
-      allow read: if resource.data.isActive == true;
+    match /restaurantBranches/{restaurantBranchId} {
+      allow read: if resource.data.isActive == true
+        || isRootRestaurantBranchAdmin(restaurantBranchId);
+      allow update: if isRootRestaurantBranchAdmin(restaurantBranchId)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'onboardingCompleted',
+          'floorCount',
+          'totalTables',
+          'totalSeats',
+          'capacityTypes',
+          'updatedAt'
+        ]);
+      allow create, delete: if false;
+
+      match /floors/{floorId} {
+        allow read: if isRootRestaurantBranchAdmin(restaurantBranchId);
+        allow create, update: if isRootRestaurantBranchAdmin(restaurantBranchId);
+        allow delete: if false;
+      }
+
+      match /tables/{tableId} {
+        allow read: if true;
+        allow create, update: if isRootRestaurantBranchAdmin(restaurantBranchId);
+        allow delete: if false;
+      }
+
+      match /settings/{settingsId} {
+        allow read: if isRootRestaurantBranchAdmin(restaurantBranchId);
+        allow create, update: if isRootRestaurantBranchAdmin(restaurantBranchId);
+        allow delete: if false;
+      }
+
+      match /queueEntries/{queueEntryId} {
+        allow read: if true;
+        allow create: if isActiveRestaurantBranch(restaurantBranchId)
+          && request.resource.data.status == 'waiting'
+          && request.resource.data.customerName is string
+          && request.resource.data.phone is string
+          && request.resource.data.partySize is int;
+        allow update: if isActiveRestaurantBranch(restaurantBranchId)
+          || isRootRestaurantBranchAdmin(restaurantBranchId);
+        allow delete: if false;
+      }
+
+      match /dailyCounters/{businessDate} {
+        allow read, write: if isRootRestaurantBranchAdmin(restaurantBranchId);
+      }
+    }
+
+    match /{path=**}/queueEntries/{queueEntryId} {
+      allow read: if true;
     }
 
     match /notifications/{notificationId} {

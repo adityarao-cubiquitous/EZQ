@@ -45,7 +45,7 @@ class FirebaseNearbyRestaurantsRepository
     double radiusKm = 2,
   }) async {
     final snapshot = await _firestore
-        .collectionGroup('branches')
+        .collection('restaurantBranches')
         .where('isActive', isEqualTo: true)
         .get();
 
