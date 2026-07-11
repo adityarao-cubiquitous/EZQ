@@ -43,15 +43,11 @@ class FirebaseMenuRepository implements MenuRepository {
         })
         .asyncMap((branchSnapshot) async {
           final branchData = branchSnapshot.data() ?? <String, dynamic>{};
-          final restaurantSnapshot = await _firestore
-              .doc(FirestorePaths.restaurant(restaurantId))
-              .get();
-          final restaurantData =
-              restaurantSnapshot.data() ?? <String, dynamic>{};
 
           return MenuDocument(
-            restaurantName: restaurantData['name'] as String? ?? restaurantId,
-            branchName: branchData['name'] as String? ?? branchId,
+            restaurantName:
+                branchData['restaurantName'] as String? ?? restaurantId,
+            branchName: branchData['branchName'] as String? ?? branchId,
             pdfUrl: branchData['menuPdfUrl'] as String? ?? '/demo-menu.pdf',
             previewImageUrl:
                 branchData['menuPreviewImageUrl'] as String? ??

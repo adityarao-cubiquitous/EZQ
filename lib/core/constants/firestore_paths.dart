@@ -1,13 +1,25 @@
 class FirestorePaths {
   const FirestorePaths._();
 
-  static String restaurant(String restaurantId) => 'restaurants/$restaurantId';
+  static String restaurantBranch(String restaurantBranchId) =>
+      'restaurantBranches/$restaurantBranchId';
 
-  static String branches(String restaurantId) =>
-      '${restaurant(restaurantId)}/branches';
+  static bool isRestaurantBranchRoute(String restaurantId, String branchId) =>
+      restaurantId == branchId;
 
-  static String branch(String restaurantId, String branchId) =>
-      '${branches(restaurantId)}/$branchId';
+  static String restaurantBranchIdFromRoute(
+    String restaurantId,
+    String branchId,
+  ) {
+    if (restaurantId == branchId) return restaurantId;
+    return '$restaurantId-$branchId';
+  }
+
+  static String branch(String restaurantId, String branchId) {
+    return restaurantBranch(
+      restaurantBranchIdFromRoute(restaurantId, branchId),
+    );
+  }
 
   static String tables(String restaurantId, String branchId) =>
       '${branch(restaurantId, branchId)}/tables';
@@ -31,7 +43,9 @@ class FirestorePaths {
   ) => '${branch(restaurantId, branchId)}/dailyCounters/$businessDate';
 
   static String admin(String restaurantId, String adminUserId) =>
-      '${restaurant(restaurantId)}/admins/$adminUserId';
+      rootAdmin(adminUserId);
+
+  static String rootAdmin(String adminUserId) => 'admins/$adminUserId';
 
   static String customer(String customerId) => 'customers/$customerId';
 

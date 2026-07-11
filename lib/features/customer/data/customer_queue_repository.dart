@@ -378,17 +378,16 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     if (!_singleQueueBlockingStatuses.contains(status)) return null;
 
     final pathParts = doc.reference.path.split('/');
-    if (pathParts.length < 6 ||
-        pathParts[0] != 'restaurants' ||
-        pathParts[2] != 'branches' ||
-        pathParts[4] != 'queueEntries') {
+    if (pathParts.length < 4 ||
+        pathParts[0] != 'restaurantBranches' ||
+        pathParts[2] != 'queueEntries') {
       return null;
     }
 
     return ActiveQueueConflictException(
       restaurantId: pathParts[1],
-      branchId: pathParts[3],
-      queueEntryId: pathParts[5],
+      branchId: pathParts[1],
+      queueEntryId: pathParts[3],
       tokenCode: doc.data()['tokenCode'] as String? ?? 'your queue',
       status: status,
     );

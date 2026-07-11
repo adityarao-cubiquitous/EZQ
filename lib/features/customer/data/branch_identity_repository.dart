@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,26 +55,47 @@ class FirebaseBranchIdentityRepository implements BranchIdentityRepository {
     required String restaurantSlug,
     required String branchSlug,
   }) async {
-    final restaurantRef = _firestore.doc(
-      FirestorePaths.restaurant(restaurantSlug),
+    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
+      restaurantSlug,
+      branchSlug,
     );
-    final restaurantSnapshot = await restaurantRef.get();
-    final restaurantData = restaurantSnapshot.data();
-    if (!restaurantSnapshot.exists || restaurantData == null) {
-      throw const CustomerDeepLinkException(
-        CustomerDeepLinkFailure.restaurantNotFound,
+    final branchPath = FirestorePaths.restaurantBranch(restaurantBranchId);
+    debugPrint('[CUSTOMER_DEEP_LINK]\npath=$branchPath');
+    final DocumentSnapshot<Map<String, dynamic>> branchSnapshot;
+    try {
+      branchSnapshot = await _firestore
+          .doc(branchPath)
+          .snapshots()
+          .first
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () =>
+                throw TimeoutException('Timed out reading $branchPath'),
+          );
+    } on FirebaseException catch (error) {
+      debugPrint(
+        '[CUSTOMER_DEEP_LINK_ERROR]\n'
+        'path=$branchPath\n'
+        'code=${error.code}\n'
+        'message=${error.message}',
       );
-    }
-    if (restaurantData['isActive'] != true) {
-      throw const CustomerDeepLinkException(
-        CustomerDeepLinkFailure.restaurantClosed,
+      rethrow;
+    } on TimeoutException catch (error) {
+      debugPrint(
+        '[CUSTOMER_DEEP_LINK_ERROR]\n'
+        'path=$branchPath\n'
+        'code=timeout\n'
+        'message=${error.message}',
       );
+      rethrow;
     }
-
-    final branchSnapshot = await _firestore
-        .doc(FirestorePaths.branch(restaurantSlug, branchSlug))
-        .get();
     final branchData = branchSnapshot.data();
+    debugPrint(
+      '[CUSTOMER_DEEP_LINK]\n'
+      'path=$branchPath\n'
+      'exists=${branchSnapshot.exists}\n'
+      'isActive=${branchData?['isActive']}',
+    );
     if (!branchSnapshot.exists || branchData == null) {
       throw const CustomerDeepLinkException(
         CustomerDeepLinkFailure.branchNotFound,
@@ -85,12 +108,11 @@ class FirebaseBranchIdentityRepository implements BranchIdentityRepository {
     }
 
     return CustomerBranchLink(
-      restaurantId: restaurantSlug,
+      restaurantId: restaurantBranchId,
       restaurantName:
           branchData['restaurantName'] as String? ??
-          restaurantData['brandName'] as String? ??
-          restaurantData['name'] as String? ??
-          restaurantSlug,
+          branchData['displayName'] as String? ??
+          restaurantBranchId,
       branch: Branch.fromMap(branchSnapshot.id, branchData),
     );
   }
@@ -100,11 +122,21 @@ class FirebaseBranchIdentityRepository implements BranchIdentityRepository {
     required String restaurantId,
     required String branchSlug,
   }) async {
+    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
+      restaurantId,
+      branchSlug,
+    );
+    final path = FirestorePaths.restaurantBranch(restaurantBranchId);
     final snapshot = await _firestore
-        .doc(FirestorePaths.branch(restaurantId, branchSlug))
-        .get();
-    if (snapshot.exists) return branchSlug;
-    throw StateError('Branch $branchSlug was not found for $restaurantId.');
+        .doc(path)
+        .snapshots()
+        .first
+        .timeout(
+          const Duration(seconds: 8),
+          onTimeout: () => throw TimeoutException('Timed out reading $path'),
+        );
+    if (snapshot.exists) return restaurantBranchId;
+    throw StateError('RestaurantBranch $restaurantBranchId was not found.');
   }
 }
 
