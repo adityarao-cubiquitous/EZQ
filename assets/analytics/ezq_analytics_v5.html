@@ -1,0 +1,389 @@
+
+<h2 class="sr-only">EZQ unified analytics dashboard with hover on prior period line</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.w{padding:1rem 0;font-family:var(--font-sans)}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:12px;margin-bottom:14px;border-bottom:0.5px solid var(--border)}
+.bar label{font-size:12px;color:var(--text-muted)}
+.di{display:flex;align-items:center;gap:5px}
+.di input{font-size:12px;padding:4px 8px;border:0.5px solid var(--border-strong);border-radius:var(--radius);background:var(--surface-1);color:var(--text-primary);width:118px}
+.di span{font-size:12px;color:var(--text-muted)}
+.qg{display:flex;gap:3px}
+.qb{font-size:12px;padding:5px 10px;border:0.5px solid var(--border-strong);border-radius:var(--radius);background:var(--surface-1);color:var(--text-secondary);cursor:pointer}
+.qb.on{background:var(--bg-accent);border-color:var(--border-accent);color:var(--text-accent);font-weight:500}
+.vg{display:flex;gap:2px;background:var(--surface-1);border-radius:var(--radius);padding:3px;margin-left:auto}
+.vb{font-size:12px;padding:5px 13px;border:none;background:none;border-radius:calc(var(--radius) - 2px);color:var(--text-muted);cursor:pointer;font-weight:500}
+.vb.on{background:var(--surface-2);color:var(--text-primary)}
+.kr{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.kc{background:var(--surface-1);border-radius:var(--radius);padding:10px 12px}
+.kl{font-size:11px;color:var(--text-muted);margin-bottom:3px}
+.kv{font-size:20px;font-weight:500;color:var(--text-primary);line-height:1.1}
+.kd{font-size:11px;margin-top:3px}
+.up{color:var(--text-success)}.dn{color:var(--text-danger)}
+.cc{background:var(--surface-1);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.g2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-bottom:10px}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}
+.ct{font-size:11px;font-weight:500;color:var(--text-secondary);margin-bottom:4px}
+.sub{font-size:11px;color:var(--text-muted);margin-bottom:7px}
+.lg{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;font-size:11px;color:var(--text-secondary);align-items:center}
+.li{display:flex;align-items:center;gap:5px}
+.sq{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.line-sw{width:24px;height:0;border-top:2px dashed #b5d4f4;flex-shrink:0}
+.ins{border-left:3px solid var(--border-accent);background:var(--bg-accent);padding:9px 13px;font-size:12px;color:var(--text-accent);border-radius:0;margin-bottom:8px}
+.ins.g{border-color:var(--border-success);background:var(--bg-success);color:var(--text-success)}
+</style>
+
+<div class="w">
+
+<div class="bar">
+  <label>Date range</label>
+  <div class="di">
+    <input type="date" id="df" value="2026-06-01">
+    <span>to</span>
+    <input type="date" id="dt" value="2026-06-29">
+  </div>
+  <div class="qg">
+    <button class="qb" onclick="rng(7,this)">7d</button>
+    <button class="qb on" onclick="rng(28,this)">28d</button>
+    <button class="qb" onclick="rng(90,this)">3m</button>
+    <button class="qb" onclick="rng(365,this)">1y</button>
+  </div>
+  <div class="vg">
+    <button class="vb on" onclick="sv('all',this)">All days</button>
+    <button class="vb" onclick="sv('wknd',this)">Weekends</button>
+    <button class="vb" onclick="sv('wkdy',this)">Weekdays</button>
+  </div>
+</div>
+
+<div class="kr">
+  <div class="kc"><div class="kl">Customers seated</div><div class="kv" id="v1">1,840</div><div class="kd up" id="d1">+14% vs prior period</div></div>
+  <div class="kc"><div class="kl">Avg wait time</div><div class="kv" id="v2">19m</div><div class="kd up" id="d2">-3m vs prior period</div></div>
+  <div class="kc"><div class="kl">No-show rate</div><div class="kv" id="v3">8%</div><div class="kd up" id="d3">-2pp vs prior period</div></div>
+  <div class="kc"><div class="kl">Table turns per day</div><div class="kv" id="v4">3.8</div><div class="kd up" id="d4">+0.4 vs prior period</div></div>
+  <div class="kc"><div class="kl">Est. revenue uplift</div><div class="kv" id="v5">₹1.2L</div><div class="kd up" id="d5">+30% vs prior period</div></div>
+</div>
+
+<div class="cc">
+  <div class="ct" id="mct">Customers seated per day — Jun 1 to Jun 29</div>
+  <div class="sub" id="msub">How many customers were successfully seated each day. Darker blue bars are Saturday and Sunday.</div>
+  <div class="lg">
+    <span class="li"><span class="sq" style="background:rgba(42,120,214,0.42)"></span>Weekday (Mon–Fri)</span>
+    <span class="li"><span class="sq" style="background:rgba(42,120,214,0.88)"></span>Weekend (Sat–Sun)</span>
+    <span class="li"><span class="line-sw"></span>Same days last period — hover to compare</span>
+  </div>
+  <div style="position:relative;height:185px"><canvas id="c0" role="img" aria-label="Bar chart of customers seated per day. Hover any bar to see this period vs same day last period.">Customers seated daily.</canvas></div>
+</div>
+
+<div class="g3">
+  <div class="cc" style="margin-bottom:0">
+    <div class="ct" id="hct">Customers joining queue — by hour</div>
+    <div class="sub">Average number of people joining per hour across the period</div>
+    <div class="lg" id="hleg">
+      <span class="li"><span class="sq" style="background:#1baf7a"></span>Weekday avg</span>
+      <span class="li"><span class="sq" style="background:#2a78d6"></span>Weekend avg</span>
+    </div>
+    <div style="position:relative;height:115px"><canvas id="c1" role="img" aria-label="Line chart of average hourly queue joins weekday vs weekend">Hourly pattern.</canvas></div>
+  </div>
+  <div class="cc" style="margin-bottom:0">
+    <div class="ct">No-show rate — by day of week</div>
+    <div class="sub">% of customers who got a table alert but never arrived</div>
+    <div style="position:relative;height:115px"><canvas id="c2" role="img" aria-label="Bar chart of no-show rate by day, Saturday highest at 12%">No-show by day.</canvas></div>
+  </div>
+  <div class="cc" style="margin-bottom:0">
+    <div class="ct">Average wait time — by day of week</div>
+    <div class="sub">Minutes from joining queue to sitting down</div>
+    <div style="position:relative;height:115px"><canvas id="c3" role="img" aria-label="Line chart of average wait time by day, Saturday peaks at 27 min">Wait by day.</canvas></div>
+  </div>
+</div>
+
+<div class="g2">
+  <div class="cc" style="margin-bottom:0">
+    <div class="ct" id="sct">Customers seated per day — weekday vs weekend</div>
+    <div class="sub" id="ssub">Average number of people seated on a typical weekday vs a weekend day</div>
+    <div class="lg">
+      <span class="li" id="sl1"><span class="sq" style="background:#1baf7a"></span>Weekday (Mon–Fri)</span>
+      <span class="li" id="sl2"><span class="sq" style="background:#2a78d6"></span>Weekend (Sat–Sun)</span>
+    </div>
+    <div style="position:relative;height:130px"><canvas id="c4" role="img" aria-label="Grouped bars comparing avg customers per day on weekdays vs weekends">Weekday vs weekend seated.</canvas></div>
+  </div>
+  <div class="cc" style="margin-bottom:0">
+    <div class="ct">Customers seated per week — Mon–Fri vs Sat–Sun</div>
+    <div class="sub">Each bar is one week. The stack shows how much came from weekdays vs the weekend</div>
+    <div class="lg">
+      <span class="li" id="tl1"><span class="sq" style="background:#1baf7a"></span>Mon–Fri customers</span>
+      <span class="li" id="tl2"><span class="sq" style="background:#2a78d6"></span>Sat–Sun customers</span>
+    </div>
+    <div style="position:relative;height:130px"><canvas id="c5" role="img" aria-label="Stacked weekly bar chart of customers seated split by weekday and weekend">Weekly stacked customers.</canvas></div>
+  </div>
+</div>
+
+<div style="margin-top:10px">
+  <div class="ins" id="i1">Weekends seat 81% more customers per day than weekdays — but wait times are 2x longer and no-shows are nearly 2x higher. Consider reducing the table hold time from 7 to 5 minutes on Saturdays.</div>
+  <div class="ins g" id="i2">No-show rate fell from 12% to 8% over this period — customers are trusting the alert system. Thursday is your strongest weekday at 62 customers seated.</div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const dk=window.matchMedia('(prefers-color-scheme:dark)').matches;
+const gc=dk?'rgba(255,255,255,0.07)':'#e1e0d9',tk='#898781';
+const chs={};
+let CV='all',CD=28;
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const D7=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const DFULL=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const HRS=['10am','11am','12pm','1pm','2pm','3pm','4pm','5pm','6pm','7pm','8pm','9pm'];
+const BASE=[42,38,48,62,58,94,73];
+
+// Prior period dates — offset by one period length
+function getPriorDate(d, rangeDays) {
+  const p = new Date(d);
+  p.setDate(p.getDate() - rangeDays);
+  return p;
+}
+
+const VD={
+  all:{v:['1,840','19m','8%','3.8','₹1.2L'],d:['+14%','-3m','-2pp','+0.4','+30%'],
+    i1:'Weekends seat 81% more customers per day than weekdays — but wait times are 2x longer and no-shows are nearly 2x higher. Consider reducing the table hold time from 7 to 5 minutes on Saturdays.',
+    i2:'No-show rate fell from 12% to 8% over this period. Thursday is your strongest weekday at 62 customers seated.'},
+  wknd:{v:['312','27m','11%','4.8','₹36K'],d:['+12%','+5m','-2pp','+0.4','+30%'],
+    i1:'Weekend footfall grew 12% vs the same weekends last period. Peak queue hit 19 people waiting simultaneously on Saturdays.',
+    i2:'Pre-orders grew 73% weekend-over-weekend. 68% of customers who won a reward redeemed it.'},
+  wkdy:{v:['52','15m','6%','3.2','₹5.8K'],d:['+8%','-2m','-1pp','+0.2','+18%'],
+    i1:'Weekday operations are smooth — shorter waits and lower no-shows. Thursday leads at 62 customers seated vs 42 on Monday.',
+    i2:'Weekday revenue uplift growing +18% vs prior. 15% of weekday customers pre-ordered from the queue.'}
+};
+
+function fmtD(d){return MONTHS[d.getMonth()]+' '+d.getDate();}
+function getF(){return new Date(document.getElementById('df').value+'T00:00:00');}
+function getT(){return new Date(document.getElementById('dt').value+'T00:00:00');}
+
+function rng(d,b){
+  document.querySelectorAll('.qb').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');CD=d;
+  const t=new Date(),f=new Date();f.setDate(t.getDate()-d);
+  document.getElementById('dt').value=t.toISOString().slice(0,10);
+  document.getElementById('df').value=f.toISOString().slice(0,10);
+  go();
+}
+function sv(v,b){
+  document.querySelectorAll('.vb').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');CV=v;go();
+}
+
+function go(){
+  const V=VD[CV];
+  const from=getF(),to=getT();
+  const rangeDays=Math.round((to-from)/(1000*60*60*24));
+
+  for(let i=1;i<=5;i++){
+    document.getElementById('v'+i).textContent=V.v[i-1];
+    const el=document.getElementById('d'+i);
+    el.textContent=V.d[i-1]+' vs prior period';
+    const good=(V.d[i-1].startsWith('+')&&[0,3,4].includes(i-1))||(V.d[i-1].startsWith('-')&&[1,2].includes(i-1));
+    el.className='kd '+(good?'up':'dn');
+  }
+  document.getElementById('i1').textContent=V.i1;
+  document.getElementById('i2').textContent=V.i2;
+
+  const rl=fmtD(from)+' – '+fmtD(to);
+  const priorFrom=getPriorDate(from,rangeDays);
+  const priorTo=getPriorDate(to,rangeDays);
+  const prl=fmtD(priorFrom)+' – '+fmtD(priorTo);
+
+  document.getElementById('mct').textContent={all:'Customers seated per day — '+rl,wknd:'Weekend customers seated per day — '+rl,wkdy:'Weekday customers seated per day — '+rl}[CV];
+  document.getElementById('msub').textContent={
+    all:'How many customers were successfully seated each day. Darker blue = weekends. Dashed line = same days last period ('+prl+').',
+    wknd:'Saturday and Sunday only. Dashed line = same weekends last period ('+prl+').',
+    wkdy:'Monday to Friday only. Dashed line = same weekdays last period ('+prl+').'
+  }[CV];
+
+  document.getElementById('hleg').style.display=CV==='all'?'flex':'none';
+  document.getElementById('hct').textContent=CV==='all'?'Customers joining queue — by hour':CV==='wknd'?'Weekend: customers joining queue by hour':'Weekday: customers joining queue by hour';
+  document.getElementById('sct').textContent=CV==='all'?'Customers seated per day — weekday vs weekend':CV==='wknd'?'Weekend avg customers per day vs prior':'Weekday avg customers per day vs prior';
+  document.getElementById('ssub').textContent=CV==='all'?'Average on a typical weekday vs a weekend day':CV==='wknd'?'Sat+Sun average — this period ('+rl+') vs prior ('+prl+')':'Mon–Fri average — this period ('+rl+') vs prior ('+prl+')';
+  document.getElementById('sl1').style.display=CV==='wknd'?'none':'flex';
+  document.getElementById('sl2').style.display=CV==='wkdy'?'none':'flex';
+  document.getElementById('tl1').style.display=CV==='wknd'?'none':'flex';
+  document.getElementById('tl2').style.display=CV==='wkdy'?'none':'flex';
+
+  buildMain(from,to,priorFrom,rangeDays);
+  buildHourly();buildNosh();buildWait();buildSplit(rl,prl);buildTrend(from,to);
+}
+
+function kill(id){if(chs[id]){chs[id].destroy();delete chs[id];}}
+function bOpts(sc){return{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:Object.assign({x:{grid:{color:gc},ticks:{color:tk,font:{size:10}}},y:{grid:{color:gc},ticks:{color:tk,font:{size:10}},beginAtZero:true}},sc||{})};}
+function nz(v,s){return v?Math.max(0,v+Math.round((Math.random()-0.43)*(s||9))):0;}
+
+function buildMain(from,to,priorFrom,rangeDays){
+  kill('c0');
+  const labels=[],dates=[],priDates=[],cur=[],pri=[],bg=[];
+  const c=new Date(from);
+  while(c<=to){
+    const di=(c.getDay()+6)%7;
+    if(!(CV==='wknd'&&di<5||CV==='wkdy'&&di>=5)){
+      labels.push(fmtD(c));
+      dates.push(new Date(c));
+      const pd=new Date(c); pd.setDate(pd.getDate()-rangeDays);
+      priDates.push(new Date(pd));
+      cur.push(nz(BASE[di],10));
+      pri.push(nz(BASE[di]*0.87,8));
+      bg.push(di>=5?'rgba(42,120,214,0.88)':'rgba(42,120,214,0.42)');
+    }
+    c.setDate(c.getDate()+1);
+  }
+
+  const mt=Math.min(labels.length,CD<=7?7:CD<=28?10:12);
+
+  chs['c0']=new Chart(document.getElementById('c0'),{
+    type:'bar',
+    data:{labels,datasets:[
+      {
+        data:cur,backgroundColor:bg,borderRadius:3,order:2,
+        label:'Customers seated'
+      },
+      {
+        // Give the line visible points on hover
+        data:pri,
+        type:'line',
+        borderColor:'#93b8d9',
+        backgroundColor:'transparent',
+        borderDash:[5,3],
+        tension:0.35,
+        // Small invisible points — hover still works
+        pointRadius:3,
+        pointHoverRadius:6,
+        pointBackgroundColor:'#93b8d9',
+        pointBorderColor:dk?'#1a1a19':'#fff',
+        pointBorderWidth:2,
+        pointHoverBackgroundColor:'#ffffff',
+        pointHoverBorderColor:'#2a78d6',
+        pointHoverBorderWidth:2,
+        // Keep points invisible normally, visible on hover
+        pointStyle:'circle',
+        borderWidth:1.5,
+        order:1,
+        label:'Same day last period'
+      }
+    ]},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:dk?'rgba(20,28,40,0.96)':'rgba(255,255,255,0.97)',
+          borderColor:'#2a78d6',
+          borderWidth:1,
+          titleColor:dk?'#e0e8f0':'#0D1F2D',
+          bodyColor:dk?'#93b0c8':'#607D8B',
+          padding:10,
+          callbacks:{
+            title(items){
+              const idx=items[0].dataIndex;
+              return DFULL[(dates[idx].getDay()+6)%7]+', '+fmtD(dates[idx]);
+            },
+            label(item){
+              if(item.datasetIndex===0){
+                return '  This period:         '+item.parsed.y+' customers seated';
+              } else {
+                return '  Same day last period ('+fmtD(priDates[item.dataIndex])+'):  '+item.parsed.y+' customers';
+              }
+            },
+            afterBody(items){
+              if(items.length===2){
+                const diff=items[0].parsed.y - items[1].parsed.y;
+                const pct=Math.round((diff/items[1].parsed.y)*100);
+                const arrow=diff>=0?'▲':'▼';
+                return ['','  '+arrow+' '+(diff>=0?'+':'')+diff+' customers ('+pct+'% vs last period)'];
+              }
+              return [];
+            }
+          }
+        }
+      },
+      scales:{
+        x:{grid:{color:gc},ticks:{color:tk,font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:mt}},
+        y:{grid:{color:gc},ticks:{color:tk,font:{size:10}},beginAtZero:true}
+      }
+    }
+  });
+}
+
+function buildHourly(){
+  kill('c1');
+  const wd=[2,4,7,10,9,6,4,6,8,6,4,2],we=[3,7,12,28,18,10,6,9,14,12,7,5];
+  const ds=CV==='wknd'?
+    [{data:we,borderColor:'#2a78d6',backgroundColor:'rgba(42,120,214,0.10)',tension:0.4,fill:true,pointRadius:2,pointHoverRadius:5,pointBackgroundColor:'#2a78d6',label:'Weekend avg'}]:
+    CV==='wkdy'?
+    [{data:wd,borderColor:'#1baf7a',backgroundColor:'rgba(27,175,122,0.10)',tension:0.4,fill:true,pointRadius:2,pointHoverRadius:5,pointBackgroundColor:'#1baf7a',label:'Weekday avg'}]:
+    [{data:wd,borderColor:'#1baf7a',backgroundColor:'rgba(27,175,122,0.08)',tension:0.4,fill:true,pointRadius:2,pointHoverRadius:5,pointBackgroundColor:'#1baf7a',label:'Weekday avg'},
+     {data:we,borderColor:'#2a78d6',backgroundColor:'rgba(42,120,214,0.08)',tension:0.4,fill:true,pointRadius:2,pointHoverRadius:5,pointBackgroundColor:'#2a78d6',label:'Weekend avg'}];
+  chs['c1']=new Chart(document.getElementById('c1'),{type:'line',data:{labels:HRS,datasets:ds},
+    options:{...bOpts(),interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},
+      tooltip:{backgroundColor:dk?'rgba(20,28,40,0.96)':'rgba(255,255,255,0.97)',borderColor:gc,borderWidth:1,titleColor:dk?'#e0e8f0':'#0D1F2D',bodyColor:dk?'#93b0c8':'#607D8B',padding:8,
+        callbacks:{label:i=>i.dataset.label+': '+i.parsed.y+' customers joining'}}}}});
+}
+
+function buildNosh(){
+  kill('c2');
+  const nr=[5,4,6,7,8,12,10];
+  const nd=nr.map((v,i)=>CV==='wknd'?i>=5?v:null:CV==='wkdy'?i<5?v:null:v);
+  chs['c2']=new Chart(document.getElementById('c2'),{type:'bar',data:{labels:D7,datasets:[{data:nd,backgroundColor:nr.map((_,i)=>i>=5?'#e34948':'#1baf7a'),borderRadius:3,hoverBackgroundColor:nr.map((_,i)=>i>=5?'#ff6b6b':'#22c98a')}]},
+    options:{...bOpts(),plugins:{legend:{display:false},tooltip:{backgroundColor:dk?'rgba(20,28,40,0.96)':'rgba(255,255,255,0.97)',borderColor:gc,borderWidth:1,titleColor:dk?'#e0e8f0':'#0D1F2D',bodyColor:dk?'#93b0c8':'#607D8B',padding:8,
+      callbacks:{label:i=>i.parsed.y+'% of reserved customers didn\'t arrive'}}},
+      scales:{x:{grid:{color:gc},ticks:{color:tk,font:{size:10},autoSkip:false}},y:{grid:{color:gc},ticks:{color:tk,font:{size:9},callback:v=>v+'%'},beginAtZero:true,max:16}}}});
+}
+
+function buildWait(){
+  kill('c3');
+  const wr=[13,11,14,16,20,27,22];
+  const wrd=wr.map((v,i)=>CV==='wknd'?i>=5?v:null:CV==='wkdy'?i<5?v:null:v);
+  chs['c3']=new Chart(document.getElementById('c3'),{type:'line',data:{labels:D7,datasets:[{data:wrd,borderColor:'#eda100',backgroundColor:'rgba(237,161,0,0.08)',tension:0.4,fill:true,pointRadius:4,pointHoverRadius:6,pointBackgroundColor:wr.map((_,i)=>i>=5?'#e34948':'#eda100'),pointBorderColor:dk?'#1a1a19':'#fff',pointBorderWidth:2}]},
+    options:{...bOpts(),plugins:{legend:{display:false},tooltip:{backgroundColor:dk?'rgba(20,28,40,0.96)':'rgba(255,255,255,0.97)',borderColor:gc,borderWidth:1,titleColor:dk?'#e0e8f0':'#0D1F2D',bodyColor:dk?'#93b0c8':'#607D8B',padding:8,
+      callbacks:{label:i=>i.parsed.y+' min average wait time'}}},
+      scales:{x:{grid:{color:gc},ticks:{color:tk,font:{size:9},autoSkip:false}},y:{grid:{color:gc},ticks:{color:tk,font:{size:9},callback:v=>v+' min'},beginAtZero:true}}}});
+}
+
+function buildSplit(rl,prl){
+  kill('c4');
+  const labels=CV==='wknd'?['Weekend (Sat–Sun)']:CV==='wkdy'?['Weekday (Mon–Fri)']:['Weekday (Mon–Fri)','Weekend (Sat–Sun)'];
+  const thisP=CV==='wknd'?[94]:CV==='wkdy'?[52]:[52,94];
+  const priorP=thisP.map(v=>Math.round(v*0.88));
+  const colors=CV==='wknd'?['#2a78d6']:CV==='wkdy'?['#1baf7a']:['#1baf7a','#2a78d6'];
+  chs['c4']=new Chart(document.getElementById('c4'),{type:'bar',data:{labels,datasets:[
+    {data:thisP,backgroundColor:colors,borderRadius:4,label:'This period ('+rl+')'},
+    {data:priorP,backgroundColor:colors.map(c=>c+'66'),borderRadius:4,label:'Prior period ('+prl+')'}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:false},tooltip:{backgroundColor:dk?'rgba(20,28,40,0.96)':'rgba(255,255,255,0.97)',borderColor:gc,borderWidth:1,titleColor:dk?'#e0e8f0':'#0D1F2D',bodyColor:dk?'#93b0c8':'#607D8B',padding:8,
+      callbacks:{label:i=>(i.datasetIndex===0?'This period':'Prior period')+': avg '+i.parsed.y+' customers/day',
+        afterBody(items){if(items.length===2){const d=items[0].parsed.y-items[1].parsed.y;return['','▲ +'+(d>0?d:Math.abs(d))+' more customers/day vs prior'];} return [];}}}},
+    scales:{x:{grid:{color:gc},ticks:{color:tk,font:{size:10}}},y:{grid:{color:gc},ticks:{color:tk,font:{size:10}},beginAtZero:true}}}});
+}
+
+function buildTrend(from,to){
+  kill('c5');
+  const wLabels=[];
+  const c=new Date(from);
+  while(c<=to){wLabels.push(fmtD(c));c.setDate(c.getDate()+7);}
+  const wdB=CV==='wknd'?0:52*5,weB=CV==='wkdy'?0:94*2;
+  const wdData=wLabels.map(()=>wdB?Math.max(0,wdB+Math.round((Math.random()-0.4)*30)):0);
+  const weData=wLabels.map(()=>weB?Math.max(0,weB+Math.round((Math.random()-0.4)*25)):0);
+  const tds=[];
+  if(CV!=='wknd') tds.push({label:'Mon–Fri customers',data:wdData,backgroundColor:'#1baf7a',borderRadius:0,stack:'s'});
+  if(CV!=='wkdy') tds.push({label:'Sat–Sun customers',data:weData,backgroundColor:'#2a78d6',borderRadius:4,stack:'s'});
+  chs['c5']=new Chart(document.getElementById('c5'),{type:'bar',data:{labels:wLabels,datasets:tds},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},tooltip:{backgroundColor:dk?'rgba(20,28,40,0.96)':'rgba(255,255,255,0.97)',borderColor:gc,borderWidth:1,titleColor:dk?'#e0e8f0':'#0D1F2D',bodyColor:dk?'#93b0c8':'#607D8B',padding:8,
+        callbacks:{title:i=>'Week of '+i[0].label,label:i=>i.dataset.label+': '+i.parsed.y+' customers',
+          afterBody(items){const tot=items.reduce((s,i)=>s+i.parsed.y,0);return['','Total this week: '+tot+' customers'];}}}},
+      scales:{x:{stacked:true,grid:{color:gc},ticks:{color:tk,font:{size:10},maxRotation:0,maxTicksLimit:8}},
+              y:{stacked:true,grid:{color:gc},ticks:{color:tk,font:{size:9}},beginAtZero:true}}}});
+}
+
+document.getElementById('df').addEventListener('change',go);
+document.getElementById('dt').addEventListener('change',go);
+go();
+</script>
