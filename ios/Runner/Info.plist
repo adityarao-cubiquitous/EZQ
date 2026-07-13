@@ -39,6 +39,8 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>EZQ uses your location to show signed-up restaurants within 2 km.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>EZQ uses your location to show signed-up restaurants near you when you choose to search nearby.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>EZQ uses your camera to scan restaurant queue QR codes.</string>
 	<key>UIApplicationSceneManifest</key>
