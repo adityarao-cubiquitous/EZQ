@@ -129,16 +129,11 @@ class _SignedOutHome extends ConsumerWidget {
           onPressed: () => context.go('/app/login'),
         ),
         const SizedBox(height: 14),
-        _SecondaryActionRow(
-          leadingLabel: 'Nearby restaurants',
-          leadingIcon: Icons.near_me_rounded,
-          onLeadingPressed: () => _openNearbyRestaurants(context, ref),
-          trailingLabel: 'Continue as guest',
-          trailingIcon: Icons.qr_code_scanner_rounded,
-          onTrailingPressed: () => context.go('/app/scan'),
+        _OutlineAction(
+          label: 'Continue as guest',
+          icon: Icons.qr_code_scanner_rounded,
+          onPressed: () => context.go('/app/scan'),
         ),
-        const SizedBox(height: 14),
-        const _SignedOutValuePanel(),
       ],
     );
   }
@@ -643,71 +638,6 @@ String _displayBranchName(String branchId) {
       .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
       .toList();
   return words.isEmpty ? 'Your restaurant' : words.join(' ');
-}
-
-class _SignedOutValuePanel extends StatelessWidget {
-  const _SignedOutValuePanel();
-
-  @override
-  Widget build(BuildContext context) {
-    return const _SurfacePanel(
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _InfoRow(
-              icon: Icons.near_me_outlined,
-              title: 'Find nearby queues',
-              subtitle: 'See signed-up restaurants close to you.',
-            ),
-            SizedBox(height: 12),
-            _InfoRow(
-              icon: Icons.table_restaurant_outlined,
-              title: 'Track your table',
-              subtitle: 'Follow your token from waiting to seated.',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SecondaryActionRow extends StatelessWidget {
-  const _SecondaryActionRow({
-    required this.leadingLabel,
-    required this.leadingIcon,
-    required this.onLeadingPressed,
-    required this.trailingLabel,
-    required this.trailingIcon,
-    required this.onTrailingPressed,
-  });
-
-  final String leadingLabel;
-  final IconData leadingIcon;
-  final VoidCallback onLeadingPressed;
-  final String trailingLabel;
-  final IconData trailingIcon;
-  final VoidCallback onTrailingPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _OutlineAction(
-          label: leadingLabel,
-          icon: leadingIcon,
-          onPressed: onLeadingPressed,
-        ),
-        const SizedBox(height: 10),
-        _OutlineAction(
-          label: trailingLabel,
-          icon: trailingIcon,
-          onPressed: onTrailingPressed,
-        ),
-      ],
-    );
-  }
 }
 
 class _OutlineAction extends StatelessWidget {
