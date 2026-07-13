@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/utils/phone_utils.dart';
@@ -67,10 +68,44 @@ class CustomerNameProfile {
   String get displayName => '$firstName $lastName'.trim();
 }
 
-abstract class CustomerProfileRepository {
-  Future<bool> needsNameProfile(User? user);
+class DebugCustomerSessionStore {
+  DebugCustomerSessionStore({this.persistToDevice = true});
 
-  Future<CustomerNameProfile?> loadNameProfile(User? user);
+  static const _phoneKey = 'ezq.debugCustomerSession.phone';
+  SharedPreferencesAsync? _preferences;
+  final bool persistToDevice;
+  String? _memoryPhone;
+
+  Future<String?> loadPhone() async {
+    if (!persistToDevice) return _memoryPhone;
+    final preferences = _preferences ??= SharedPreferencesAsync();
+    final phone = (await preferences.getString(_phoneKey) ?? '').trim();
+    return phone.isEmpty ? null : phone;
+  }
+
+  Future<void> savePhone(String phone) async {
+    final normalizedPhone = PhoneUtils.normalizeIndiaMobile(phone);
+    _memoryPhone = normalizedPhone;
+    if (!persistToDevice) return;
+    final preferences = _preferences ??= SharedPreferencesAsync();
+    await preferences.setString(_phoneKey, normalizedPhone);
+  }
+
+  Future<void> clearPhone() async {
+    _memoryPhone = null;
+    if (!persistToDevice) return;
+    final preferences = _preferences ??= SharedPreferencesAsync();
+    await preferences.remove(_phoneKey);
+  }
+}
+
+abstract class CustomerProfileRepository {
+  Future<bool> needsNameProfile(User? user, {String? phoneNumber});
+
+  Future<CustomerNameProfile?> loadNameProfile(
+    User? user, {
+    String? phoneNumber,
+  });
 
   Future<void> saveNameProfile({
     required User? user,
@@ -231,13 +266,19 @@ class FirebaseCustomerPhoneAuthRepository
 }
 
 class FirebaseCustomerProfileRepository implements CustomerProfileRepository {
-  FirebaseCustomerProfileRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  FirebaseCustomerProfileRepository({
+    FirebaseFirestore? firestore,
+    SharedPreferencesAsync? preferences,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _preferences = preferences ?? SharedPreferencesAsync();
 
   final FirebaseFirestore _firestore;
+  final SharedPreferencesAsync _preferences;
 
   @override
-  Future<bool> needsNameProfile(User? user) async {
+  Future<bool> needsNameProfile(User? user, {String? phoneNumber}) async {
+    final localProfile = await _loadDebugNameProfile(phoneNumber);
+    if (localProfile != null) return false;
     if (user == null) return true;
     final snapshot = await _firestore
         .doc(FirestorePaths.customer(user.uid))
@@ -249,7 +290,12 @@ class FirebaseCustomerProfileRepository implements CustomerProfileRepository {
   }
 
   @override
-  Future<CustomerNameProfile?> loadNameProfile(User? user) async {
+  Future<CustomerNameProfile?> loadNameProfile(
+    User? user, {
+    String? phoneNumber,
+  }) async {
+    final localProfile = await _loadDebugNameProfile(phoneNumber);
+    if (localProfile != null) return localProfile;
     if (user == null) return null;
     final snapshot = await _firestore
         .doc(FirestorePaths.customer(user.uid))
@@ -269,9 +315,18 @@ class FirebaseCustomerProfileRepository implements CustomerProfileRepository {
     required String lastName,
     String? phoneNumber,
   }) async {
-    if (user == null) return;
     final normalizedFirst = firstName.trim();
     final normalizedLast = lastName.trim();
+    if (phoneNumber != null && phoneNumber.trim().isNotEmpty) {
+      await _saveDebugNameProfile(
+        phoneNumber,
+        CustomerNameProfile(
+          firstName: normalizedFirst,
+          lastName: normalizedLast,
+        ),
+      );
+    }
+    if (user == null) return;
     final profileRef = _firestore.doc(FirestorePaths.customer(user.uid));
     await _firestore.runTransaction<void>((transaction) async {
       final snapshot = await transaction.get(profileRef);
@@ -288,6 +343,35 @@ class FirebaseCustomerProfileRepository implements CustomerProfileRepository {
         if (!snapshot.exists) 'createdAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     });
+  }
+
+  Future<CustomerNameProfile?> _loadDebugNameProfile(
+    String? phoneNumber,
+  ) async {
+    final key = _debugProfileKey(phoneNumber);
+    if (key == null) return null;
+    final firstName = (await _preferences.getString('$key.firstName') ?? '')
+        .trim();
+    final lastName = (await _preferences.getString('$key.lastName') ?? '')
+        .trim();
+    if (firstName.isEmpty || lastName.isEmpty) return null;
+    return CustomerNameProfile(firstName: firstName, lastName: lastName);
+  }
+
+  Future<void> _saveDebugNameProfile(
+    String phoneNumber,
+    CustomerNameProfile profile,
+  ) async {
+    final key = _debugProfileKey(phoneNumber);
+    if (key == null) return;
+    await _preferences.setString('$key.firstName', profile.firstName);
+    await _preferences.setString('$key.lastName', profile.lastName);
+  }
+
+  String? _debugProfileKey(String? phoneNumber) {
+    final digits = phoneNumber?.replaceAll(RegExp(r'\D'), '') ?? '';
+    if (digits.length < 10) return null;
+    return 'ezq.debugCustomerProfile.$digits';
   }
 }
 
@@ -470,14 +554,17 @@ class MockCustomerProfileRepository implements CustomerProfileRepository {
   CustomerNameProfile? _profile;
 
   @override
-  Future<bool> needsNameProfile(User? user) async {
+  Future<bool> needsNameProfile(User? user, {String? phoneNumber}) async {
     return _profile == null ||
         _profile!.firstName.trim().isEmpty ||
         _profile!.lastName.trim().isEmpty;
   }
 
   @override
-  Future<CustomerNameProfile?> loadNameProfile(User? user) async {
+  Future<CustomerNameProfile?> loadNameProfile(
+    User? user, {
+    String? phoneNumber,
+  }) async {
     return _profile;
   }
 
@@ -530,6 +617,17 @@ final debugCustomerPhoneSessionProvider = Provider<ValueNotifier<String?>>((
   ref,
 ) {
   return ValueNotifier<String?>(null);
+});
+
+final debugCustomerSessionStoreProvider = Provider<DebugCustomerSessionStore>((
+  ref,
+) {
+  const useFirebase = bool.fromEnvironment('USE_FIREBASE');
+  return DebugCustomerSessionStore(persistToDevice: useFirebase);
+});
+
+final persistedDebugCustomerPhoneProvider = FutureProvider<String?>((ref) {
+  return ref.watch(debugCustomerSessionStoreProvider).loadPhone();
 });
 
 final debugCustomerNameProfileProvider =

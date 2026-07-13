@@ -9,12 +9,28 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/widgets/ezq_button.dart';
+import '../../auth/data/auth_repository.dart';
+import '../data/customer_queue_repository.dart';
 import '../data/nearby_restaurants_repository.dart';
 import 'customer_shell.dart';
 
+class NearbyUseDemoLocationController extends Notifier<bool> {
+  @override
+  bool build() => const bool.fromEnvironment('USE_MOCK_LOCATION');
+
+  void useDemoLocation() => state = true;
+
+  void useCurrentLocation() => state = false;
+}
+
+final nearbyUseDemoLocationProvider =
+    NotifierProvider.autoDispose<NearbyUseDemoLocationController, bool>(
+      NearbyUseDemoLocationController.new,
+    );
+
 final nearbyRestaurantsControllerProvider =
     FutureProvider.autoDispose<NearbyRestaurantsResult>((ref) async {
-      if (kDebugMode && !kIsWeb) {
+      if (ref.watch(nearbyUseDemoLocationProvider)) {
         final restaurants = await MockNearbyRestaurantsRepository().findNearby(
           latitude: _debugIndiranagarLocation.latitude,
           longitude: _debugIndiranagarLocation.longitude,
@@ -29,17 +45,23 @@ final nearbyRestaurantsControllerProvider =
 
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw const LocationServiceDisabledException();
+        throw const NearbyLocationFailure(
+          NearbyLocationFailureType.serviceDisabled,
+        );
       }
 
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        throw const PermissionDeniedException(
-          'Location permission is required to find restaurants near you.',
+      if (permission == LocationPermission.denied) {
+        throw const NearbyLocationFailure(
+          NearbyLocationFailureType.permissionDenied,
+        );
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw const NearbyLocationFailure(
+          NearbyLocationFailureType.permissionDeniedForever,
         );
       }
 
@@ -58,6 +80,18 @@ final nearbyRestaurantsControllerProvider =
         usedFallbackLocation: fix.usedFallbackLocation,
       );
     });
+
+enum NearbyLocationFailureType {
+  serviceDisabled,
+  permissionDenied,
+  permissionDeniedForever,
+}
+
+class NearbyLocationFailure implements Exception {
+  const NearbyLocationFailure(this.type);
+
+  final NearbyLocationFailureType type;
+}
 
 class NearbyRestaurantsResult {
   const NearbyRestaurantsResult({
@@ -116,11 +150,30 @@ class NearbyRestaurantsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final nearbyState = ref.watch(nearbyRestaurantsControllerProvider);
+    final authUser = ref.watch(customerAuthStateProvider).asData?.value;
+    final persistedDebugPhone = ref.watch(persistedDebugCustomerPhoneProvider);
+    final debugPhone =
+        ref.watch(debugCustomerPhoneSessionProvider).value ??
+        persistedDebugPhone.asData?.value;
+    final appPhoneNumber = debugPhone ?? authUser?.phoneNumber;
+    final currentVisit = appPhoneNumber == null
+        ? null
+        : ref
+              .watch(
+                currentCustomerVisitProvider((
+                  phone: appPhoneNumber,
+                  customerId: authUser?.uid,
+                )),
+              )
+              .asData
+              ?.value;
 
     return CustomerShell(
-      restaurantId: AppConstants.demoRestaurantId,
-      branchId: AppConstants.demoBranchId,
-      showBottomNav: false,
+      restaurantId: currentVisit?.restaurantId ?? AppConstants.demoRestaurantId,
+      branchId: currentVisit?.branchId ?? AppConstants.demoBranchId,
+      activeTab: CustomerTab.join,
+      queueEntryId: currentVisit?.queueEntryId,
+      showBottomNav: currentVisit != null,
       appBackRoute: appBackRoute,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -188,7 +241,6 @@ class _NearbyRestaurantCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final branch = restaurant.branch;
     final restaurantName = branch.restaurantName ?? branch.name;
-    final restaurantId = branch.restaurantId ?? AppConstants.demoRestaurantId;
     final distanceLabel = restaurant.distanceKm < 1
         ? '${restaurant.distanceMeters.round()} m'
         : '${restaurant.distanceKm.toStringAsFixed(1)} km';
@@ -291,7 +343,9 @@ class _NearbyRestaurantCard extends StatelessWidget {
           EzqButton(
             label: 'Join Queue',
             icon: Icons.arrow_forward_rounded,
-            onPressed: () => context.go('/customer/$restaurantId/${branch.id}'),
+            onPressed: () => context.go(
+              '/customer/${restaurant.routeRestaurantId}/${restaurant.routeBranchId}',
+            ),
           ),
         ],
       ),
@@ -488,7 +542,7 @@ class _NearbyErrorCard extends ConsumerWidget {
       :primaryIcon,
       :primaryAction,
     ) = switch (error) {
-      LocationServiceDisabledException() => (
+      NearbyLocationFailure(type: NearbyLocationFailureType.serviceDisabled) => (
         title: 'Location is off',
         message:
             'Turn on location services to see signed-up restaurants within 2 km.',
@@ -496,14 +550,25 @@ class _NearbyErrorCard extends ConsumerWidget {
         primaryIcon: Icons.settings_rounded,
         primaryAction: Geolocator.openLocationSettings,
       ),
-      PermissionDeniedException() => (
-        title: 'Location permission needed',
+      NearbyLocationFailure(type: NearbyLocationFailureType.permissionDenied) => (
+        title: 'Location access wasn’t allowed',
         message:
-            'Allow location access to find restaurants near you. You can change this in app settings.',
-        primaryLabel: 'Open App Settings',
-        primaryIcon: Icons.app_settings_alt_rounded,
-        primaryAction: Geolocator.openAppSettings,
+            'Allow location access to see signed-up restaurants within 2 km. You can try again or browse using the demo location.',
+        primaryLabel: 'Allow Location',
+        primaryIcon: Icons.location_on_outlined,
+        primaryAction: () async => true,
       ),
+      NearbyLocationFailure(
+        type: NearbyLocationFailureType.permissionDeniedForever,
+      ) =>
+        (
+          title: 'Location access is blocked',
+          message:
+              'Location access can be changed in app settings. Turn on location permission there, then return and retry.',
+          primaryLabel: 'Open App Settings',
+          primaryIcon: Icons.app_settings_alt_rounded,
+          primaryAction: Geolocator.openAppSettings,
+        ),
       TimeoutException() => (
         title: 'Location took too long',
         message:
@@ -535,6 +600,9 @@ class _NearbyErrorCard extends ConsumerWidget {
               icon: primaryIcon,
               onPressed: () async {
                 await primaryAction();
+                ref
+                    .read(nearbyUseDemoLocationProvider.notifier)
+                    .useCurrentLocation();
                 ref.invalidate(nearbyRestaurantsControllerProvider);
               },
             ),
@@ -542,10 +610,14 @@ class _NearbyErrorCard extends ConsumerWidget {
             SizedBox(
               width: double.infinity,
               child: TextButton.icon(
-                onPressed: () =>
-                    ref.invalidate(nearbyRestaurantsControllerProvider),
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry'),
+                onPressed: () {
+                  ref
+                      .read(nearbyUseDemoLocationProvider.notifier)
+                      .useDemoLocation();
+                  ref.invalidate(nearbyRestaurantsControllerProvider);
+                },
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('Use demo location'),
               ),
             ),
           ],

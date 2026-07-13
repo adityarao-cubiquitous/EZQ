@@ -35,7 +35,9 @@ class _CustomerPhoneAuthScreenState
   bool _verifyingCode = false;
 
   bool get _codeSent => _verificationId != null && _verificationId!.isNotEmpty;
-  bool get _debugOtpEnabled => kDebugMode && !kIsWeb;
+  bool get _debugOtpEnabled =>
+      !kIsWeb &&
+      (kDebugMode || const bool.fromEnvironment('ALLOW_CUSTOMER_OTP_BYPASS'));
 
   @override
   void dispose() {
@@ -125,6 +127,11 @@ class _CustomerPhoneAuthScreenState
           }
         }
         ref.read(debugCustomerPhoneSessionProvider).value = _normalizedPhone;
+        if (_normalizedPhone != null) {
+          await ref
+              .read(debugCustomerSessionStoreProvider)
+              .savePhone(_normalizedPhone!);
+        }
         if (!mounted) return;
         _goProfile();
         return;

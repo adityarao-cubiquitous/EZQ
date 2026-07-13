@@ -208,7 +208,10 @@ class _CustomerTopBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authUser = ref.watch(customerAuthStateProvider).asData?.value;
-    final debugPhone = ref.watch(debugCustomerPhoneSessionProvider).value;
+    final persistedDebugPhone = ref.watch(persistedDebugCustomerPhoneProvider);
+    final debugPhone =
+        ref.watch(debugCustomerPhoneSessionProvider).value ??
+        persistedDebugPhone.asData?.value;
     final showLogout = !kIsWeb && (authUser != null || debugPhone != null);
     final installReturnTo = restaurantId.isEmpty || branchId.isEmpty
         ? null
@@ -267,6 +270,10 @@ class _CustomerTopBar extends ConsumerWidget {
                   _AppLogoutButton(
                     onPressed: () async {
                       ref.read(debugCustomerPhoneSessionProvider).value = null;
+                      await ref
+                          .read(debugCustomerSessionStoreProvider)
+                          .clearPhone();
+                      ref.invalidate(persistedDebugCustomerPhoneProvider);
                       await ref
                           .read(customerPhoneAuthRepositoryProvider)
                           .signOut();

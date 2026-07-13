@@ -4,9 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../queue/domain/queue_entry.dart';
+import '../../queue/domain/queue_status.dart';
+import '../data/customer_queue_repository.dart';
+import 'nearby_restaurants_screen.dart';
 import 'customer_shell.dart';
 
 class CustomerAppHomeScreen extends ConsumerWidget {
@@ -15,16 +18,37 @@ class CustomerAppHomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(customerAuthStateProvider);
-    final debugPhone = ref.watch(debugCustomerPhoneSessionProvider).value;
+    final persistedDebugPhone = ref.watch(persistedDebugCustomerPhoneProvider);
+    final debugPhone =
+        ref.watch(debugCustomerPhoneSessionProvider).value ??
+        persistedDebugPhone.asData?.value;
+    final signedInUser = authState.asData?.value;
+    final appPhoneNumber = debugPhone ?? signedInUser?.phoneNumber;
+    final currentVisit = appPhoneNumber == null
+        ? null
+        : ref
+              .watch(
+                currentCustomerVisitProvider((
+                  phone: appPhoneNumber,
+                  customerId: signedInUser?.uid,
+                )),
+              )
+              .asData
+              ?.value;
 
     return CustomerShell(
-      restaurantId: AppConstants.demoRestaurantId,
-      branchId: AppConstants.demoBranchId,
-      showBottomNav: false,
+      restaurantId: currentVisit?.restaurantId ?? AppConstants.demoRestaurantId,
+      branchId: currentVisit?.branchId ?? AppConstants.demoBranchId,
+      activeTab: CustomerTab.status,
+      queueEntryId: currentVisit?.queueEntryId,
+      showBottomNav: currentVisit != null,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: debugPhone != null
-            ? _SignedInHome(phoneNumber: debugPhone)
+            ? _SignedInHome(
+                phoneNumber: debugPhone,
+                customerId: authState.asData?.value?.uid,
+              )
             : authState.when(
                 loading: () => const _AppLoadingHome(),
                 error: (error, _) => _SignedOutHome(error: error.toString()),
@@ -32,7 +56,10 @@ class CustomerAppHomeScreen extends ConsumerWidget {
                   if (user == null) {
                     return const _SignedOutHome();
                   }
-                  return _SignedInHome(phoneNumber: user.phoneNumber);
+                  return _SignedInHome(
+                    phoneNumber: user.phoneNumber,
+                    customerId: user.uid,
+                  );
                 },
               ),
       ),
@@ -41,86 +68,57 @@ class CustomerAppHomeScreen extends ConsumerWidget {
 }
 
 class _SignedInHome extends ConsumerWidget {
-  const _SignedInHome({this.phoneNumber});
+  const _SignedInHome({this.phoneNumber, this.customerId});
 
   final String? phoneNumber;
+  final String? customerId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profileState = ref.watch(
+      _homeCustomerNameProfileProvider((
+        phoneNumber: phoneNumber,
+        customerId: customerId,
+      )),
+    );
+    final displayName = profileState.asData?.value?.displayName.trim() ?? '';
+    final title = displayName.isNotEmpty ? displayName : 'Welcome back';
+    final subtitle = displayName.isNotEmpty
+        ? 'Your queue and nearby restaurants'
+        : phoneNumber == null
+        ? 'Ready when you are'
+        : 'Signed in as $phoneNumber';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _AppHeader(
-          title: 'EZQ',
-          subtitle: phoneNumber == null
-              ? 'Ready when you are'
-              : 'Signed in as $phoneNumber',
-          trailing: IconButton.filledTonal(
-            onPressed: () async {
-              ref.read(debugCustomerPhoneSessionProvider).value = null;
-              await ref.read(customerPhoneAuthRepositoryProvider).signOut();
-              if (!context.mounted) return;
-              context.go('/app/login');
-            },
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: 'Sign out',
-          ),
-        ),
+        _AccountHeader(title: title, subtitle: subtitle),
         const SizedBox(height: 18),
+        _CurrentVisitPanel(phoneNumber: phoneNumber, customerId: customerId),
+        const SizedBox(height: 14),
         _HeroActionPanel(
           title: 'Find a table nearby',
           message:
               'Browse signed-up restaurants around you and join the right queue.',
           buttonLabel: 'Nearby restaurants',
           buttonIcon: Icons.near_me_rounded,
-          onPressed: () => context.go('/app/nearby'),
+          onPressed: () => _openNearbyRestaurants(context, ref),
         ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: _QuickActionTile(
-                icon: Icons.confirmation_number_rounded,
-                label: 'Join demo queue',
-                value: 'Spice House',
-                onTap: () => context.go(
-                  '/customer/${AppConstants.demoRestaurantId}/${AppConstants.demoBranchId}',
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _QuickActionTile(
-                icon: Icons.history_rounded,
-                label: 'App benefits',
-                value: 'Saved visits',
-                onTap: () => context.go('/customer/install'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        const _StatusPanel(),
       ],
     );
   }
 }
 
-class _SignedOutHome extends StatelessWidget {
+class _SignedOutHome extends ConsumerWidget {
   const _SignedOutHome({this.error});
 
   final String? error;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _AppHeader(
-          title: 'EZQ',
-          subtitle: 'Queues, tables, and restaurant discovery in one app',
-        ),
-        const SizedBox(height: 18),
         _HeroActionPanel(
           title: 'Start with your phone',
           message:
@@ -134,7 +132,7 @@ class _SignedOutHome extends StatelessWidget {
         _SecondaryActionRow(
           leadingLabel: 'Nearby restaurants',
           leadingIcon: Icons.near_me_rounded,
-          onLeadingPressed: () => context.go('/app/nearby'),
+          onLeadingPressed: () => _openNearbyRestaurants(context, ref),
           trailingLabel: 'Continue as guest',
           trailingIcon: Icons.qr_code_scanner_rounded,
           onTrailingPressed: () => context.go('/app/scan'),
@@ -145,6 +143,23 @@ class _SignedOutHome extends StatelessWidget {
     );
   }
 }
+
+void _openNearbyRestaurants(BuildContext context, WidgetRef ref) {
+  ref.read(nearbyUseDemoLocationProvider.notifier).useCurrentLocation();
+  ref.invalidate(nearbyRestaurantsControllerProvider);
+  context.go('/app/nearby');
+}
+
+final _homeCustomerNameProfileProvider =
+    FutureProvider.family<
+      CustomerNameProfile?,
+      ({String? phoneNumber, String? customerId})
+    >((ref, args) {
+      final user = ref.watch(customerAuthStateProvider).asData?.value;
+      return ref
+          .watch(customerProfileRepositoryProvider)
+          .loadNameProfile(user, phoneNumber: args.phoneNumber);
+    });
 
 class _AppLoadingHome extends StatelessWidget {
   const _AppLoadingHome();
@@ -160,39 +175,16 @@ class _AppLoadingHome extends StatelessWidget {
   }
 }
 
-class _AppHeader extends StatelessWidget {
-  const _AppHeader({
-    required this.title,
-    required this.subtitle,
-    this.trailing,
-  });
+class _AccountHeader extends StatelessWidget {
+  const _AccountHeader({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0x33BDEAF8)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1012A9DC),
-                blurRadius: 12,
-                offset: Offset(0, 6),
-              ),
-            ],
-          ),
-          child: const Center(child: BrandMark(size: 26)),
-        ),
-        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -201,7 +193,7 @@ class _AppHeader extends StatelessWidget {
                 title,
                 style: const TextStyle(
                   color: AppColors.navyText,
-                  fontSize: 28,
+                  fontSize: 26,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -219,7 +211,6 @@ class _AppHeader extends StatelessWidget {
             ],
           ),
         ),
-        if (trailing != null) ...[const SizedBox(width: 8), trailing!],
       ],
     );
   }
@@ -290,113 +281,368 @@ class _HeroActionPanel extends StatelessWidget {
   }
 }
 
-class _QuickActionTile extends StatelessWidget {
-  const _QuickActionTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.onTap,
-  });
+class _CurrentVisitPanel extends ConsumerStatefulWidget {
+  const _CurrentVisitPanel({required this.phoneNumber, this.customerId});
 
-  final IconData icon;
-  final String label;
-  final String value;
-  final VoidCallback onTap;
+  final String? phoneNumber;
+  final String? customerId;
+
+  @override
+  ConsumerState<_CurrentVisitPanel> createState() => _CurrentVisitPanelState();
+}
+
+class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
+  bool _cancelling = false;
+
+  CurrentVisitLookupArgs? get _lookupArgs {
+    final phone = widget.phoneNumber?.trim();
+    if (phone == null || phone.isEmpty) return null;
+    return (phone: phone, customerId: widget.customerId);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Ink(
-          height: 118,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0x1ABDC8D0)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0F12A9DC),
-                blurRadius: 16,
-                offset: Offset(0, 8),
+    final args = _lookupArgs;
+    if (args == null) return const _NoCurrentVisitPanel();
+    final visitState = ref.watch(currentCustomerVisitProvider(args));
+
+    return visitState.when(
+      loading: () => const _CurrentVisitLoadingPanel(),
+      error: (error, _) => _CurrentVisitErrorPanel(
+        onRetry: () => ref.invalidate(currentCustomerVisitProvider(args)),
+      ),
+      data: (visit) {
+        if (visit == null) return const _NoCurrentVisitPanel();
+        final entryState = ref.watch(
+          queueEntryProvider((
+            restaurantId: visit.restaurantId,
+            branchId: visit.branchId,
+            queueEntryId: visit.queueEntryId,
+          )),
+        );
+        return entryState.when(
+          loading: () => const _CurrentVisitLoadingPanel(),
+          error: (error, _) => _CurrentVisitErrorPanel(
+            onRetry: () => ref.invalidate(
+              queueEntryProvider((
+                restaurantId: visit.restaurantId,
+                branchId: visit.branchId,
+                queueEntryId: visit.queueEntryId,
+              )),
+            ),
+          ),
+          data: (entry) {
+            if (!isCurrentCustomerVisitStatus(entry.status)) {
+              return const _NoCurrentVisitPanel();
+            }
+            return _ActiveVisitCard(
+              visit: visit,
+              entry: entry,
+              cancelling: _cancelling,
+              onView: () => context.go(visit.statusRoute),
+              onCancel: entry.status == QueueStatus.seated
+                  ? null
+                  : () => _cancelVisit(visit, entry),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _cancelVisit(CustomerQueueVisit visit, QueueEntry entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.event_busy_rounded, color: Color(0xFFBA1A1A)),
+        title: const Text('Leave this queue?'),
+        content: Text(
+          'Token ${entry.tokenCode} will be cancelled and your place in the queue will be released.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep my place'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Cancel queue'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _cancelling = true);
+    try {
+      await ref
+          .read(customerQueueRepositoryProvider)
+          .cancelQueueEntry(
+            restaurantId: visit.restaurantId,
+            branchId: visit.branchId,
+            queueEntryId: visit.queueEntryId,
+            phone: widget.phoneNumber!,
+          );
+      final args = _lookupArgs;
+      if (args != null) ref.invalidate(currentCustomerVisitProvider(args));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your queue entry has been cancelled.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('We could not cancel the queue. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
+    }
+  }
+}
+
+class _ActiveVisitCard extends StatelessWidget {
+  const _ActiveVisitCard({
+    required this.visit,
+    required this.entry,
+    required this.cancelling,
+    required this.onView,
+    required this.onCancel,
+  });
+
+  final CustomerQueueVisit visit;
+  final QueueEntry entry;
+  final bool cancelling;
+  final VoidCallback onView;
+  final VoidCallback? onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final seated = entry.status == QueueStatus.seated;
+    return _SurfacePanel(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: seated
+                        ? const Color(0xFFE4F8F1)
+                        : const Color(0xFFE8F7FC),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    seated
+                        ? Icons.table_restaurant_rounded
+                        : Icons.confirmation_number_rounded,
+                    color: AppColors.deepTeal,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        seated ? 'Your table is ready' : 'You’re in the queue',
+                        style: const TextStyle(
+                          color: AppColors.navyText,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _displayBranchName(visit.branchId),
+                        style: const TextStyle(
+                          color: AppColors.mutedText,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.navyText,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    entry.tokenCode,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _VisitMetric(
+                    label: seated ? 'Table' : 'Queue position',
+                    value: seated
+                        ? (entry.assignedTableNumber ?? 'Assigned')
+                        : '#${entry.queuePosition}',
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _VisitMetric(
+                    label: seated ? 'Status' : 'Estimated wait',
+                    value: seated
+                        ? 'Seated'
+                        : '~${entry.estimatedWaitMinutes} min',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            EzqButton(
+              label: seated ? 'View table details' : 'View queue',
+              icon: Icons.arrow_forward_rounded,
+              onPressed: onView,
+            ),
+            if (onCancel != null) ...[
+              const SizedBox(height: 10),
+              EzqButton(
+                label: cancelling ? 'Cancelling…' : 'Cancel queue',
+                destructive: true,
+                onPressed: cancelling ? null : onCancel,
               ),
             ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: AppColors.deepTeal),
-              const Spacer(),
-              Text(
-                label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.navyText,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  height: 1.15,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.mutedText,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _StatusPanel extends StatelessWidget {
-  const _StatusPanel();
+class _VisitMetric extends StatelessWidget {
+  const _VisitMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return const _SurfacePanel(
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Today',
-              style: TextStyle(
-                color: AppColors.navyText,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-              ),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F9FC),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.mutedText, fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.navyText,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
             ),
-            SizedBox(height: 12),
-            _InfoRow(
-              icon: Icons.location_on_outlined,
-              title: 'Nearby discovery',
-              subtitle:
-                  'Use location to find signed-up restaurants within 2 km.',
-            ),
-            SizedBox(height: 12),
-            _InfoRow(
-              icon: Icons.notifications_none_rounded,
-              title: 'Queue updates',
-              subtitle:
-                  'Your active visit will show token and table status here.',
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _NoCurrentVisitPanel extends StatelessWidget {
+  const _NoCurrentVisitPanel();
+
+  @override
+  Widget build(BuildContext context) => const _SurfacePanel(
+    child: Padding(
+      padding: EdgeInsets.all(16),
+      child: _InfoRow(
+        icon: Icons.notifications_none_rounded,
+        title: 'No active queue',
+        subtitle:
+            'Join a nearby restaurant and your live visit will appear here.',
+      ),
+    ),
+  );
+}
+
+class _CurrentVisitLoadingPanel extends StatelessWidget {
+  const _CurrentVisitLoadingPanel();
+
+  @override
+  Widget build(BuildContext context) => const _SurfacePanel(
+    child: Padding(
+      padding: EdgeInsets.all(22),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
+          ),
+          SizedBox(width: 14),
+          Text('Checking your active queue…'),
+        ],
+      ),
+    ),
+  );
+}
+
+class _CurrentVisitErrorPanel extends StatelessWidget {
+  const _CurrentVisitErrorPanel({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => _SurfacePanel(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _InfoRow(
+            icon: Icons.cloud_off_rounded,
+            title: 'Couldn’t load your queue',
+            subtitle: 'Check your connection and try again.',
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try again'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+String _displayBranchName(String branchId) {
+  final words = branchId
+      .split(RegExp(r'[-_]'))
+      .where((word) => word.isNotEmpty)
+      .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+      .toList();
+  return words.isEmpty ? 'Your restaurant' : words.join(' ');
 }
 
 class _SignedOutValuePanel extends StatelessWidget {

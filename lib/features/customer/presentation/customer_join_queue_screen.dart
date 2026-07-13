@@ -54,6 +54,8 @@ class _CustomerJoinQueueScreenState
   bool _emptyTableOnly = false;
   bool _submitting = false;
   bool _profilePrefilled = false;
+  bool _checkingActiveQueue = !kIsWeb;
+  ActiveQueueConflictException? _activeQueueConflict;
   late SeatingEta _eta;
 
   @override
@@ -91,15 +93,21 @@ class _CustomerJoinQueueScreenState
 
     final authRepository = ref.read(customerPhoneAuthRepositoryProvider);
     final user = authRepository.currentUser();
-    final debugPhone = ref.read(debugCustomerPhoneSessionProvider).value;
+    var debugPhone = ref.read(debugCustomerPhoneSessionProvider).value;
+    debugPhone ??= await ref
+        .read(debugCustomerSessionStoreProvider)
+        .loadPhone();
+    if (debugPhone != null) {
+      ref.read(debugCustomerPhoneSessionProvider).value = debugPhone;
+    }
     final debugProfile = ref.read(debugCustomerNameProfileProvider).value;
 
     CustomerNameProfile? profile = debugProfile;
-    if (profile == null && user != null) {
+    if (profile == null && (user != null || debugPhone != null)) {
       try {
         profile = await ref
             .read(customerProfileRepositoryProvider)
-            .loadNameProfile(user);
+            .loadNameProfile(user, phoneNumber: debugPhone);
       } catch (_) {
         profile = null;
       }
@@ -115,6 +123,64 @@ class _CustomerJoinQueueScreenState
     if (phone != null && _phoneController.text.trim() == '98765 43210') {
       _phoneController.text = phone;
     }
+
+    final queuePhone = user?.phoneNumber ?? debugPhone;
+    if (queuePhone == null || queuePhone.trim().isEmpty) {
+      setState(() => _checkingActiveQueue = false);
+      return;
+    }
+    try {
+      final activeQueue = await ref
+          .read(customerQueueRepositoryProvider)
+          .findActiveQueueEntry(phone: queuePhone, customerId: user?.uid);
+      if (!mounted) return;
+      setState(() {
+        _checkingActiveQueue = false;
+        _activeQueueConflict = activeQueue;
+      });
+      if (activeQueue != null) {
+        await _showActiveQueueDialog(activeQueue);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _checkingActiveQueue = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not check your active queue: $error')),
+      );
+    }
+  }
+
+  Future<void> _showActiveQueueDialog(
+    ActiveQueueConflictException activeQueue,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(
+          Icons.confirmation_number_outlined,
+          color: AppColors.deepTeal,
+          size: 36,
+        ),
+        title: const Text('You’re already in a queue'),
+        content: Text(
+          'Your token ${activeQueue.tokenCode} is still active. '
+          'To join another restaurant, cancel your current queue or wait until you are seated.',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              context.go(activeQueue.statusRoute);
+            },
+            icon: const Icon(Icons.arrow_forward_rounded),
+            label: const Text('View my current queue'),
+          ),
+        ],
+      ),
+    );
   }
 
   String? _mobileNumberForForm(String? phone) {
@@ -258,6 +324,12 @@ class _CustomerJoinQueueScreenState
   }
 
   Future<void> _joinQueue() async {
+    final existingQueue = _activeQueueConflict;
+    if (existingQueue != null) {
+      await _showActiveQueueDialog(existingQueue);
+      return;
+    }
+    if (_checkingActiveQueue) return;
     if (!_formKey.currentState!.validate()) return;
 
     final prefs = await _resolveSeatingPreference();
@@ -282,24 +354,19 @@ class _CustomerJoinQueueScreenState
               : user == null
               ? 'mobile_debug'
               : 'mobile_phone_auth',
-          enforceSingleActiveQueue: !kIsWeb,
+          enforceSingleActiveQueue: true,
           customerPreferences: prefs,
         ),
       );
       if (!mounted) return;
+      ref.invalidate(currentCustomerVisitProvider);
       context.go(
         '/customer/${widget.restaurantId}/${widget.branchSlug}/status/${result.queueEntryId}',
       );
     } on ActiveQueueConflictException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'You already have active queue ${error.tokenCode}. Cancel it or finish dining before joining another restaurant.',
-          ),
-        ),
-      );
-      context.go(error.statusRoute);
+      setState(() => _activeQueueConflict = error);
+      await _showActiveQueueDialog(error);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -352,7 +419,12 @@ class _CustomerJoinQueueScreenState
                   setState(() => _emptyTableOnly = v),
               eta: eta,
               isLiveEta: liveEta != null,
-              onJoin: _submitting ? null : _joinQueue,
+              onJoin:
+                  _submitting ||
+                      _checkingActiveQueue ||
+                      _activeQueueConflict != null
+                  ? null
+                  : _joinQueue,
             ),
             if (kIsWeb) ...[
               const SizedBox(height: 18),

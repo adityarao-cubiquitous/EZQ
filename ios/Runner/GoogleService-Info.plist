@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.ezq</string>
+	<string>com.cubiquitous.ezq</string>
 	<key>PROJECT_ID</key>
 	<string>ezq-dev-cubiquitous</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:1066151489638:ios:e60fbb1a804d4d258c7da7</string>
+	<string>1:1066151489638:ios:ff189b7a92c109a38c7da7</string>
 </dict>
 </plist>

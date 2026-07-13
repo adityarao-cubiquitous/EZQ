@@ -1,5 +1,6 @@
 import 'package:ezq/app/ezq_app.dart';
 import 'package:ezq/features/customer/data/nearby_restaurants_repository.dart';
+import 'package:ezq/features/customer/domain/branch.dart';
 import 'package:ezq/features/customer/presentation/customer_join_queue_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,7 +66,7 @@ void main() {
 
       final routes = {
         for (final restaurant in restaurants)
-          '/customer/${restaurant.branch.restaurantId}/${restaurant.branch.id}',
+          '/customer/${restaurant.routeRestaurantId}/${restaurant.routeBranchId}',
       };
 
       expect(restaurants, hasLength(10));
@@ -99,4 +100,40 @@ void main() {
       );
     },
   );
+
+  test('nearby merged branch without slugs routes by document identity', () {
+    final restaurant = NearbyRestaurant(
+      branch: Branch.fromMap('biryani-bay-domlur-edge', {
+        'restaurantName': 'Biryani Bay',
+        'branchName': 'Domlur Edge',
+        'isActive': true,
+      }),
+      distanceMeters: 1900,
+      waitingCount: 4,
+      approximateWaitMinutes: 26,
+      usesAssumedWait: false,
+    );
+
+    expect(restaurant.routeRestaurantId, 'biryani-bay-domlur-edge');
+    expect(restaurant.routeBranchId, 'biryani-bay-domlur-edge');
+  });
+
+  test('nearby branch uses explicit restaurant and branch slugs', () {
+    final restaurant = NearbyRestaurant(
+      branch: Branch.fromMap('biryani-bay-domlur-edge', {
+        'restaurantId': 'biryani-bay',
+        'branchSlug': 'domlur-edge',
+        'restaurantName': 'Biryani Bay',
+        'branchName': 'Domlur Edge',
+        'isActive': true,
+      }),
+      distanceMeters: 1900,
+      waitingCount: 4,
+      approximateWaitMinutes: 26,
+      usesAssumedWait: false,
+    );
+
+    expect(restaurant.routeRestaurantId, 'biryani-bay');
+    expect(restaurant.routeBranchId, 'domlur-edge');
+  });
 }

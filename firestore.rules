@@ -18,6 +18,30 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/restaurantBranches/$(restaurantBranchId)).data.isActive == true;
     }
 
+    function isCustomerJoinCounterCreate(businessDate) {
+      return request.resource.data.keys().hasOnly([
+          'businessDate',
+          'lastTokenNumber',
+          'updatedAt'
+        ])
+        && request.resource.data.businessDate == businessDate
+        && request.resource.data.lastTokenNumber == 1
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isCustomerJoinCounterIncrement(businessDate) {
+      return request.resource.data.keys().hasOnly([
+          'businessDate',
+          'lastTokenNumber',
+          'updatedAt'
+        ])
+        && request.resource.data.businessDate == resource.data.businessDate
+        && request.resource.data.businessDate == businessDate
+        && request.resource.data.lastTokenNumber is int
+        && request.resource.data.lastTokenNumber == resource.data.lastTokenNumber + 1
+        && request.resource.data.updatedAt == request.time;
+    }
+
     function isOwnPhoneCustomerProfile(customerId) {
       return isSignedIn()
         && request.auth.uid == customerId
@@ -133,7 +157,15 @@ service cloud.firestore {
       }
 
       match /dailyCounters/{businessDate} {
-        allow read, write: if isRootRestaurantBranchAdmin(restaurantBranchId);
+        allow read: if isRootRestaurantBranchAdmin(restaurantBranchId)
+          || isActiveRestaurantBranch(restaurantBranchId);
+        allow create: if isRootRestaurantBranchAdmin(restaurantBranchId)
+          || (isActiveRestaurantBranch(restaurantBranchId)
+            && isCustomerJoinCounterCreate(businessDate));
+        allow update: if isRootRestaurantBranchAdmin(restaurantBranchId)
+          || (isActiveRestaurantBranch(restaurantBranchId)
+            && isCustomerJoinCounterIncrement(businessDate));
+        allow delete: if false;
       }
     }
 

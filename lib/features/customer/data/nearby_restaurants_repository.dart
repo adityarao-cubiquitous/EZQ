@@ -21,6 +21,14 @@ class NearbyRestaurant {
   final bool usesAssumedWait;
 
   double get distanceKm => distanceMeters / 1000;
+
+  // Older merged branch documents do not carry separate restaurant/branch
+  // slugs. Passing the document id for both route segments preserves the
+  // canonical restaurantBranches/{id} lookup without guessing at a split.
+  String get routeRestaurantId => branch.restaurantId ?? branch.id;
+  String get routeBranchId => branch.restaurantId == null
+      ? branch.id
+      : (branch.branchSlug ?? branch.id);
 }
 
 abstract class NearbyRestaurantsRepository {

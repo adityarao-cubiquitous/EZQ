@@ -138,6 +138,7 @@ class _DeepLinkErrorScreen extends StatelessWidget {
       branchId: '',
       activeTab: CustomerTab.join,
       showBottomNav: false,
+      appBackRoute: '/app/nearby',
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 96, 24, 24),
         child: Column(

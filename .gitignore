@@ -46,6 +46,7 @@ tool/node_modules/
 # Local/generated document artifacts
 tmp/
 output/
+outputs/
 
 # Symbolication related
 app.*.symbols

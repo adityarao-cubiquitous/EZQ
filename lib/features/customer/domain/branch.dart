@@ -86,7 +86,7 @@ class Branch {
       averageTurnoverMinutes: data['averageTurnoverMinutes'] as int?,
       restaurantId: data['restaurantId'] as String?,
       restaurantName: data['restaurantName'] as String?,
-      branchSlug: id,
+      branchSlug: data['branchSlug'] as String? ?? id,
       queueUrl: data['queueUrl'] as String?,
       qrImageUrl: data['qrImageUrl'] as String?,
       qrSvgUrl: data['qrSvgUrl'] as String?,
