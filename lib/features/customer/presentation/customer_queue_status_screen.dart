@@ -576,7 +576,7 @@ class _HiddenObjectImageCard extends ConsumerWidget {
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
-                  'Find the hidden items',
+                  'Find the differences',
                   style: TextStyle(
                     color: AppColors.navyText,
                     fontSize: 15,
@@ -668,7 +668,7 @@ class _HiddenObjectPlaceholder extends StatelessWidget {
             ),
             const SizedBox(height: 5),
             const Text(
-              'Hidden-object image will appear here.',
+              'Find-the-difference image will appear here.',
               style: TextStyle(
                 color: Color(0xFF607D8B),
                 fontSize: 13,
@@ -684,8 +684,8 @@ class _HiddenObjectPlaceholder extends StatelessWidget {
 
 typedef HiddenObjectImageArgs = ({String restaurantId, String branchId});
 
-final hiddenObjectImageProvider =
-    StreamProvider.family<String?, HiddenObjectImageArgs>((ref, args) {
+final hiddenObjectImageProvider = StreamProvider.autoDispose
+    .family<String?, HiddenObjectImageArgs>((ref, args) {
       const useFirebase = bool.fromEnvironment('USE_FIREBASE');
       if (!useFirebase && !kIsWeb) return Stream.value(null);
 
@@ -706,6 +706,19 @@ final hiddenObjectImageProvider =
           })
           .map((snapshot) {
             final data = snapshot.data() ?? <String, dynamic>{};
+            final puzzleUrls =
+                (data['hiddenObjectPuzzleImageUrls'] as List<dynamic>?)
+                    ?.whereType<String>()
+                    .map((url) => url.trim())
+                    .where((url) => url.isNotEmpty)
+                    .toList() ??
+                const <String>[];
+            if (puzzleUrls.isNotEmpty) {
+              final index = math.Random(
+                DateTime.now().microsecondsSinceEpoch ^ snapshot.id.hashCode,
+              ).nextInt(puzzleUrls.length);
+              return puzzleUrls[index];
+            }
             return data['hiddenObjectPuzzleImageUrl'] as String? ??
                 data['waitPuzzleImageUrl'] as String?;
           });

@@ -41,7 +41,13 @@ class _CustomerNameProfileScreenState
 
   Future<void> _loadProfileState() async {
     final user = ref.read(customerPhoneAuthRepositoryProvider).currentUser();
-    final debugPhone = ref.read(debugCustomerPhoneSessionProvider).value;
+    var debugPhone = ref.read(debugCustomerPhoneSessionProvider).value;
+    debugPhone ??= await ref
+        .read(debugCustomerSessionStoreProvider)
+        .loadPhone();
+    if (debugPhone != null) {
+      ref.read(debugCustomerPhoneSessionProvider).value = debugPhone;
+    }
     if (user == null && debugPhone == null) {
       if (mounted) context.go('/app/login');
       return;
@@ -50,7 +56,7 @@ class _CustomerNameProfileScreenState
     try {
       final needsName = await ref
           .read(customerProfileRepositoryProvider)
-          .needsNameProfile(user);
+          .needsNameProfile(user, phoneNumber: debugPhone);
       if (!mounted) return;
       if (!needsName) {
         context.go('/app/home');
@@ -82,7 +88,7 @@ class _CustomerNameProfileScreenState
             user: user,
             firstName: _firstNameController.text,
             lastName: _lastNameController.text,
-            phoneNumber: user?.phoneNumber ?? debugPhone,
+            phoneNumber: debugPhone,
           );
       if (!mounted) return;
       context.go('/app/home');

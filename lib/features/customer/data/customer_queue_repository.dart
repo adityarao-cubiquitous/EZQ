@@ -78,8 +78,37 @@ class ActiveQueueConflictException implements Exception {
       'ActiveQueueConflictException($tokenCode, ${status.wireName})';
 }
 
+class CustomerQueueVisit {
+  const CustomerQueueVisit({
+    required this.restaurantId,
+    required this.branchId,
+    required this.queueEntryId,
+    required this.tokenCode,
+    required this.status,
+  });
+
+  final String restaurantId;
+  final String branchId;
+  final String queueEntryId;
+  final String tokenCode;
+  final QueueStatus status;
+
+  String get statusRoute =>
+      '/customer/$restaurantId/$branchId/status/$queueEntryId';
+}
+
 abstract class CustomerQueueRepository {
   Future<JoinQueueResult> joinQueue(JoinQueueRequest request);
+
+  Future<ActiveQueueConflictException?> findActiveQueueEntry({
+    required String phone,
+    String? customerId,
+  });
+
+  Future<CustomerQueueVisit?> findCurrentVisit({
+    required String phone,
+    String? customerId,
+  });
 
   Stream<QueueEntry> watchQueueEntry({
     required String restaurantId,
@@ -120,6 +149,37 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
 
   final FirebaseFirestore _firestore;
   final BranchIdentityRepository _branchIdentityRepository;
+
+  @override
+  Future<ActiveQueueConflictException?> findActiveQueueEntry({
+    required String phone,
+    String? customerId,
+  }) {
+    return _findActiveQueueEntrySafely(
+      phone: PhoneUtils.normalizeIndiaMobile(phone),
+      customerId: customerId,
+    );
+  }
+
+  @override
+  Future<CustomerQueueVisit?> findCurrentVisit({
+    required String phone,
+    String? customerId,
+  }) async {
+    final visit = await _findCustomerQueueEntry(
+      phone: PhoneUtils.normalizeIndiaMobile(phone),
+      customerId: customerId,
+      includeStatus: isCurrentCustomerVisitStatus,
+    );
+    if (visit == null) return null;
+    return CustomerQueueVisit(
+      restaurantId: visit.restaurantId,
+      branchId: visit.branchId,
+      queueEntryId: visit.queueEntryId,
+      tokenCode: visit.tokenCode,
+      status: visit.status,
+    );
+  }
 
   @override
   Future<JoinQueueResult> joinQueue(JoinQueueRequest request) async {
@@ -340,12 +400,24 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     required String phone,
     required String? customerId,
   }) async {
+    return _findCustomerQueueEntry(
+      phone: phone,
+      customerId: customerId,
+      includeStatus: isSingleQueueBlockingStatus,
+    );
+  }
+
+  Future<ActiveQueueConflictException?> _findCustomerQueueEntry({
+    required String phone,
+    required String? customerId,
+    required bool Function(QueueStatus status) includeStatus,
+  }) async {
     final candidates = <String, ActiveQueueConflictException>{};
 
     Future<void> collect(Query<Map<String, dynamic>> query) async {
-      final snapshot = await query.limit(20).get();
+      final snapshot = await query.get();
       for (final doc in snapshot.docs) {
-        final conflict = _activeQueueConflictFromDoc(doc);
+        final conflict = _activeQueueConflictFromDoc(doc, includeStatus);
         if (conflict != null) {
           candidates[doc.reference.path] = conflict;
         }
@@ -373,9 +445,10 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
 
   ActiveQueueConflictException? _activeQueueConflictFromDoc(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    bool Function(QueueStatus status) includeStatus,
   ) {
     final status = QueueStatus.fromWireName(doc.data()['status'] as String?);
-    if (!_singleQueueBlockingStatuses.contains(status)) return null;
+    if (!includeStatus(status)) return null;
 
     final pathParts = doc.reference.path.split('/');
     if (pathParts.length < 4 ||
@@ -424,10 +497,45 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
   );
 
   @override
+  Future<ActiveQueueConflictException?> findActiveQueueEntry({
+    required String phone,
+    String? customerId,
+  }) async {
+    if (!_hasJoinedActiveQueue || !isSingleQueueBlockingStatus(_entry.status)) {
+      return null;
+    }
+    return ActiveQueueConflictException(
+      restaurantId: 'demo-restaurant',
+      branchId: 'demo-branch',
+      queueEntryId: _entry.id,
+      tokenCode: _entry.tokenCode,
+      status: _entry.status,
+    );
+  }
+
+  @override
+  Future<CustomerQueueVisit?> findCurrentVisit({
+    required String phone,
+    String? customerId,
+  }) async {
+    if (!_hasJoinedActiveQueue ||
+        !isCurrentCustomerVisitStatus(_entry.status)) {
+      return null;
+    }
+    return CustomerQueueVisit(
+      restaurantId: 'demo-restaurant',
+      branchId: 'demo-branch',
+      queueEntryId: _entry.id,
+      tokenCode: _entry.tokenCode,
+      status: _entry.status,
+    );
+  }
+
+  @override
   Future<JoinQueueResult> joinQueue(JoinQueueRequest request) async {
     if (request.enforceSingleActiveQueue &&
         _hasJoinedActiveQueue &&
-        _singleQueueBlockingStatuses.contains(_entry.status)) {
+        isSingleQueueBlockingStatus(_entry.status)) {
       throw ActiveQueueConflictException(
         restaurantId: request.restaurantId,
         branchId: request.branchId,
@@ -510,8 +618,13 @@ const _singleQueueBlockingStatuses = {
   QueueStatus.waiting,
   QueueStatus.reserved,
   QueueStatus.onTheWay,
-  QueueStatus.seated,
 };
+
+bool isSingleQueueBlockingStatus(QueueStatus status) =>
+    _singleQueueBlockingStatuses.contains(status);
+
+bool isCurrentCustomerVisitStatus(QueueStatus status) =>
+    isSingleQueueBlockingStatus(status) || status == QueueStatus.seated;
 
 final customerQueueRepositoryProvider = Provider<CustomerQueueRepository>((
   ref,
@@ -540,4 +653,16 @@ final queueEntryProvider =
         branchId: args.branchId,
         queueEntryId: args.queueEntryId,
       );
+    });
+
+typedef CurrentVisitLookupArgs = ({String phone, String? customerId});
+
+final currentCustomerVisitProvider =
+    FutureProvider.family<CustomerQueueVisit?, CurrentVisitLookupArgs>((
+      ref,
+      args,
+    ) {
+      return ref
+          .watch(customerQueueRepositoryProvider)
+          .findCurrentVisit(phone: args.phone, customerId: args.customerId);
     });

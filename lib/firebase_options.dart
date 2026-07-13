@@ -38,10 +38,10 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCO3RL0jN6ASKw0BJ24GgtrGNz-1wqv9tg',
-    appId: '1:1066151489638:ios:e60fbb1a804d4d258c7da7',
+    appId: '1:1066151489638:ios:ff189b7a92c109a38c7da7',
     messagingSenderId: '1066151489638',
     projectId: 'ezq-dev-cubiquitous',
-    iosBundleId: 'com.example.ezq',
+    iosBundleId: 'com.cubiquitous.ezq',
     storageBucket: 'ezq-dev-cubiquitous.firebasestorage.app',
   );
 }

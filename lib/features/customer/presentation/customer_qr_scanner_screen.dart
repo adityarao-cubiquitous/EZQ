@@ -1,3 +1,4 @@
+import 'package:app_settings/app_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -237,7 +238,21 @@ class _ScannerFrame extends StatelessWidget {
               if (controller == null)
                 const _CameraFallback()
               else
-                MobileScanner(controller: controller!, onDetect: onDetect),
+                MobileScanner(
+                  controller: controller!,
+                  onDetect: onDetect,
+                  errorBuilder: (context, error) => _CameraErrorState(
+                    error: error,
+                    onRetry: () async {
+                      try {
+                        await controller!.start();
+                      } catch (_) {
+                        // The error panel stays visible until access is granted.
+                      }
+                    },
+                    onOpenSettings: AppSettings.openAppSettings,
+                  ),
+                ),
               if (controller != null) const _ScanOverlay(),
               if (isResolving)
                 const ColoredBox(
@@ -246,6 +261,96 @@ class _ScannerFrame extends StatelessWidget {
                     child: CircularProgressIndicator(color: Colors.white),
                   ),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CameraErrorState extends StatelessWidget {
+  const _CameraErrorState({
+    required this.error,
+    required this.onRetry,
+    required this.onOpenSettings,
+  });
+
+  final MobileScannerException error;
+  final Future<void> Function() onRetry;
+  final Future<void> Function() onOpenSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final permissionDenied =
+        error.errorCode == MobileScannerErrorCode.permissionDenied;
+    final title = permissionDenied
+        ? 'Camera access is turned off'
+        : 'Camera is unavailable';
+    final description = permissionDenied
+        ? 'Allow camera access in Settings to scan restaurant QR codes. You can still enter the code below.'
+        : 'We could not start the camera. Try again or enter the restaurant code below.';
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFFEFFAFF), Color(0xFFF8FBFF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                permissionDenied
+                    ? Icons.no_photography_outlined
+                    : Icons.camera_alt_outlined,
+                size: 52,
+                color: AppColors.deepTeal,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.navyText,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                description,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.mutedText,
+                  fontSize: 14,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Try again'),
+                  ),
+                  if (permissionDenied)
+                    FilledButton.icon(
+                      onPressed: onOpenSettings,
+                      icon: const Icon(Icons.settings_outlined),
+                      label: const Text('Open Settings'),
+                    ),
+                ],
+              ),
             ],
           ),
         ),

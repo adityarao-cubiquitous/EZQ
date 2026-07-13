@@ -11,6 +11,7 @@ import '../features/auth/presentation/customer_phone_auth_screen.dart';
 import '../features/auth/presentation/admin_login_screen.dart';
 import '../features/customer/presentation/app_install_prompt.dart';
 import '../features/customer/presentation/customer_deep_link_screen.dart';
+import '../features/customer/presentation/customer_app_home_screen.dart';
 import '../features/customer/presentation/customer_join_queue_screen.dart';
 import '../features/customer/presentation/customer_landing_screen.dart';
 import '../features/customer/presentation/customer_menu_screen.dart';
@@ -224,8 +225,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/app/home',
-        builder: (context, state) =>
-            const NearbyRestaurantsScreen(appBackRoute: null),
+        builder: (context, state) => const CustomerAppHomeScreen(),
       ),
       GoRoute(
         path: '/app/nearby',

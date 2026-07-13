@@ -264,21 +264,21 @@ Future behavior:
 - Backend can rotate ads by branch, campaign, or time window.
 - Ad content should remain non-blocking and never interrupt queue status.
 
-### Hidden-Object Puzzle Placeholder
+### Find-the-Difference Puzzle
 
 Purpose: customer engagement while waiting.
 
 Current design:
 
-- Card titled `Find the hidden items`.
-- Backend-sourced image URL.
+- Card titled `Find the differences`.
+- Randomly selected backend-sourced puzzle image URL.
 - 4:3 image frame.
 - Pending state with upload placeholder.
 
 Future behavior:
 
-- Restaurant or admin backend uploads puzzle image.
-- Optional future item checklist can be added below the image.
+- Restaurant or admin backend can upload or curate puzzle image sets.
+- Optional future answer key or hint interaction can be added below the image.
 
 ## 8. Manager Admin App
 
@@ -608,7 +608,11 @@ Manager:
 - Walk-in queue entries support seating preference and live ETA context.
 - Branch QR management is available from the admin top bar.
 - Customer status includes ad space and hidden-object puzzle placeholder.
-- Mobile app customer auth uses phone/OTP, with a debug/default code flow for local testing.
+- Mobile app customer auth uses phone/OTP. Native debug builds accept `123456`; pre-production profile/release builds can opt in with `--dart-define=ALLOW_CUSTOMER_OTP_BYPASS=true`. Production builds must omit that flag and use Firebase OTP.
+- A customer with a `waiting`, `reserved`, or `on_the_way` queue entry cannot join another restaurant queue. Cancelling or being seated releases the customer to join again.
+- The native QR scanner shows explicit camera-denied and camera-unavailable states with retry, Open Settings, and manual-code fallback actions on both iOS and Android.
+- Nearby restaurants distinguishes location services off, permission denied, and permission permanently denied. Customers can retry, open the appropriate Settings page, or continue using the demo location without a dead end.
+- The signed-in app home restores the customer's current visit, follows queue changes live through seating, and offers direct view and cancellation actions while waiting.
 - Mobile app first-time customer profile captures first and last name and stores the signed-in customer profile.
 - Mobile app `/app/scan` opens the Camera Lens QR scanner and resolves direct customer links or active branch QR slugs.
 - Cubiquitous branding appears in powered-by placement.
@@ -633,12 +637,13 @@ Customer features:
 - Customer seated/table-assigned state after manager seating.
 - Customer cancellation action while waiting.
 - Single-active-queue protection for signed-in mobile customers until the user cancels or the visit is completed.
+- Live active-visit card on the signed-in app home with restaurant branch, token, queue position, estimated wait, seated table, resume, and cancellation actions.
 - Uploaded menu PDF viewing from branch configuration.
 - Customer support screen.
 - Customer shell with EZQ header, app install shortcut, and bottom tabs after queue entry exists.
 - Powered by Cubiquitous branding.
 - Sponsored ad slot on the waiting status screen.
-- Hidden-object waiting-game image placeholder with backend-driven image URL.
+- Find-the-difference waiting-game image with backend-driven random image URLs.
 
 Manager features:
 
@@ -700,6 +705,8 @@ Customer flow:
 - The system shall show shared and non-shared wait estimates where live data is available.
 - The system shall create a queue entry with waiting status and a token code.
 - The system shall prevent a signed-in mobile customer from joining another restaurant queue while they have an active queue or seated visit.
+- The system shall restore a signed-in customer's current visit on app home after the app is closed and reopened.
+- The system shall update the app-home visit card live from waiting through seating and allow cancellation before seating.
 - The system shall show the customer their queue position and estimated remaining wait.
 - The system shall keep the active queue entry available across status, menu, and support navigation.
 - The system shall allow a waiting customer to cancel their queue entry.
@@ -751,6 +758,8 @@ Customer user stories:
 - As a mobile app customer, I want to scan a restaurant QR with my camera so I can open the correct branch queue without typing.
 - As a mobile app customer, I want my known name and phone to prefill so joining a queue is fast.
 - As a mobile app customer, I want the app to stop me from joining multiple active restaurant queues so I do not create duplicate waits.
+- As a mobile app customer, I want my active queue restored on the home screen so I can resume tracking it after reopening the app.
+- As a mobile app customer, I want to view or cancel my current queue directly from home so I can manage my visit quickly.
 - As a customer, I want to enter my party size exactly so the restaurant can assign a suitable table.
 - As a customer, I want to choose whether I am willing to share a table so my wait estimate and table assignment match my preference.
 - As a customer, I want to see shared and non-shared wait estimates so I can make an informed seating choice.
@@ -795,7 +804,7 @@ Admin and operator user stories:
 ## 18. Open UI Backlog
 
 - Add backend upload UI for menu PDF.
-- Add backend upload UI for hidden-object puzzle image.
+- Add backend upload UI for find-the-difference puzzle image sets.
 - Add empty states for no waiting queue and no available tables.
 - Add loading skeletons for admin dashboard panels.
 - Add no-show handling if the party does not arrive after being called.
