@@ -107,7 +107,7 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
         if (_otpController.text.trim() != '123456') {
           throw StateError('That code does not look right. Please try again.');
         }
-        _finishTemporaryOtpBypass();
+        await _finishTemporaryOtpBypass();
         return;
       }
 
@@ -126,7 +126,7 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
     }
   }
 
-  void _finishTemporaryOtpBypass() {
+  Future<void> _finishTemporaryOtpBypass() async {
     final phone =
         _normalizedPhone ??
         PhoneUtils.normalizeIndiaMobile(_phoneController.text);
@@ -140,6 +140,17 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
       return;
     }
 
+    await ref
+        .read(authRepositoryProvider)
+        .signInAdmin(
+          email: session.adminEmail,
+          password: session.adminPassword,
+        );
+    if (!mounted) return;
+    if (session.onboardingCompleted) {
+      context.go('/admin/${session.restaurantBranchId}/dashboard');
+      return;
+    }
     temporaryAdminContext = session.context;
     context.go('/admin/register/onboarding?${session.onboardingQuery}');
   }
@@ -373,6 +384,7 @@ class _TemporaryAdminSession {
     required this.adminUid,
     required this.adminName,
     required this.adminEmail,
+    required this.adminPassword,
     required this.adminPhone,
     required this.restaurantBranchId,
     required this.restaurantName,
@@ -380,11 +392,13 @@ class _TemporaryAdminSession {
     required this.area,
     required this.address,
     required this.slug,
+    required this.onboardingCompleted,
   });
 
   final String adminUid;
   final String adminName;
   final String adminEmail;
+  final String adminPassword;
   final String adminPhone;
   final String restaurantBranchId;
   final String restaurantName;
@@ -392,6 +406,7 @@ class _TemporaryAdminSession {
   final String area;
   final String address;
   final String slug;
+  final bool onboardingCompleted;
 
   String get onboardingQuery {
     return Uri(
@@ -419,7 +434,7 @@ class _TemporaryAdminSession {
       restaurantBranchId: restaurantBranchId,
       role: 'owner',
       isActive: true,
-      onboardingCompleted: false,
+      onboardingCompleted: onboardingCompleted,
       restaurantName: restaurantName,
       branchName: branchName,
       area: area,
@@ -434,6 +449,7 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     adminUid: 'rfr5L114C2TeR76MsaKRZ1tMDHc2',
     adminName: 'Biryani Bay Admin',
     adminEmail: 'biryani.bay.admin@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
     adminPhone: '+919999000222',
     restaurantBranchId: 'biryani-bay-domlur-edge',
     restaurantName: 'Biryani Bay',
@@ -441,6 +457,148 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     area: 'Domlur',
     address: 'Domlur Edge, Bengaluru',
     slug: 'biryani-bay-domlur-edge',
+    onboardingCompleted: true,
+  ),
+  '+919999001001': _TemporaryAdminSession(
+    adminUid: 'aN9Xx70ZY5fL3udQDxddQezjYED2',
+    adminName: 'Codex Rule Sync Cafe Main Admin',
+    adminEmail:
+        'admin.codex.rule.sync.cafe.00wh77.main@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001001',
+    restaurantBranchId: 'codex-rule-sync-cafe-00wh77-main',
+    restaurantName: 'Codex Rule Sync Cafe',
+    branchName: 'Main',
+    area: 'Bilekahalli',
+    address: 'Bilekahalli Main Road near IIM Bangalore, Bengaluru',
+    slug: 'codex-rule-sync-cafe-00wh77-main',
+    onboardingCompleted: true,
+  ),
+  '+919999001002': _TemporaryAdminSession(
+    adminUid: 'A78jcHkH7wMZkHgmVnWDqS6CwPQ2',
+    adminName: 'Cubbon Curry Indiranagar Admin',
+    adminEmail: 'admin.cubbon.curry.indiranagar@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001002',
+    restaurantBranchId: 'cubbon-curry-indiranagar',
+    restaurantName: 'Cubbon Curry',
+    branchName: 'Indiranagar',
+    area: 'Arekere',
+    address: 'Arekere Gate near Bannerghatta Road, Bengaluru',
+    slug: 'cubbon-curry-indiranagar',
+    onboardingCompleted: true,
+  ),
+  '+919999001003': _TemporaryAdminSession(
+    adminUid: 'qHyEuqkzG7SRRKcdnh036yZL5R73',
+    adminName: 'Dosa Lab Indiranagar Admin',
+    adminEmail: 'admin.dosa.lab.indiranagar@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001003',
+    restaurantBranchId: 'dosa-lab-indiranagar',
+    restaurantName: 'Dosa Lab',
+    branchName: 'Indiranagar',
+    area: 'JP Nagar 7th Phase',
+    address: 'JP Nagar 7th Phase near IIM Bangalore, Bengaluru',
+    slug: 'dosa-lab-indiranagar',
+    onboardingCompleted: true,
+  ),
+  '+919999001004': _TemporaryAdminSession(
+    adminUid: 'e63yLHy0PhYO7KtmdCxzKUiNZkE2',
+    adminName: 'Grill Garden Old Airport Road Admin',
+    adminEmail: 'admin.grill.garden.old.airport.road@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001004',
+    restaurantBranchId: 'grill-garden-old-airport-road',
+    restaurantName: 'Grill Garden',
+    branchName: 'Old Airport Road',
+    area: 'Hulimavu',
+    address: 'Hulimavu Main Road near IIM Bangalore, Bengaluru',
+    slug: 'grill-garden-old-airport-road',
+    onboardingCompleted: true,
+  ),
+  '+919999001005': _TemporaryAdminSession(
+    adminUid: 'fg5aGSKR8ad4kdSBAes5van1NJK2',
+    adminName: 'Momo Mill Indiranagar Metro Admin',
+    adminEmail: 'admin.momo.mill.indiranagar.metro@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001005',
+    restaurantBranchId: 'momo-mill-indiranagar-metro',
+    restaurantName: 'Momo Mill',
+    branchName: 'Indiranagar Metro',
+    area: 'Bannerghatta Road',
+    address: 'Bannerghatta Road, Bengaluru',
+    slug: 'momo-mill-indiranagar-metro',
+    onboardingCompleted: true,
+  ),
+  '+919999001006': _TemporaryAdminSession(
+    adminUid: 'SyFKT8CDYSgAttPuscL80GuJgtE3',
+    adminName: 'Noodle Yard Indiranagar Admin',
+    adminEmail: 'admin.noodle.yard.indiranagar@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001006',
+    restaurantBranchId: 'noodle-yard-indiranagar',
+    restaurantName: 'Noodle Yard',
+    branchName: 'Indiranagar',
+    area: 'Panduranga Nagar',
+    address: 'Panduranga Nagar near IIM Bangalore, Bengaluru',
+    slug: 'noodle-yard-indiranagar',
+    onboardingCompleted: true,
+  ),
+  '+919999001007': _TemporaryAdminSession(
+    adminUid: 'iL2xWHftWwMmBLRWJMLp4n6EbHR2',
+    adminName: 'Pasta Pepper HAL 2nd Stage Admin',
+    adminEmail: 'admin.pasta.pepper.hal.2nd.stage@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001007',
+    restaurantBranchId: 'pasta-pepper-hal-2nd-stage',
+    restaurantName: 'Pasta Pepper',
+    branchName: 'HAL 2nd Stage',
+    area: 'BTM 2nd Stage',
+    address: 'BTM 2nd Stage near Bannerghatta Road, Bengaluru',
+    slug: 'pasta-pepper-hal-2nd-stage',
+    onboardingCompleted: true,
+  ),
+  '+919999001008': _TemporaryAdminSession(
+    adminUid: 'qcYCxNc0rRhmI5DC4p8sCWTXhSr1',
+    adminName: 'Salad Studio 12th Main Admin',
+    adminEmail: 'admin.salad.studio.12th.main@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001008',
+    restaurantBranchId: 'salad-studio-12th-main',
+    restaurantName: 'Salad Studio',
+    branchName: '12th Main',
+    area: 'Dollars Colony',
+    address: 'Dollars Colony JP Nagar near IIM Bangalore, Bengaluru',
+    slug: 'salad-studio-12th-main',
+    onboardingCompleted: true,
+  ),
+  '+919999001009': _TemporaryAdminSession(
+    adminUid: 'UKE83urkjFU9fLZCz1kOjBsjdel1',
+    adminName: 'Taco Tawa Indiranagar Admin',
+    adminEmail: 'admin.taco.tawa.indiranagar@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001009',
+    restaurantBranchId: 'taco-tawa-indiranagar',
+    restaurantName: 'Taco Tawa',
+    branchName: 'Indiranagar',
+    area: 'Arakere Mico Layout',
+    address: 'Arakere Mico Layout near Bannerghatta Road, Bengaluru',
+    slug: 'taco-tawa-indiranagar',
+    onboardingCompleted: true,
+  ),
+  '+919999001010': _TemporaryAdminSession(
+    adminUid: '5QdD9TeOu7avdfHh9gUPkiweiIE3',
+    adminName: 'The Spice House Indiranagar Admin',
+    adminEmail: 'admin.the.spice.house.indiranagar@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001010',
+    restaurantBranchId: 'the-spice-house-indiranagar',
+    restaurantName: 'The Spice House',
+    branchName: 'Indiranagar',
+    area: 'Vijaya Bank Layout',
+    address: 'Vijaya Bank Layout near IIM Bangalore, Bengaluru',
+    slug: 'the-spice-house-indiranagar',
+    onboardingCompleted: true,
   ),
 };
 
