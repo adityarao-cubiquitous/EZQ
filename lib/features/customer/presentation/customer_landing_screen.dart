@@ -49,6 +49,8 @@ class CustomerLandingScreen extends StatelessWidget {
                     large: true,
                     onPressed: () => context.go('/app/scan'),
                   ),
+                  const SizedBox(height: 14),
+                  _PhoneSignInButton(onPressed: () => context.go('/app/login')),
                   const SizedBox(height: 28),
                   const _PoweredBy(),
                 ],
@@ -87,6 +89,34 @@ class _EzqLogo extends StatelessWidget {
         ],
       ),
       child: Image.asset('assets/brand/cubiquitous.png', fit: BoxFit.contain),
+    );
+  }
+}
+
+class _PhoneSignInButton extends StatelessWidget {
+  const _PhoneSignInButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 56,
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.phone_iphone_rounded, size: 20),
+        label: const Text('Sign in with your phone'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.deepTeal,
+          backgroundColor: Colors.white.withValues(alpha: 0.84),
+          side: const BorderSide(color: Color(0x6612A9DC), width: 1.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+      ),
     );
   }
 }

@@ -9,6 +9,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
+import '../../auth/data/auth_repository.dart';
 import '../data/customer_qr_repository.dart';
 import 'customer_shell.dart';
 
@@ -99,6 +100,13 @@ class _CustomerQrScannerScreenState
 
   @override
   Widget build(BuildContext context) {
+    final authUser = ref.watch(customerAuthStateProvider).asData?.value;
+    final persistedDebugPhone = ref.watch(persistedDebugCustomerPhoneProvider);
+    final debugPhone =
+        ref.watch(debugCustomerPhoneSessionProvider).value ??
+        persistedDebugPhone.asData?.value;
+    final isSignedIn = authUser != null || debugPhone != null;
+
     return CustomerShell(
       restaurantId: AppConstants.demoRestaurantId,
       branchId: AppConstants.demoBranchId,
@@ -126,17 +134,19 @@ class _CustomerQrScannerScreenState
               const SizedBox(height: 12),
               _StatusMessage(message: _message!),
             ],
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton.icon(
-                onPressed: _isResolving
-                    ? null
-                    : () => context.go('/app/nearby'),
-                icon: const Icon(Icons.near_me_rounded),
-                label: const Text('Find nearby restaurants'),
+            if (isSignedIn) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: _isResolving
+                      ? null
+                      : () => context.go('/app/nearby'),
+                  icon: const Icon(Icons.near_me_rounded),
+                  label: const Text('Find nearby restaurants'),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
