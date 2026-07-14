@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/customer_queue_repository.dart';
@@ -343,9 +344,8 @@ class _NearbyRestaurantCard extends StatelessWidget {
           EzqButton(
             label: 'Join Queue',
             icon: Icons.arrow_forward_rounded,
-            onPressed: () => context.go(
-              '/customer/${restaurant.routeRestaurantId}/${restaurant.routeBranchId}',
-            ),
+            onPressed: () =>
+                context.go('/customer/${restaurant.routeRestaurantBranchId}'),
           ),
         ],
       ),
@@ -520,7 +520,10 @@ class _EmptyNearbyCard extends StatelessWidget {
           label: 'Join demo queue',
           icon: Icons.arrow_forward_rounded,
           onPressed: () => context.go(
-            '/customer/${AppConstants.demoRestaurantId}/${AppConstants.demoBranchId}',
+            FirestorePaths.customerRoute(
+              AppConstants.demoRestaurantId,
+              AppConstants.demoBranchId,
+            ),
           ),
         ),
       ),

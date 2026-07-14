@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/firestore_paths.dart';
 
 const _hostingOrigin = 'https://ezq-dev-cubiquitous.web.app';
+const _qrAssetRoot = 'assets/qr';
 
 class BranchQrInfo {
   const BranchQrInfo({
@@ -64,26 +65,34 @@ class QrManagementRepository {
     required Map<String, dynamic> data,
   }) {
     final branchName = data['name'] as String? ?? branchSlug;
-    final qrSlug = data['qrSlug'] as String? ?? '$restaurantId-$branchSlug';
-    final queueUrl =
-        data['queueUrl'] as String? ??
-        '$_hostingOrigin/customer/$restaurantId/$branchSlug';
-    final fallbackPng = 'assets/qr/$restaurantId/$branchSlug/$branchSlug.png';
-    final fallbackSvg = 'assets/qr/$restaurantId/$branchSlug/$branchSlug.svg';
+    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
+      restaurantId,
+      branchSlug,
+    );
+    final storedQrSlug = (data['qrSlug'] as String? ?? '').trim();
+    final qrSlug = storedQrSlug.isEmpty ? restaurantBranchId : storedQrSlug;
+    final queueUrl = _canonicalQueueUrl(
+      data['queueUrl'] as String?,
+      restaurantBranchId,
+    );
+    final fallbackPng =
+        '$_qrAssetRoot/$restaurantBranchId/$restaurantBranchId.png';
+    final fallbackSvg =
+        '$_qrAssetRoot/$restaurantBranchId/$restaurantBranchId.svg';
     final generatedAtValue = data['qrGeneratedAt'];
 
     return BranchQrInfo(
       restaurantId: restaurantId,
-      branchSlug: branchSlug,
+      branchSlug: restaurantBranchId,
       branchName: branchName,
       queueUrl: queueUrl,
       qrSlug: qrSlug,
       pngAssetPath:
-          data['qrPngLocalPath'] as String? ??
+          _canonicalAssetPath(data['qrPngLocalPath'] as String?) ??
           data['qrImageUrl'] as String? ??
           fallbackPng,
       svgAssetPath:
-          data['qrSvgLocalPath'] as String? ??
+          _canonicalAssetPath(data['qrSvgLocalPath'] as String?) ??
           data['qrSvgUrl'] as String? ??
           fallbackSvg,
       qrVersion: data['qrVersion'] as int? ?? 0,
@@ -93,6 +102,30 @@ class QrManagementRepository {
         _ => null,
       },
     );
+  }
+
+  String _canonicalQueueUrl(String? storedQueueUrl, String restaurantBranchId) {
+    final canonicalPath = '/customer/$restaurantBranchId';
+    final canonicalUrl = '$_hostingOrigin$canonicalPath';
+    final value = storedQueueUrl?.trim();
+    if (value == null || value.isEmpty) return canonicalUrl;
+
+    final uri = Uri.tryParse(value);
+    if (uri == null) return canonicalUrl;
+    if (uri.path == canonicalPath) return value;
+    return canonicalUrl;
+  }
+
+  String? _canonicalAssetPath(String? storedPath) {
+    final value = storedPath?.trim();
+    if (value == null || value.isEmpty) return null;
+    final uri = Uri.tryParse(value);
+    if (uri != null && uri.hasScheme) return value;
+    final segments = value.split('/').where((segment) => segment.isNotEmpty);
+    if (value.startsWith('$_qrAssetRoot/') && segments.length == 3) {
+      return value;
+    }
+    return null;
   }
 }
 

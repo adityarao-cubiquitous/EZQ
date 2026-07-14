@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../auth/data/auth_repository.dart';
 
@@ -215,7 +216,7 @@ class _CustomerTopBar extends ConsumerWidget {
     final showLogout = !kIsWeb && (authUser != null || debugPhone != null);
     final installReturnTo = restaurantId.isEmpty || branchId.isEmpty
         ? null
-        : '/customer/$restaurantId/$branchId';
+        : FirestorePaths.customerRoute(restaurantId, branchId);
 
     return Positioned(
       top: 0,
@@ -433,7 +434,7 @@ class _BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final customerBase = '/customer/$restaurantId/$branchId';
+    final customerBase = FirestorePaths.customerRoute(restaurantId, branchId);
     return Positioned(
       bottom: 0,
       left: 0,

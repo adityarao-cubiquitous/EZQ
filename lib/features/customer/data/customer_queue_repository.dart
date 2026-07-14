@@ -71,7 +71,7 @@ class ActiveQueueConflictException implements Exception {
   final QueueStatus status;
 
   String get statusRoute =>
-      '/customer/$restaurantId/$branchId/status/$queueEntryId';
+      FirestorePaths.customerStatusRoute(restaurantId, branchId, queueEntryId);
 
   @override
   String toString() =>
@@ -94,7 +94,7 @@ class CustomerQueueVisit {
   final QueueStatus status;
 
   String get statusRoute =>
-      '/customer/$restaurantId/$branchId/status/$queueEntryId';
+      FirestorePaths.customerStatusRoute(restaurantId, branchId, queueEntryId);
 }
 
 abstract class CustomerQueueRepository {

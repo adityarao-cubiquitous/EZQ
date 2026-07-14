@@ -59,7 +59,7 @@ class RestaurantOnboardingState {
       branchName: '',
       area: '',
       address: '',
-      isLoadingAdminContext: true,
+      isLoadingAdminContext: false,
       adminContextError: null,
       showRestaurantError: false,
       showBranchError: false,
@@ -362,73 +362,99 @@ class RestaurantOnboardingController
     return RestaurantOnboardingState.initial();
   }
 
-  Future<CompletedRestaurantOnboarding?> completedOnboardingForCurrentAdmin() {
-    return ref
+  Future<CompletedRestaurantOnboarding?>
+  completedOnboardingForCurrentAdmin() async {
+    debugPrint(
+      '[ONBOARDING_CONTROLLER] ENTER completedOnboardingForCurrentAdmin',
+    );
+    debugPrint(
+      '[ONBOARDING_CONTROLLER] BEFORE await repository.completedOnboardingForCurrentAdmin',
+    );
+    final completion = await ref
         .read(restaurantOnboardingRepositoryProvider)
         .completedOnboardingForCurrentAdmin();
+    debugPrint(
+      '[ONBOARDING_CONTROLLER] AFTER await repository.completedOnboardingForCurrentAdmin '
+      'completion=${completion?.restaurantBranchId ?? 'null'}',
+    );
+    debugPrint(
+      '[ONBOARDING_CONTROLLER] EXIT completedOnboardingForCurrentAdmin',
+    );
+    return completion;
   }
 
-  Future<void> loadAdminContext() async {
+  Future<void> loadAdminContext({String? expectedRestaurantBranchId}) async {
+    debugPrint(
+      '[ONBOARDING_CONTROLLER] ENTER loadAdminContext '
+      'expectedRestaurantBranchId=${expectedRestaurantBranchId ?? ''}',
+    );
+    debugPrint('[ONBOARDING_STATE] Loading=true');
     state = state.copyWith(
       isLoadingAdminContext: true,
+      restaurantBranchId: '',
+      adminName: '',
+      adminEmail: '',
+      adminPhone: '',
+      restaurantName: '',
+      branchName: '',
+      area: '',
+      address: '',
       clearAdminContextError: true,
     );
 
     try {
-      final temporaryContext = temporaryAdminContext;
-      if (temporaryContext != null) {
-        state = state.copyWith(
-          restaurantBranchId: temporaryContext.restaurantBranchId,
-          adminName: temporaryContext.name,
-          adminEmail: temporaryContext.email,
-          adminPhone: temporaryContext.phone,
-          restaurantName: temporaryContext.restaurantName,
-          branchName: temporaryContext.branchName,
-          area: temporaryContext.area,
-          address: temporaryContext.address,
-          isLoadingAdminContext: false,
-          clearAdminContextError: true,
-        );
-        return;
-      }
-
-      final debugContext = _debugAdminContextFromUrl();
-      if (debugContext != null) {
-        state = state.copyWith(
-          restaurantBranchId: debugContext.restaurantBranchId,
-          adminName: debugContext.name,
-          adminEmail: debugContext.email,
-          adminPhone: debugContext.phone,
-          restaurantName: debugContext.restaurantName,
-          branchName: debugContext.branchName,
-          area: debugContext.area,
-          address: debugContext.address,
-          isLoadingAdminContext: false,
-          clearAdminContextError: true,
-        );
-        return;
-      }
-
+      debugPrint(
+        '[ONBOARDING_CONTROLLER] BEFORE await repository.loadAdminContext',
+      );
       final context = await ref
           .read(restaurantOnboardingRepositoryProvider)
-          .loadAdminContext();
+          .loadAdminContext()
+          .timeout(const Duration(seconds: 12));
+      debugPrint(
+        '[ONBOARDING_CONTROLLER] AFTER await repository.loadAdminContext '
+        'contextRestaurantBranchId=${context?.restaurantBranchId ?? 'null'}',
+      );
       if (context == null) {
+        debugPrint('[ONBOARDING_STATE] Loading=false reason=null-context');
         state = state.copyWith(
           isLoadingAdminContext: false,
           adminContextError:
               'Admin mapping was not found. Please sign in again.',
         );
+        debugPrint(
+          '[ONBOARDING_CONTROLLER] EXIT loadAdminContext null context',
+        );
         return;
       }
       if (!context.isActive) {
+        debugPrint('[ONBOARDING_STATE] Loading=false reason=inactive-admin');
         state = state.copyWith(
           isLoadingAdminContext: false,
           adminContextError:
               'Admin account is inactive. Contact your EZQ administrator.',
         );
+        debugPrint(
+          '[ONBOARDING_CONTROLLER] EXIT loadAdminContext inactive admin',
+        );
+        return;
+      }
+      final expectedBranch = expectedRestaurantBranchId?.trim() ?? '';
+      if (expectedBranch.isNotEmpty &&
+          context.restaurantBranchId != expectedBranch) {
+        debugPrint('[ONBOARDING_STATE] Loading=false reason=branch-mismatch');
+        state = state.copyWith(
+          isLoadingAdminContext: false,
+          adminContextError:
+              'This admin is mapped to ${context.restaurantBranchId}, not $expectedBranch.',
+        );
+        debugPrint(
+          '[ONBOARDING_CONTROLLER] EXIT loadAdminContext branch mismatch '
+          'actual=${context.restaurantBranchId} expected=$expectedBranch',
+        );
         return;
       }
 
+      debugPrint('[ONBOARDING_STATE] Loading=false reason=success');
       state = state.copyWith(
         restaurantBranchId: context.restaurantBranchId,
         adminName: context.name,
@@ -441,43 +467,19 @@ class RestaurantOnboardingController
         isLoadingAdminContext: false,
         clearAdminContextError: true,
       );
-    } catch (error) {
+      debugPrint('[ONBOARDING_CONTROLLER] EXIT loadAdminContext success');
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[ONBOARDING_CONTROLLER] loadAdminContext failed: $error\n'
+        '$stackTrace',
+      );
+      debugPrint('[ONBOARDING_STATE] Loading=false reason=error');
       state = state.copyWith(
         isLoadingAdminContext: false,
         adminContextError: 'Unable to load onboarding details: $error',
       );
+      debugPrint('[ONBOARDING_CONTROLLER] EXIT loadAdminContext error');
     }
-  }
-
-  RestaurantBranchAdminContext? _debugAdminContextFromUrl() {
-    if (!kDebugMode) return null;
-    final query = Uri.base.queryParameters;
-    final restaurantBranchId = query['debugRestaurantBranchId']?.trim() ?? '';
-    final restaurantName = query['debugRestaurantName']?.trim() ?? '';
-    final branchName = query['debugBranchName']?.trim() ?? '';
-    if (restaurantBranchId.isEmpty ||
-        restaurantName.isEmpty ||
-        branchName.isEmpty) {
-      return null;
-    }
-
-    return RestaurantBranchAdminContext(
-      uid: query['debugAdminUid']?.trim() ?? 'local-debug-admin',
-      name: query['debugAdminName']?.trim() ?? 'Local Debug Admin',
-      email: query['debugAdminEmail']?.trim() ?? '',
-      phone: query['debugAdminPhone']?.trim() ?? '',
-      restaurantBranchId: restaurantBranchId,
-      role: query['debugAdminRole']?.trim() ?? 'owner',
-      isActive: true,
-      onboardingCompleted: false,
-      restaurantName: restaurantName,
-      branchName: branchName,
-      area: query['debugArea']?.trim() ?? '',
-      address: query['debugAddress']?.trim() ?? '',
-      slug: query['debugSlug']?.trim().isNotEmpty == true
-          ? query['debugSlug']!.trim()
-          : restaurantBranchId,
-    );
   }
 
   void updateRestaurantName(String value) {
@@ -658,7 +660,8 @@ class RestaurantOnboardingController
             request: request,
             onStepStarted: _markProvisioningStepRunning,
             onStepCompleted: _markProvisioningStepComplete,
-          );
+          )
+          .timeout(const Duration(seconds: 45));
       state = state.copyWith(isProvisioning: false, provisioningResult: result);
     } on RestaurantOnboardingFailure catch (error) {
       state = state.copyWith(

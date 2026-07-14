@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../data/admin_repository.dart';
 
@@ -35,7 +36,7 @@ class BranchSelectorScreen extends ConsumerWidget {
                   for (final branch in snapshot.data!)
                     InkWell(
                       onTap: () => context.go(
-                        '/admin/$restaurantId/${branch.id}/dashboard',
+                        '${FirestorePaths.adminRoute(restaurantId, branch.id)}/dashboard',
                       ),
                       borderRadius: BorderRadius.circular(12),
                       child: Container(

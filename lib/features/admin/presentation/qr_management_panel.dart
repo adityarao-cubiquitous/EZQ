@@ -149,6 +149,8 @@ class _QrPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final uri = Uri.tryParse(info.pngAssetPath);
+    final isNetworkImage = uri != null && uri.hasScheme;
     return Container(
       width: 112,
       height: 112,
@@ -158,12 +160,25 @@ class _QrPreview extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0x1ABDC8D0)),
       ),
-      child: Image.asset(
-        info.pngAssetPath,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) =>
-            const Icon(Icons.qr_code_2, color: AppColors.deepTeal, size: 52),
-      ),
+      child: isNetworkImage
+          ? Image.network(
+              info.pngAssetPath,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) => const Icon(
+                Icons.qr_code_2,
+                color: AppColors.deepTeal,
+                size: 52,
+              ),
+            )
+          : Image.asset(
+              info.pngAssetPath,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) => const Icon(
+                Icons.qr_code_2,
+                color: AppColors.deepTeal,
+                size: 52,
+              ),
+            ),
     );
   }
 }

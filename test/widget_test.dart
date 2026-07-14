@@ -56,7 +56,7 @@ void main() {
   );
 
   test(
-    'nearby fixture routes all restaurants by restaurant and branch slug',
+    'nearby fixture routes all restaurants by canonical branch id',
     () async {
       final restaurants = await MockNearbyRestaurantsRepository().findNearby(
         latitude: 12.9784,
@@ -66,23 +66,23 @@ void main() {
 
       final routes = {
         for (final restaurant in restaurants)
-          '/customer/${restaurant.routeRestaurantId}/${restaurant.routeBranchId}',
+          '/customer/${restaurant.routeRestaurantBranchId}',
       };
 
       expect(restaurants, hasLength(10));
       expect(
         routes,
         containsAll({
-          '/customer/the-spice-house/indiranagar',
-          '/customer/cubbon-curry/indiranagar',
-          '/customer/noodle-yard/indiranagar',
-          '/customer/taco-tawa/indiranagar',
-          '/customer/dosa-lab/indiranagar',
-          '/customer/pasta-pepper/hal-2nd-stage',
-          '/customer/biryani-bay/domlur-edge',
-          '/customer/momo-mill/indiranagar-metro',
-          '/customer/salad-studio/12th-main',
-          '/customer/grill-garden/old-airport-road',
+          '/customer/the-spice-house-indiranagar',
+          '/customer/cubbon-curry-indiranagar',
+          '/customer/noodle-yard-indiranagar',
+          '/customer/taco-tawa-indiranagar',
+          '/customer/dosa-lab-indiranagar',
+          '/customer/pasta-pepper-hal-2nd-stage',
+          '/customer/biryani-bay-domlur-edge',
+          '/customer/momo-mill-indiranagar-metro',
+          '/customer/salad-studio-12th-main',
+          '/customer/grill-garden-old-airport-road',
         }),
       );
       expect(
@@ -116,6 +116,7 @@ void main() {
 
     expect(restaurant.routeRestaurantId, 'biryani-bay-domlur-edge');
     expect(restaurant.routeBranchId, 'biryani-bay-domlur-edge');
+    expect(restaurant.routeRestaurantBranchId, 'biryani-bay-domlur-edge');
   });
 
   test('nearby branch uses explicit restaurant and branch slugs', () {
@@ -135,5 +136,6 @@ void main() {
 
     expect(restaurant.routeRestaurantId, 'biryani-bay');
     expect(restaurant.routeBranchId, 'domlur-edge');
+    expect(restaurant.routeRestaurantBranchId, 'biryani-bay-domlur-edge');
   });
 }

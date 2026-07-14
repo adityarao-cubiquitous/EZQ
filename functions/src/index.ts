@@ -398,7 +398,6 @@ export const assignRestaurantBranchAdmin = onCall(async (request) => {
       restaurantBranchId,
       role,
       isActive,
-      onboardingCompleted: false,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -497,7 +496,6 @@ export const provisionRestaurantBranchAdmin = onCall(async (request) => {
       role,
       isActive,
       authProvider: "phone",
-      onboardingCompleted: false,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });

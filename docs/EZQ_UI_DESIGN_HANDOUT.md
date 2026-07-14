@@ -573,10 +573,12 @@ Recommended Figma component set:
 
 Customer:
 
-- `/customer/:restaurantSlug/:branchSlug`
-- `/customer/:restaurantSlug/:branchSlug/status/:queueEntryId`
-- `/customer/:restaurantSlug/:branchSlug/menu?queueEntryId=:queueEntryId`
-- `/customer/:restaurantSlug/:branchSlug/support`
+- `/customer/:restaurantBranchId`
+- `/customer/:restaurantBranchId/status/:queueEntryId`
+- `/customer/:restaurantBranchId/ready/:queueEntryId`
+- `/customer/:restaurantBranchId/seated/:queueEntryId`
+- `/customer/:restaurantBranchId/menu?queueEntryId=:queueEntryId`
+- `/customer/:restaurantBranchId/support`
 - `/customer/install`
 - `/app/login`
 - `/app/profile`
@@ -587,8 +589,9 @@ Customer:
 Manager:
 
 - `/admin/login`
-- `/admin/:restaurantSlug/:branchSlug/dashboard`
-- Daily summary from dashboard reports icon.
+- `/admin/:restaurantBranchId/register/onboarding`
+- `/admin/:restaurantBranchId/dashboard`
+- `/admin/:restaurantBranchId/reports`
 
 ## 14. Design Decisions Already Made
 
@@ -627,7 +630,7 @@ Customer features:
 - Customer mobile app home/nearby restaurant flow after login.
 - Camera Lens QR scanner at `/app/scan` using device camera.
 - QR scanner fallback for manually entering an EZQ link or QR code.
-- QR route resolver for direct `/customer/:restaurant/:branch` links and active branch `qrSlug` values.
+- QR route resolver for canonical `/customer/:restaurantBranchId` links, legacy two-segment links, and active branch `qrSlug` values.
 - Customer join form with name, mobile number, party size, and optional notes.
 - Mobile join form can prepopulate known signed-in customer name and phone number.
 - Exact party size selection from 1 to 20.
@@ -648,7 +651,7 @@ Customer features:
 Manager features:
 
 - Firebase email/password manager login.
-- Branch dashboard route for a selected restaurant and branch.
+- Branch dashboard route for a selected `restaurantBranchId`.
 - Live table grid backed by Firestore streams.
 - Tables grouped and sorted by capacity.
 - Table tiles showing table number, status, capacity, occupied count, and token when linked.

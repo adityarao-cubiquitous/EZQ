@@ -26,6 +26,7 @@ class _RestaurantOnboardingScreenState
     OnboardingWizardStep(number: 3, label: 'Review & Confirm'),
     OnboardingWizardStep(number: 4, label: 'Complete Onboarding'),
   ];
+  bool _didInitialize = false;
 
   RestaurantOnboardingController get _controller {
     return ref.read(restaurantOnboardingControllerProvider.notifier);
@@ -34,17 +35,56 @@ class _RestaurantOnboardingScreenState
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didInitialize) return;
+    _didInitialize = true;
     _initialize();
   }
 
   Future<void> _initialize() async {
-    final completion = await _controller.completedOnboardingForCurrentAdmin();
-    if (!mounted) return;
-    if (completion != null) {
-      context.go('/admin/${completion.restaurantBranchId}/dashboard');
-      return;
+    final restaurantBranchId = GoRouterState.of(
+      context,
+    ).pathParameters['restaurantBranchId']?.trim();
+    debugPrint(
+      '[ONBOARDING_INIT] ENTER _initialize '
+      'pathRestaurantBranchId=${restaurantBranchId ?? ''}',
+    );
+    try {
+      debugPrint(
+        '[ONBOARDING_INIT] BEFORE await completedOnboardingForCurrentAdmin',
+      );
+      final completion = await _controller
+          .completedOnboardingForCurrentAdmin()
+          .timeout(const Duration(seconds: 12));
+      debugPrint(
+        '[ONBOARDING_INIT] AFTER await completedOnboardingForCurrentAdmin '
+        'completion=${completion?.restaurantBranchId ?? 'null'}',
+      );
+      if (!mounted) return;
+      if (completion != null) {
+        debugPrint(
+          '[ONBOARDING_INIT] REDIRECT dashboard '
+          'restaurantBranchId=${completion.restaurantBranchId}',
+        );
+        context.go('/admin/${completion.restaurantBranchId}/dashboard');
+        return;
+      }
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[ONBOARDING_INIT] completedOnboardingForCurrentAdmin failed: $error\n'
+        '$stackTrace',
+      );
+      if (!mounted) return;
     }
-    await _controller.loadAdminContext();
+    debugPrint('[ONBOARDING_INIT] BEFORE await loadAdminContext');
+    await _controller.loadAdminContext(
+      expectedRestaurantBranchId: restaurantBranchId,
+    );
+    debugPrint('[ONBOARDING_INIT] AFTER await loadAdminContext');
   }
 
   void _saveDraft() {
@@ -57,22 +97,10 @@ class _RestaurantOnboardingScreenState
 
   Future<void> _confirmReview() async {
     await _controller.startProvisioning();
-    if (!mounted) return;
-    final state = ref.read(restaurantOnboardingControllerProvider);
-    if (state.provisioningResult != null &&
-        state.failedProvisioningStep == null) {
-      _goToDashboard(state);
-    }
   }
 
   Future<void> _retryProvisioning() async {
     await _controller.startProvisioning();
-    if (!mounted) return;
-    final state = ref.read(restaurantOnboardingControllerProvider);
-    if (state.provisioningResult != null &&
-        state.failedProvisioningStep == null) {
-      _goToDashboard(state);
-    }
   }
 
   void _downloadSetupSummary(RestaurantOnboardingState state) {
@@ -129,7 +157,7 @@ class _RestaurantOnboardingScreenState
       return CompleteOnboardingViewState.failure;
     }
     if (state.provisioningResult == null) {
-      return CompleteOnboardingViewState.provisioning;
+      return CompleteOnboardingViewState.failure;
     }
     return CompleteOnboardingViewState.success;
   }
@@ -147,7 +175,6 @@ class _RestaurantOnboardingScreenState
           _showProvisioningWarning();
           return;
         }
-        if (state.provisioningResult != null) _goToDashboard(state);
       },
       child: Scaffold(
         backgroundColor: AppColors.softerSurface,
@@ -267,6 +294,7 @@ class _RestaurantOnboardingScreenState
       return RestaurantDetailsStep(
         adminName: state.adminName,
         adminEmail: state.adminEmail,
+        adminPhone: state.adminPhone,
         restaurantName: state.trimmedRestaurantName,
         branchName: state.trimmedBranchName,
         area: state.trimmedArea,

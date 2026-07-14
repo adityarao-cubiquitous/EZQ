@@ -175,8 +175,8 @@ def build_addendum():
         "Firebase project: ezq-dev-cubiquitous.",
         "Hosting URL: https://ezq-dev-cubiquitous.web.app.",
         "Demo restaurant and branch: The Spice House, Indiranagar.",
-        "Customer route: /customer/the-spice-house/indiranagar.",
-        "Admin route: /admin/the-spice-house/indiranagar/dashboard.",
+        "Customer route: /customer/the-spice-house-indiranagar.",
+        "Admin route: /admin/the-spice-house-indiranagar/dashboard.",
         "Manager authentication uses Firebase Authentication with email/password.",
     ]:
         story.append(bullet(item))

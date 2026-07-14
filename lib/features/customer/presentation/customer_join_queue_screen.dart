@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../../core/widgets/ezq_text_field.dart';
 import '../../../core/widgets/status_badge.dart';
@@ -361,7 +362,11 @@ class _CustomerJoinQueueScreenState
       if (!mounted) return;
       ref.invalidate(currentCustomerVisitProvider);
       context.go(
-        '/customer/${widget.restaurantId}/${widget.branchSlug}/status/${result.queueEntryId}',
+        FirestorePaths.customerStatusRoute(
+          widget.restaurantId,
+          widget.branchSlug,
+          result.queueEntryId,
+        ),
       );
     } on ActiveQueueConflictException catch (error) {
       if (!mounted) return;

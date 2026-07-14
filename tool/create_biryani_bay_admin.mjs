@@ -188,7 +188,6 @@ await patchDocument(`admins/${adminAuth.localId}`, {
   restaurantBranchId,
   role: 'owner',
   isActive: true,
-  onboardingCompleted: false,
   createdAt: now,
   updatedAt: now,
 });

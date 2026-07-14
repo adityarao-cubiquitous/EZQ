@@ -56,7 +56,6 @@ class FirebaseTableRepository implements TableRepository {
   }) {
     return _firestore
         .collection(FirestorePaths.tables(restaurantId, branchId))
-        .orderBy('sortOrder')
         .snapshots()
         .map((snapshot) {
           final tables = snapshot.docs

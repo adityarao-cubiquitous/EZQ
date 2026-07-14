@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../data/customer_queue_repository.dart';
 import 'customer_shell.dart';
@@ -97,7 +98,11 @@ class TableReadyView extends ConsumerWidget {
                       );
                   if (!context.mounted) return;
                   context.go(
-                    '/customer/$restaurantId/$branchId/status/$queueEntryId',
+                    FirestorePaths.customerStatusRoute(
+                      restaurantId,
+                      branchId,
+                      queueEntryId,
+                    ),
                   );
                 },
               ),

@@ -118,6 +118,8 @@ service cloud.firestore {
       allow update: if isRootRestaurantBranchAdmin(restaurantBranchId)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
           'onboardingCompleted',
+          'provisioningStatus',
+          'qrEnabled',
           'floorCount',
           'totalTables',
           'totalSeats',

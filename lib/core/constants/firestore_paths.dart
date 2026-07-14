@@ -15,6 +15,38 @@ class FirestorePaths {
     return '$restaurantId-$branchId';
   }
 
+  static String customerRoute(String restaurantId, String branchId) {
+    return '/customer/${restaurantBranchIdFromRoute(restaurantId, branchId)}';
+  }
+
+  static String customerStatusRoute(
+    String restaurantId,
+    String branchId,
+    String queueEntryId,
+  ) {
+    return '${customerRoute(restaurantId, branchId)}/status/$queueEntryId';
+  }
+
+  static String customerReadyRoute(
+    String restaurantId,
+    String branchId,
+    String queueEntryId,
+  ) {
+    return '${customerRoute(restaurantId, branchId)}/ready/$queueEntryId';
+  }
+
+  static String customerSeatedRoute(
+    String restaurantId,
+    String branchId,
+    String queueEntryId,
+  ) {
+    return '${customerRoute(restaurantId, branchId)}/seated/$queueEntryId';
+  }
+
+  static String adminRoute(String restaurantId, String branchId) {
+    return '/admin/${restaurantBranchIdFromRoute(restaurantId, branchId)}';
+  }
+
   static String branch(String restaurantId, String branchId) {
     return restaurantBranch(
       restaurantBranchIdFromRoute(restaurantId, branchId),
