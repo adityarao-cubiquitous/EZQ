@@ -7,6 +7,7 @@ class RestaurantDetailsStep extends StatelessWidget {
     super.key,
     required this.adminName,
     required this.adminEmail,
+    required this.adminPhone,
     required this.restaurantName,
     required this.branchName,
     required this.area,
@@ -18,6 +19,7 @@ class RestaurantDetailsStep extends StatelessWidget {
 
   final String adminName;
   final String adminEmail;
+  final String adminPhone;
   final String restaurantName;
   final String branchName;
   final String area;
@@ -51,6 +53,7 @@ class RestaurantDetailsStep extends StatelessWidget {
                   child: _ReadOnlyDetailsGrid(
                     adminName: adminName,
                     adminEmail: adminEmail,
+                    adminPhone: adminPhone,
                     restaurantName: restaurantName,
                     branchName: branchName,
                     area: area,
@@ -142,6 +145,7 @@ class _ReadOnlyDetailsGrid extends StatelessWidget {
   const _ReadOnlyDetailsGrid({
     required this.adminName,
     required this.adminEmail,
+    required this.adminPhone,
     required this.restaurantName,
     required this.branchName,
     required this.area,
@@ -150,6 +154,7 @@ class _ReadOnlyDetailsGrid extends StatelessWidget {
 
   final String adminName;
   final String adminEmail;
+  final String adminPhone;
   final String restaurantName;
   final String branchName;
   final String area;
@@ -170,6 +175,11 @@ class _ReadOnlyDetailsGrid extends StatelessWidget {
             icon: Icons.mail_outline_rounded,
             label: 'Email',
             value: adminEmail,
+          ),
+          _ReadOnlyDetailItem(
+            icon: Icons.phone_outlined,
+            label: 'Admin Phone',
+            value: adminPhone,
           ),
           _ReadOnlyDetailItem(
             icon: Icons.storefront_outlined,

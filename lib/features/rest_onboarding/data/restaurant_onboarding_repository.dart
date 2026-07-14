@@ -33,6 +33,7 @@ class FirebaseRestaurantOnboardingRepository
 
   @override
   Future<RestaurantBranchAdminContext?> loadAdminContext() async {
+    _debugLog('[ONBOARDING_REPO] ENTER loadAdminContext');
     final user = _auth.currentUser;
     _debugLog('[AUTH]\nuid=${user?.uid ?? 'null'}\nemail=${user?.email ?? ''}');
     if (user == null) {
@@ -43,7 +44,9 @@ class FirebaseRestaurantOnboardingRepository
     }
 
     final adminPath = FirestorePaths.rootAdmin(user.uid);
+    _debugLog('[ONBOARDING_REPO] BEFORE await _readDocument path=$adminPath');
     final adminSnapshot = await _readDocument(path: adminPath, label: 'ADMIN');
+    _debugLog('[ONBOARDING_REPO] AFTER await _readDocument path=$adminPath');
     final adminData = adminSnapshot.data();
     _debugLog(
       '[ADMIN]\n'
@@ -68,10 +71,12 @@ class FirebaseRestaurantOnboardingRepository
     }
 
     final outletPath = FirestorePaths.restaurantBranch(restaurantBranchId);
+    _debugLog('[ONBOARDING_REPO] BEFORE await _readDocument path=$outletPath');
     final branchSnapshot = await _readDocument(
       path: outletPath,
       label: 'OUTLET',
     );
+    _debugLog('[ONBOARDING_REPO] AFTER await _readDocument path=$outletPath');
     final branchData = branchSnapshot.data();
     _debugLog(
       '[OUTLET]\n'
@@ -79,27 +84,55 @@ class FirebaseRestaurantOnboardingRepository
       'Document exists=${branchSnapshot.exists}',
     );
     if (!branchSnapshot.exists || branchData == null) {
-      throw AdminContextLoadException(
-        'Restaurant branch document is missing at $outletPath.',
+      _debugLog(
+        '[OUTLET]\n'
+        'path=$outletPath\n'
+        'Using default empty onboarding context because document is missing.',
       );
+      final context = RestaurantBranchAdminContext(
+        uid: user.uid,
+        name: (adminData['name'] as String? ?? '').trim(),
+        email: (adminData['email'] as String? ?? '').trim(),
+        phone: (adminData['phone'] as String? ?? '').trim(),
+        restaurantBranchId: restaurantBranchId,
+        role: (adminData['role'] as String? ?? 'owner').trim(),
+        isActive: adminData['isActive'] as bool? ?? false,
+        onboardingCompleted: false,
+        provisioningStatus: 'pending',
+        branchActive: false,
+        restaurantName: _titleFromBranchId(restaurantBranchId),
+        branchName: 'Main',
+        area: '',
+        address: '',
+        slug: restaurantBranchId,
+      );
+      _debugLog(
+        '[ONBOARDING_REPO] EXIT loadAdminContext missing branch default',
+      );
+      return context;
     }
     _debugLog(
       '[OUTLET]\n'
       'slug=${(branchData['slug'] as String? ?? '').trim()}\n'
-      'onboardingCompleted=${branchData['onboardingCompleted'] as bool? ?? false}',
+      'onboardingCompleted=${branchData['onboardingCompleted'] as bool? ?? false}\n'
+      'provisioningStatus=${branchData['provisioningStatus'] as String? ?? ''}',
     );
 
-    return RestaurantBranchAdminContext(
+    final onboardingCompleted =
+        branchData['onboardingCompleted'] as bool? ?? false;
+    final provisioningStatus =
+        (branchData['provisioningStatus'] as String? ?? '').trim();
+    final context = RestaurantBranchAdminContext(
       uid: user.uid,
       name: (adminData['name'] as String? ?? '').trim(),
-      email: (adminData['email'] as String? ?? user.email ?? '').trim(),
+      email: (adminData['email'] as String? ?? '').trim(),
       phone: (adminData['phone'] as String? ?? '').trim(),
       restaurantBranchId: restaurantBranchId,
       role: (adminData['role'] as String? ?? 'owner').trim(),
       isActive: adminData['isActive'] as bool? ?? false,
-      onboardingCompleted:
-          (adminData['onboardingCompleted'] as bool? ?? false) ||
-          (branchData['onboardingCompleted'] as bool? ?? false),
+      onboardingCompleted: onboardingCompleted,
+      provisioningStatus: provisioningStatus,
+      branchActive: branchData['isActive'] as bool? ?? false,
       restaurantName: (branchData['restaurantName'] as String? ?? '').trim(),
       branchName: (branchData['branchName'] as String? ?? '').trim(),
       area: (branchData['area'] as String? ?? '').trim(),
@@ -108,19 +141,48 @@ class FirebaseRestaurantOnboardingRepository
           ? restaurantBranchId
           : (branchData['slug'] as String? ?? restaurantBranchId).trim(),
     );
+    _debugLog('[ONBOARDING_REPO] EXIT loadAdminContext success');
+    return context;
   }
 
   @override
   Future<CompletedRestaurantOnboarding?>
   completedOnboardingForCurrentAdmin() async {
+    _debugLog('[ONBOARDING_REPO] ENTER completedOnboardingForCurrentAdmin');
     RestaurantBranchAdminContext? context;
     try {
+      _debugLog(
+        '[ONBOARDING_REPO] BEFORE await loadAdminContext '
+        'from completedOnboardingForCurrentAdmin',
+      );
       context = await loadAdminContext();
+      _debugLog(
+        '[ONBOARDING_REPO] AFTER await loadAdminContext '
+        'from completedOnboardingForCurrentAdmin '
+        'contextRestaurantBranchId=${context?.restaurantBranchId ?? 'null'}',
+      );
     } on AdminContextLoadException catch (error) {
       _debugLog('[ONBOARDING_COMPLETION]\n${error.message}');
+      _debugLog(
+        '[ONBOARDING_REPO] EXIT completedOnboardingForCurrentAdmin error',
+      );
+      return null;
+    } catch (error, stackTrace) {
+      _debugLog('[ONBOARDING_COMPLETION]\nunexpected=$error\n$stackTrace');
+      _debugLog(
+        '[ONBOARDING_REPO] EXIT completedOnboardingForCurrentAdmin unexpected',
+      );
       return null;
     }
-    if (context == null || !context.onboardingCompleted) return null;
+    if (context == null || !context.isProvisioningCompleted) {
+      _debugLog(
+        '[ONBOARDING_REPO] EXIT completedOnboardingForCurrentAdmin null',
+      );
+      return null;
+    }
+    _debugLog(
+      '[ONBOARDING_REPO] EXIT completedOnboardingForCurrentAdmin completed',
+    );
     return CompletedRestaurantOnboarding(
       restaurantBranchId: context.restaurantBranchId,
     );
@@ -161,13 +223,15 @@ class FirebaseRestaurantOnboardingRepository
     }
 
     final createdAt = DateTime.now();
-    final qrUrl =
-        '/customer/${request.restaurantBranchId}/${request.restaurantBranchId}';
+    final qrUrl = '/customer/${request.restaurantBranchId}';
+    final hostedQrUrl = 'https://ezq-dev-cubiquitous.web.app$qrUrl';
+    final qrAssetBase =
+        'assets/qr/${request.restaurantBranchId}/${request.restaurantBranchId}';
     final result = RestaurantOnboardingResult(
       restaurantBranchId: request.restaurantBranchId,
       createdAt: createdAt,
       adminEmail: adminContext.email.isEmpty
-          ? user.email ?? 'Not available'
+          ? 'Not available'
           : adminContext.email,
       qrUrl: qrUrl,
     );
@@ -203,6 +267,12 @@ class FirebaseRestaurantOnboardingRepository
     );
     batch.update(branchRef, <String, dynamic>{
       'onboardingCompleted': true,
+      'provisioningStatus': 'completed',
+      'qrEnabled': true,
+      'qrSlug': request.restaurantBranchId,
+      'queueUrl': hostedQrUrl,
+      'qrPngLocalPath': '$qrAssetBase.png',
+      'qrSvgLocalPath': '$qrAssetBase.svg',
       'floorCount': request.floorCount,
       'totalTables': request.totalTables,
       'totalSeats': request.totalSeats,
@@ -263,8 +333,10 @@ class FirebaseRestaurantOnboardingRepository
               'tableNumber': tableId,
               'floorId': floorId,
               'capacity': capacity,
+              'tableType': '$capacity-top',
               'status': 'available',
               'section': 'default',
+              'sortOrder': tableNumber,
               'isCombinable': false,
               'currentQueueEntryId': null,
               'createdAt': FieldValue.serverTimestamp(),
@@ -285,7 +357,6 @@ class FirebaseRestaurantOnboardingRepository
 
     _markStarted(OnboardingProvisioningStep.updateAdmin, onStepStarted);
     batch.update(adminRef, <String, dynamic>{
-      'onboardingCompleted': true,
       'onboardedAt': FieldValue.serverTimestamp(),
     });
 
@@ -317,7 +388,18 @@ class FirebaseRestaurantOnboardingRepository
     required String label,
   }) async {
     try {
-      return await _firestore.doc(path).get();
+      _debugLog('[$label]\nBEFORE Firestore get path=$path');
+      final snapshot = await _firestore
+          .doc(path)
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 10));
+      _debugLog(
+        '[$label]\n'
+        'AFTER Firestore get\n'
+        'read=$path\n'
+        'exists=${snapshot.exists}',
+      );
+      return snapshot;
     } on FirebaseException catch (error) {
       _debugLog(
         '[$label]\n'
@@ -337,6 +419,18 @@ class FirebaseRestaurantOnboardingRepository
         cause: error,
       );
     }
+  }
+
+  String _titleFromBranchId(String restaurantBranchId) {
+    final words = restaurantBranchId
+        .split(RegExp(r'[-_\s]+'))
+        .where((word) => word.trim().isNotEmpty)
+        .map((word) {
+          final lower = word.toLowerCase();
+          return lower[0].toUpperCase() + lower.substring(1);
+        });
+    final title = words.join(' ').trim();
+    return title.isEmpty ? restaurantBranchId : title;
   }
 
   void _debugLog(String message) {

@@ -171,7 +171,9 @@ class _StatusContent extends ConsumerWidget {
             EzqButton(
               label: 'Join Queue Again',
               icon: Icons.refresh_rounded,
-              onPressed: () => context.go('/customer/$restaurantId/$branchId'),
+              onPressed: () => context.go(
+                FirestorePaths.customerRoute(restaurantId, branchId),
+              ),
             ),
             const SizedBox(height: 14),
             const _InlinePoweredBy(),
@@ -204,7 +206,11 @@ class _StatusActions extends ConsumerWidget {
           label: 'View Menu',
           icon: Icons.restaurant_menu_rounded,
           onPressed: () => context.go(
-            '/customer/$restaurantId/$branchId/menu?queueEntryId=$queueEntryId',
+            Uri(
+              path:
+                  '${FirestorePaths.customerRoute(restaurantId, branchId)}/menu',
+              queryParameters: {'queueEntryId': queueEntryId},
+            ).toString(),
           ),
         ),
         const SizedBox(height: 10),
@@ -1663,8 +1669,11 @@ class _InlineReadyCard extends ConsumerWidget {
                 Uri(
                   path: '/customer/install',
                   queryParameters: {
-                    'returnTo':
-                        '/customer/$restaurantId/$branchId/status/${entry.id}',
+                    'returnTo': FirestorePaths.customerStatusRoute(
+                      restaurantId,
+                      branchId,
+                      entry.id,
+                    ),
                   },
                 ).toString(),
               ),

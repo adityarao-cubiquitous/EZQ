@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/firestore_paths.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
@@ -544,7 +545,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       onLogout: _logoutAdmin,
                       onQrManagement: _showQrManagementDialog,
                       onReports: () => context.go(
-                        '/admin/${widget.restaurantId}/${widget.branchId}/reports',
+                        '${FirestorePaths.adminRoute(widget.restaurantId, widget.branchId)}/reports',
                       ),
                     ),
                     Expanded(

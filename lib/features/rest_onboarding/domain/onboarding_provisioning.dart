@@ -94,6 +94,8 @@ class RestaurantBranchAdminContext {
     required this.role,
     required this.isActive,
     required this.onboardingCompleted,
+    this.provisioningStatus = 'pending',
+    this.branchActive = true,
     required this.restaurantName,
     required this.branchName,
     required this.area,
@@ -109,6 +111,8 @@ class RestaurantBranchAdminContext {
   final String role;
   final bool isActive;
   final bool onboardingCompleted;
+  final String provisioningStatus;
+  final bool branchActive;
   final String restaurantName;
   final String branchName;
   final String area;
@@ -116,6 +120,9 @@ class RestaurantBranchAdminContext {
   final String slug;
 
   String get displayName => '$restaurantName - $branchName';
+
+  bool get isProvisioningCompleted =>
+      onboardingCompleted && provisioningStatus == 'completed' && branchActive;
 }
 
 class RestaurantOnboardingFailure implements Exception {

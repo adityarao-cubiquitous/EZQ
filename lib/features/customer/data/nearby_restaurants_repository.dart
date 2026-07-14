@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../../../core/constants/firestore_paths.dart';
 import '../domain/branch.dart';
 
 class NearbyRestaurant {
@@ -29,6 +30,11 @@ class NearbyRestaurant {
   String get routeBranchId => branch.restaurantId == null
       ? branch.id
       : (branch.branchSlug ?? branch.id);
+  String get routeRestaurantBranchId =>
+      FirestorePaths.restaurantBranchIdFromRoute(
+        routeRestaurantId,
+        routeBranchId,
+      );
 }
 
 abstract class NearbyRestaurantsRepository {
@@ -143,7 +149,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         branchSlug: 'indiranagar',
         qrSlug: 'the-spice-house-indiranagar',
         queueUrl:
-            'https://ezq-dev-cubiquitous.web.app/customer/the-spice-house/indiranagar',
+            'https://ezq-dev-cubiquitous.web.app/customer/the-spice-house-indiranagar',
         qrImageUrl:
             'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/the-spice-house-indiranagar.png',
         isActive: true,
@@ -167,7 +173,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         branchSlug: 'indiranagar',
         qrSlug: 'cubbon-curry-indiranagar',
         queueUrl:
-            'https://ezq-dev-cubiquitous.web.app/customer/cubbon-curry/indiranagar',
+            'https://ezq-dev-cubiquitous.web.app/customer/cubbon-curry-indiranagar',
         qrImageUrl:
             'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/cubbon-curry-indiranagar.png',
         isActive: true,
@@ -191,7 +197,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         branchSlug: 'indiranagar',
         qrSlug: 'noodle-yard-indiranagar',
         queueUrl:
-            'https://ezq-dev-cubiquitous.web.app/customer/noodle-yard/indiranagar',
+            'https://ezq-dev-cubiquitous.web.app/customer/noodle-yard-indiranagar',
         qrImageUrl:
             'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/noodle-yard-indiranagar.png',
         isActive: true,
@@ -215,7 +221,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         branchSlug: 'indiranagar',
         qrSlug: 'taco-tawa-indiranagar',
         queueUrl:
-            'https://ezq-dev-cubiquitous.web.app/customer/taco-tawa/indiranagar',
+            'https://ezq-dev-cubiquitous.web.app/customer/taco-tawa-indiranagar',
         qrImageUrl:
             'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/taco-tawa-indiranagar.png',
         isActive: true,
@@ -239,7 +245,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         branchSlug: 'indiranagar',
         qrSlug: 'dosa-lab-indiranagar',
         queueUrl:
-            'https://ezq-dev-cubiquitous.web.app/customer/dosa-lab/indiranagar',
+            'https://ezq-dev-cubiquitous.web.app/customer/dosa-lab-indiranagar',
         qrImageUrl:
             'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/dosa-lab-indiranagar.png',
         isActive: true,
@@ -263,7 +269,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         branchSlug: 'hal-2nd-stage',
         qrSlug: 'pasta-pepper-hal-2nd-stage',
         queueUrl:
-            'https://ezq-dev-cubiquitous.web.app/customer/pasta-pepper/hal-2nd-stage',
+            'https://ezq-dev-cubiquitous.web.app/customer/pasta-pepper-hal-2nd-stage',
         qrImageUrl:
             'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/pasta-pepper-hal-2nd-stage.png',
         isActive: true,
@@ -287,7 +293,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         branchSlug: 'domlur-edge',
         qrSlug: 'biryani-bay-domlur-edge',
         queueUrl:
-            'https://ezq-dev-cubiquitous.web.app/customer/biryani-bay/domlur-edge',
+            'https://ezq-dev-cubiquitous.web.app/customer/biryani-bay-domlur-edge',
         qrImageUrl:
             'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/biryani-bay-domlur-edge.png',
         isActive: true,
@@ -311,7 +317,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         branchSlug: 'indiranagar-metro',
         qrSlug: 'momo-mill-indiranagar-metro',
         queueUrl:
-            'https://ezq-dev-cubiquitous.web.app/customer/momo-mill/indiranagar-metro',
+            'https://ezq-dev-cubiquitous.web.app/customer/momo-mill-indiranagar-metro',
         qrImageUrl:
             'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/momo-mill-indiranagar-metro.png',
         isActive: true,
@@ -335,7 +341,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         branchSlug: '12th-main',
         qrSlug: 'salad-studio-12th-main',
         queueUrl:
-            'https://ezq-dev-cubiquitous.web.app/customer/salad-studio/12th-main',
+            'https://ezq-dev-cubiquitous.web.app/customer/salad-studio-12th-main',
         qrImageUrl:
             'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/salad-studio-12th-main.png',
         isActive: true,
@@ -359,7 +365,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         branchSlug: 'old-airport-road',
         qrSlug: 'grill-garden-old-airport-road',
         queueUrl:
-            'https://ezq-dev-cubiquitous.web.app/customer/grill-garden/old-airport-road',
+            'https://ezq-dev-cubiquitous.web.app/customer/grill-garden-old-airport-road',
         qrImageUrl:
             'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/grill-garden-old-airport-road.png',
         isActive: true,
