@@ -19,12 +19,15 @@ import '../../queue/domain/queue_status.dart';
 import '../../recommendation/domain/customer_preferences.dart';
 import '../../recommendation/domain/recommendation_types.dart';
 import '../../tables/data/table_repository.dart';
+import '../../tables/domain/floor_table_map.dart';
 import '../../tables/domain/restaurant_table.dart';
 import '../../tables/domain/table_status.dart';
 import '../../tables/presentation/table_grid.dart';
 import '../../queue/presentation/queue_panel.dart';
 import '../../customer/domain/seating_preference_service.dart';
 import 'qr_management_panel.dart';
+
+final Set<String> _warnedDashboardDisplayNameFallbacks = <String>{};
 
 final _adminWalkInEtaProvider = StreamProvider.autoDispose
     .family<
@@ -35,16 +38,18 @@ final _adminWalkInEtaProvider = StreamProvider.autoDispose
       final tableRepository = ref.watch(tableRepositoryProvider);
       final controller = StreamController<SeatingEta>();
       List<QueueEntry>? latestQueue;
-      List<RestaurantTable>? latestTables;
+      RestaurantFloorTableMap? latestFloorTableMap;
 
       void emitIfReady() {
         final queue = latestQueue;
-        final tables = latestTables;
-        if (queue == null || tables == null || controller.isClosed) return;
+        final floorTableMap = latestFloorTableMap;
+        if (queue == null || floorTableMap == null || controller.isClosed) {
+          return;
+        }
         controller.add(
           _adminComputeLiveEta(
             queue: queue,
-            tables: tables,
+            tables: floorTableMap.tables,
             partySize: args.partySize,
           ),
         );
@@ -61,9 +66,12 @@ final _adminWalkInEtaProvider = StreamProvider.autoDispose
           }, onError: controller.addError);
 
       final tableSubscription = tableRepository
-          .watchTables(restaurantId: args.restaurantId, branchId: args.branchId)
-          .listen((tables) {
-            latestTables = tables;
+          .watchFloorTableMap(
+            restaurantId: args.restaurantId,
+            branchId: args.branchId,
+          )
+          .listen((floorTableMap) {
+            latestFloorTableMap = floorTableMap;
             emitIfReady();
           }, onError: controller.addError);
 
@@ -317,6 +325,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   int _spotlightGeneration = 0;
   QueueEntry? _selectedQueueEntry;
   _TopMetricFilter? _selectedMetricFilter;
+  Object? _lastLoggedFloorTableMapError;
 
   void _handleQueueEntryTap(
     QueueEntry entry,
@@ -345,7 +354,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       if (highlights.isNotEmpty) {
         final highlightedById = {for (final table in tables) table.id: table};
         final tableNumbers = highlights.keys
-            .map((id) => highlightedById[id]?.tableNumber)
+            .map((id) {
+              final table = highlightedById[id];
+              if (table == null) return null;
+              return _dashboardTableDisplayName(table, surface: 'selection');
+            })
             .whereType<String>()
             .join(', ');
         _showAdminPopup(
@@ -460,7 +473,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   Widget build(BuildContext context) {
     final tablesStream = ref
         .watch(tableRepositoryProvider)
-        .watchTables(
+        .watchFloorTableMap(
           restaurantId: widget.restaurantId,
           branchId: widget.branchId,
         );
@@ -479,7 +492,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           return StreamBuilder(
             stream: queueStream,
             builder: (context, queueSnapshot) {
-              final tables = tablesSnapshot.data ?? const [];
+              _logFloorTableMapError(tablesSnapshot.error);
+              final floorTableMap =
+                  tablesSnapshot.data ?? RestaurantFloorTableMap.empty;
+              final tables = floorTableMap.tables;
               final queue = queueSnapshot.data ?? const [];
               final liveQueue =
                   queue
@@ -560,7 +576,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               padding: EdgeInsets.all(pagePadding),
                               children: [
                                 TableGrid(
-                                  tables: tables,
+                                  floorTableMap: floorTableMap,
                                   tableHighlightTones: tableHighlights,
                                   highlightScrollKey:
                                       _selectedQueueEntry?.id ??
@@ -656,7 +672,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   flex: 7,
                                   child: SingleChildScrollView(
                                     child: TableGrid(
-                                      tables: tables,
+                                      floorTableMap: floorTableMap,
                                       tableHighlightTones: tableHighlights,
                                       highlightScrollKey:
                                           _selectedQueueEntry?.id ??
@@ -769,6 +785,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
   }
 
+  void _logFloorTableMapError(Object? error) {
+    if (error == null || identical(error, _lastLoggedFloorTableMapError)) {
+      return;
+    }
+    _lastLoggedFloorTableMapError = error;
+    debugPrint('[ADMIN_DASHBOARD] Floor/table map stream failed: $error');
+  }
+
   Future<void> _reserveQueueEntry({
     required BuildContext context,
     required QueueEntry entry,
@@ -855,7 +879,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           return _SeatingTransitionOverlay(
             tokenCode: entry.tokenCode,
             customerName: entry.customerName,
-            tableNumber: table.tableNumber,
+            tableNumber: _dashboardTableDisplayName(
+              table,
+              surface: 'seating_overlay',
+            ),
           );
         },
         transitionBuilder: (context, animation, secondaryAnimation, child) {
@@ -875,7 +902,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _showAdminPopup(
         context,
         message:
-            '${entry.tokenCode} seated at ${table.tableNumber}. Table is now occupied.',
+            '${entry.tokenCode} seated at ${_dashboardTableDisplayName(table, surface: 'seat_snackbar')}. Table is now occupied.',
         tone: _AdminPopupTone.success,
         actionLabel: 'Undo',
         duration: const Duration(seconds: 7),
@@ -918,7 +945,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _showAdminPopup(
         context,
         message:
-            '${entry.tokenCode} moved back to waiting. ${table.tableNumber} is available again.',
+            '${entry.tokenCode} moved back to waiting. ${_dashboardTableDisplayName(table, surface: 'undo_snackbar')} is available again.',
         tone: _AdminPopupTone.success,
       );
     } catch (error) {
@@ -952,7 +979,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _showAdminPopup(
         context,
         message:
-            '$tokenCode moved back to waiting. ${table.tableNumber} is available again.',
+            '$tokenCode moved back to waiting. ${_dashboardTableDisplayName(table, surface: 'tile_undo_snackbar')} is available again.',
         tone: _AdminPopupTone.success,
       );
     } catch (error) {
@@ -1029,7 +1056,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final completedPartySize = await showDialog<int>(
       context: context,
       builder: (context) => _MealFinishedDialog(
-        tableNumber: table.tableNumber,
+        tableNumber: _dashboardTableDisplayName(
+          table,
+          surface: 'finish_meal_dialog',
+        ),
         tokenCode: table.currentTokenCode ?? queueEntry?.tokenCode ?? 'Token',
         initialPartySize: initialPartySize,
         maxPartySize: [
@@ -1054,7 +1084,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     _showAdminPopup(
       context,
       message:
-          '${table.tableNumber} marked available. $completedPartySize guests finished.',
+          '${_dashboardTableDisplayName(table, surface: 'finish_meal_snackbar')} marked available. $completedPartySize guests finished.',
       tone: _AdminPopupTone.success,
     );
   }
@@ -1114,7 +1144,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _showAdminPopup(
         context,
         message:
-            'No waiting party fits the $openSeats open ${openSeats == 1 ? 'seat' : 'seats'} at ${table.tableNumber}.',
+            'No waiting party fits the $openSeats open ${openSeats == 1 ? 'seat' : 'seats'} at ${_dashboardTableDisplayName(table, surface: 'fit_warning')}.',
         tone: _AdminPopupTone.warning,
       );
       return;
@@ -1124,15 +1154,17 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final nextEntry = recommendations.length > 1 ? recommendations[1] : null;
     _spotlightQueueEntries(
       bestEntry: bestEntry,
-      bestLabel: 'Best fit for ${table.tableNumber}',
+      bestLabel:
+          'Best fit for ${_dashboardTableDisplayName(table, surface: 'best_fit_label')}',
       nextEntry: nextEntry,
-      nextLabel: 'Next best fit for ${table.tableNumber}',
+      nextLabel:
+          'Next best fit for ${_dashboardTableDisplayName(table, surface: 'next_best_label')}',
     );
     final nextText = nextEntry == null ? '' : ' · Next: ${nextEntry.tokenCode}';
     _showAdminPopup(
       context,
       message:
-          'Best fit: ${bestEntry.tokenCode} for ${table.tableNumber} ($openSeats open ${openSeats == 1 ? 'seat' : 'seats'})$nextText',
+          'Best fit: ${bestEntry.tokenCode} for ${_dashboardTableDisplayName(table, surface: 'best_fit_snackbar')} ($openSeats open ${openSeats == 1 ? 'seat' : 'seats'})$nextText',
       duration: const Duration(milliseconds: 2200),
     );
   }
@@ -1245,7 +1277,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     return [
       QueueTableRecommendation(
         tableId: candidates.first.table.id,
-        tableNumber: candidates.first.table.tableNumber,
+        tableNumber: _dashboardTableDisplayName(
+          candidates.first.table,
+          surface: 'queue_recommendation',
+        ),
         openSeats: candidates.first.openSeats,
         capacity: candidates.first.table.capacity,
         isShared: candidates.first.isShared,
@@ -1254,7 +1289,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       if (candidates.length > 1)
         QueueTableRecommendation(
           tableId: candidates[1].table.id,
-          tableNumber: candidates[1].table.tableNumber,
+          tableNumber: _dashboardTableDisplayName(
+            candidates[1].table,
+            surface: 'queue_recommendation',
+          ),
           openSeats: candidates[1].openSeats,
           capacity: candidates[1].table.capacity,
           isShared: candidates[1].isShared,
@@ -1287,7 +1325,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       if (capacity != 0) return capacity;
       final sortOrder = a.table.sortOrder.compareTo(b.table.sortOrder);
       if (sortOrder != 0) return sortOrder;
-      return a.table.tableNumber.compareTo(b.table.tableNumber);
+      return _compareTableNumbers(a.table.tableNumber, b.table.tableNumber);
     });
     return candidates;
   }
@@ -2059,7 +2097,7 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
     final fitLabel = table.capacity == widget.entry.partySize
         ? 'exact fit'
         : 'fits';
-    return '${table.tableNumber} · $openSeats seats · $fitLabel';
+    return '${_dashboardTableDisplayName(table, surface: 'reserve_dropdown')} · $openSeats seats · $fitLabel';
   }
 }
 
@@ -3142,6 +3180,43 @@ double _dialogWidth(BuildContext context, double maxWidth) {
   return availableWidth < maxWidth ? availableWidth : maxWidth;
 }
 
+String _dashboardTableDisplayName(
+  RestaurantTable table, {
+  required String surface,
+}) {
+  final displayTableName = table.displayTableName.trim();
+  if (displayTableName.isNotEmpty) return displayTableName;
+
+  final floorId = table.floorId.trim();
+  final tableNumber = table.tableNumber.trim();
+  final fallback = floorId.isNotEmpty && tableNumber.isNotEmpty
+      ? '$floorId-$tableNumber'
+      : tableNumber;
+  final warningKey = '${table.id}|$surface';
+  if (_warnedDashboardDisplayNameFallbacks.add(warningKey)) {
+    debugPrint(
+      '[ADMIN_DASHBOARD] Missing displayTableName; using fallback="$fallback" '
+      'surface=$surface tableId=${table.id} tableNumber=${table.tableNumber} '
+      'floorId=${table.floorId}',
+    );
+  }
+  return fallback;
+}
+
+int _compareTableNumbers(String a, String b) {
+  final aNumber = _trailingNumber(a);
+  final bNumber = _trailingNumber(b);
+  if (aNumber != null && bNumber != null && aNumber != bNumber) {
+    return aNumber.compareTo(bNumber);
+  }
+  return a.compareTo(b);
+}
+
+int? _trailingNumber(String value) {
+  final match = RegExp(r'(\d+)$').firstMatch(value.trim());
+  return match == null ? null : int.tryParse(match.group(1)!);
+}
+
 Map<String, TableHighlightTone> _tableHighlightsForQueueEntry({
   required List<RestaurantTable> tables,
   required QueueEntry entry,
@@ -3166,7 +3241,7 @@ Map<String, TableHighlightTone> _tableHighlightsForQueueEntry({
     if (capacity != 0) return capacity;
     final sortOrder = a.table.sortOrder.compareTo(b.table.sortOrder);
     if (sortOrder != 0) return sortOrder;
-    return a.table.tableNumber.compareTo(b.table.tableNumber);
+    return _compareTableNumbers(a.table.tableNumber, b.table.tableNumber);
   });
   final bestWaste = candidates.first.openSeats - entry.partySize;
   int? nextWaste;
@@ -3210,7 +3285,7 @@ List<RestaurantTable> _tablesForParty({
     if (c != 0) return c;
     final s = a.sortOrder.compareTo(b.sortOrder);
     if (s != 0) return s;
-    return a.tableNumber.compareTo(b.tableNumber);
+    return _compareTableNumbers(a.tableNumber, b.tableNumber);
   });
 }
 

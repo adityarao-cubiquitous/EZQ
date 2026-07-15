@@ -326,11 +326,13 @@ class FirebaseRestaurantOnboardingRepository
         final count = counts[capacityIndex];
         for (var index = 0; index < count; index++) {
           final tableId = 'T$tableNumber';
+          final displayTableName = '$floorId-$tableId';
           batch.set(
             branchRef.collection('tables').doc(tableId),
             <String, dynamic>{
               'tableId': tableId,
               'tableNumber': tableId,
+              'displayTableName': displayTableName,
               'floorId': floorId,
               'capacity': capacity,
               'tableType': '$capacity-top',

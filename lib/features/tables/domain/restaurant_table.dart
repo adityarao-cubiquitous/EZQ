@@ -6,9 +6,11 @@ class RestaurantTable {
   const RestaurantTable({
     required this.id,
     required this.tableNumber,
+    required this.displayTableName,
     required this.capacity,
     required this.tableType,
     required this.section,
+    required this.floorId,
     required this.status,
     required this.sortOrder,
     this.currentQueueEntryId,
@@ -26,9 +28,11 @@ class RestaurantTable {
 
   final String id;
   final String tableNumber;
+  final String displayTableName;
   final int capacity;
   final String tableType;
   final String section;
+  final String floorId;
   final TableStatus status;
   final String? currentQueueEntryId;
   final String? currentTokenCode;
@@ -55,9 +59,11 @@ class RestaurantTable {
     return RestaurantTable(
       id: id,
       tableNumber: data['tableNumber'] as String? ?? '',
+      displayTableName: (data['displayTableName'] as String? ?? '').trim(),
       capacity: data['capacity'] as int? ?? 2,
       tableType: data['tableType'] as String? ?? '2-top',
       section: data['section'] as String? ?? 'main',
+      floorId: (data['floorId'] as String? ?? '').trim(),
       status: TableStatus.fromWireName(data['status'] as String?),
       currentQueueEntryId: data['currentQueueEntryId'] as String?,
       currentTokenCode: data['currentTokenCode'] as String?,
@@ -76,9 +82,11 @@ class RestaurantTable {
 
   Map<String, dynamic> toMap() => {
     'tableNumber': tableNumber,
+    'displayTableName': displayTableName,
     'capacity': capacity,
     'tableType': tableType,
     'section': section,
+    'floorId': floorId,
     'status': status.wireName,
     'currentQueueEntryId': currentQueueEntryId,
     'currentTokenCode': currentTokenCode,

@@ -1,14 +1,24 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/utils/date_time_utils.dart';
 import '../../queue/domain/queue_status.dart';
+import '../domain/floor_table_map.dart';
+import '../domain/restaurant_floor.dart';
 import '../domain/restaurant_table.dart';
 import '../domain/table_status.dart';
 
 abstract class TableRepository {
   Stream<List<RestaurantTable>> watchTables({
+    required String restaurantId,
+    required String branchId,
+  });
+
+  Stream<RestaurantFloorTableMap> watchFloorTableMap({
     required String restaurantId,
     required String branchId,
   });
@@ -67,6 +77,53 @@ class FirebaseTableRepository implements TableRepository {
   }
 
   @override
+  Stream<RestaurantFloorTableMap> watchFloorTableMap({
+    required String restaurantId,
+    required String branchId,
+  }) {
+    final controller = StreamController<RestaurantFloorTableMap>();
+    List<RestaurantFloor>? latestFloors;
+    List<RestaurantTable>? latestTables;
+
+    void emitIfReady() {
+      final floors = latestFloors;
+      final tables = latestTables;
+      if (floors == null || tables == null || controller.isClosed) return;
+      controller.add(_buildFloorTableMap(floors: floors, tables: tables));
+    }
+
+    final floorSubscription = _firestore
+        .collection(FirestorePaths.floors(restaurantId, branchId))
+        .snapshots()
+        .map(
+          (snapshot) =>
+              snapshot.docs
+                  .map((doc) => RestaurantFloor.fromMap(doc.id, doc.data()))
+                  .toList()
+                ..sort(_compareFloors),
+        )
+        .listen((floors) {
+          latestFloors = floors;
+          emitIfReady();
+        }, onError: controller.addError);
+
+    final tableSubscription =
+        watchTables(restaurantId: restaurantId, branchId: branchId).listen((
+          tables,
+        ) {
+          latestTables = tables;
+          emitIfReady();
+        }, onError: controller.addError);
+
+    controller.onCancel = () async {
+      await floorSubscription.cancel();
+      await tableSubscription.cancel();
+    };
+
+    return controller.stream;
+  }
+
+  @override
   Future<void> reserveTable({
     required String restaurantId,
     required String branchId,
@@ -106,7 +163,9 @@ class FirebaseTableRepository implements TableRepository {
       final cycleSource = previousCycleEndAt == null
           ? 'first_reservation'
           : 'previous_completion';
-      final tableNumber = tableData?['tableNumber'] as String? ?? '';
+      final assignedTableNumber =
+          (tableData?['displayTableName'] as String?) ??
+          (tableData?['tableNumber'] as String? ?? '');
       final tokenCode = entrySnapshot.data()?['tokenCode'] as String? ?? '';
       final partySize = entrySnapshot.data()?['partySize'] as int? ?? 0;
       final assignedAt = FieldValue.serverTimestamp();
@@ -124,7 +183,7 @@ class FirebaseTableRepository implements TableRepository {
       transaction.update(entryRef, {
         'status': QueueStatus.seated.wireName,
         'assignedTableId': tableId,
-        'assignedTableNumber': tableNumber,
+        'assignedTableNumber': assignedTableNumber,
         'reservedAt': assignedAt,
         'seatedAt': assignedAt,
         'tableCycleStartAt': cycleStartAt,
@@ -295,6 +354,53 @@ class FirebaseTableRepository implements TableRepository {
   }
 }
 
+RestaurantFloorTableMap _buildFloorTableMap({
+  required List<RestaurantFloor> floors,
+  required List<RestaurantTable> tables,
+}) {
+  final floorById = {for (final floor in floors) floor.floorId: floor};
+  final tablesByFloorId = {
+    for (final floor in floors) floor.floorId: <RestaurantTable>[],
+  };
+
+  for (final table in tables) {
+    final floorId = table.floorId.trim();
+    if (floorId.isEmpty) {
+      debugPrint(
+        '[TABLE_REPO] Rejected table tableId=${table.id} '
+        'floorId="$floorId" reason=missing_floorId',
+      );
+      continue;
+    }
+    if (!floorById.containsKey(floorId)) {
+      debugPrint(
+        '[TABLE_REPO] Rejected table tableId=${table.id} '
+        'floorId="$floorId" reason=floorId_not_in_provisioned_floors '
+        'validFloorIds=${floorById.keys.join(',')}',
+      );
+      continue;
+    }
+    tablesByFloorId[floorId]!.add(table);
+  }
+
+  return RestaurantFloorTableMap(
+    sections: [
+      for (final floor in floors)
+        RestaurantFloorTableSection(
+          floor: floor,
+          tables: tablesByFloorId[floor.floorId]!
+            ..sort(_compareTablesByCapacity),
+        ),
+    ],
+  );
+}
+
+int _compareFloors(RestaurantFloor a, RestaurantFloor b) {
+  final displayOrder = a.displayOrder.compareTo(b.displayOrder);
+  if (displayOrder != 0) return displayOrder;
+  return a.floorId.compareTo(b.floorId);
+}
+
 int _compareTablesByCapacity(RestaurantTable a, RestaurantTable b) {
   final capacity = a.capacity.compareTo(b.capacity);
   if (capacity != 0) return capacity;
@@ -305,6 +411,28 @@ int _compareTablesByCapacity(RestaurantTable a, RestaurantTable b) {
 
 class MockTableRepository implements TableRepository {
   @override
+  Stream<RestaurantFloorTableMap> watchFloorTableMap({
+    required String restaurantId,
+    required String branchId,
+  }) async* {
+    const floor = RestaurantFloor(
+      id: 'F1',
+      floorId: 'F1',
+      floorName: 'Floor 1',
+      displayOrder: 1,
+      tableCount: 4,
+      seatCount: 16,
+    );
+    final tables = await watchTables(
+      restaurantId: restaurantId,
+      branchId: branchId,
+    ).first;
+    yield RestaurantFloorTableMap(
+      sections: [RestaurantFloorTableSection(floor: floor, tables: tables)],
+    );
+  }
+
+  @override
   Stream<List<RestaurantTable>> watchTables({
     required String restaurantId,
     required String branchId,
@@ -313,18 +441,22 @@ class MockTableRepository implements TableRepository {
       RestaurantTable(
         id: 't1',
         tableNumber: 'T1',
+        displayTableName: 'F1-T1',
         capacity: 2,
         tableType: '2-top',
         section: 'main',
+        floorId: 'F1',
         status: TableStatus.available,
         sortOrder: 1,
       ),
       RestaurantTable(
         id: 't2',
         tableNumber: 'T2',
+        displayTableName: 'F1-T2',
         capacity: 4,
         tableType: '4-top',
         section: 'main',
+        floorId: 'F1',
         status: TableStatus.reserved,
         currentTokenCode: 'Q08',
         currentQueueEntryId: 'q8',
@@ -333,9 +465,11 @@ class MockTableRepository implements TableRepository {
       RestaurantTable(
         id: 't3',
         tableNumber: 'T3',
+        displayTableName: 'F1-T3',
         capacity: 4,
         tableType: '4-top',
         section: 'patio',
+        floorId: 'F1',
         status: TableStatus.occupied,
         currentTokenCode: 'Q05',
         currentQueueEntryId: 'q5',
@@ -344,9 +478,11 @@ class MockTableRepository implements TableRepository {
       RestaurantTable(
         id: 't4',
         tableNumber: 'T4',
+        displayTableName: 'F1-T4',
         capacity: 6,
         tableType: '6-top',
         section: 'family',
+        floorId: 'F1',
         status: TableStatus.available,
         sortOrder: 4,
       ),
