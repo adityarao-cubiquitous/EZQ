@@ -4,13 +4,18 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/responsive.dart';
+import '../domain/floor_table_map.dart';
+import '../domain/restaurant_floor.dart';
 import '../domain/restaurant_table.dart';
 import '../domain/table_status.dart';
+import 'responsive_floor_layout.dart';
+
+final Set<String> _warnedTableCardDisplayNameFallbacks = <String>{};
 
 class TableGrid extends StatefulWidget {
   const TableGrid({
     super.key,
-    required this.tables,
+    required this.floorTableMap,
     this.completedPartySizeFor,
     this.occupiedSinceFor,
     this.onTableRecommendationTap,
@@ -22,7 +27,7 @@ class TableGrid extends StatefulWidget {
     this.highlightScrollKey,
   });
 
-  final List<RestaurantTable> tables;
+  final RestaurantFloorTableMap floorTableMap;
   final int Function(RestaurantTable table)? completedPartySizeFor;
   final DateTime? Function(RestaurantTable table)? occupiedSinceFor;
   final void Function(RestaurantTable table)? onTableRecommendationTap;
@@ -77,8 +82,12 @@ class _TableGridState extends State<TableGrid> {
 
   @override
   Widget build(BuildContext context) {
-    final capacityGroups = _groupTablesByCapacity(widget.tables);
+    final capacitySections = widget.floorTableMap.capacityFloorSections;
     final compact = Responsive.isCompact(context);
+    final capacityGap = compact ? 28.0 : 32.0;
+    final floorGap = compact ? 14.0 : 18.0;
+    final headerToGridGap = compact ? 14.0 : 16.0;
+    final minFloorWidth = compact ? 180.0 : 220.0;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: widget.onEmptySpaceTap,
@@ -106,61 +115,46 @@ class _TableGridState extends State<TableGrid> {
                 fontWeight: FontWeight.w800,
               ),
             ),
-            SizedBox(height: compact ? 14 : 16),
-            for (final group in capacityGroups) ...[
-              _CapacityHeader(
-                capacity: group.capacity,
-                count: group.tables.length,
+            const SizedBox(height: 4),
+            Text(
+              'Grouped by seating capacity and floor',
+              style: TextStyle(
+                color: AppColors.mutedText,
+                fontSize: compact ? 12 : 13,
+                fontWeight: FontWeight.w500,
               ),
-              SizedBox(height: compact ? 8 : 10),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: group.tables.length,
-                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: compact ? 180 : 220,
-                  childAspectRatio: compact ? 0.9 : 1,
-                  crossAxisSpacing: compact ? 8 : 12,
-                  mainAxisSpacing: compact ? 8 : 12,
+            ),
+            SizedBox(height: compact ? 16 : 18),
+            for (final section in capacitySections) ...[
+              ResponsiveCapacitySection(
+                header: _CapacityHeader(
+                  capacityLabel: section.capacityLabel,
+                  count: section.tableCount,
                 ),
-                itemBuilder: (context, index) {
-                  final table = group.tables[index];
-                  return GestureDetector(
-                    key: _keyForTable(table.id),
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {},
-                    child: _TableCard(
-                      table: table,
-                      now: _now,
-                      initialPartySize: widget.completedPartySizeFor?.call(
-                        table,
-                      ),
-                      occupiedSince: widget.occupiedSinceFor?.call(table),
-                      onTableRecommendationTap:
-                          widget.onTableRecommendationTap == null
-                          ? null
-                          : () => widget.onTableRecommendationTap!(table),
-                      highlightTone:
-                          widget.tableHighlightTones[table.id] ??
-                          (widget.matchingTableIds.contains(table.id)
-                              ? TableHighlightTone.best
-                              : null),
-                      onMealFinished: widget.onMealFinished == null
-                          ? null
-                          : () => widget.onMealFinished!(
-                              table,
-                              widget.completedPartySizeFor?.call(table) ??
-                                  table.capacity,
-                            ),
-                      onUndoReservation: widget.onUndoReservation == null
-                          ? null
-                          : () => widget.onUndoReservation!(table),
-                    ),
+                floorCount: section.floors.length,
+                minFloorWidth: minFloorWidth,
+                headerToGridGap: headerToGridGap,
+                floorGap: floorGap,
+                floorBuilder: (context, index, width) {
+                  final floorSection = section.floors[index];
+                  return _FloorTablesContainer(
+                    floor: floorSection.floor,
+                    tables: floorSection.tables,
+                    compact: compact,
+                    now: _now,
+                    tableKeyFor: _keyForTable,
+                    completedPartySizeFor: widget.completedPartySizeFor,
+                    occupiedSinceFor: widget.occupiedSinceFor,
+                    onTableRecommendationTap: widget.onTableRecommendationTap,
+                    onMealFinished: widget.onMealFinished,
+                    onUndoReservation: widget.onUndoReservation,
+                    matchingTableIds: widget.matchingTableIds,
+                    tableHighlightTones: widget.tableHighlightTones,
                   );
                 },
               ),
-              if (group != capacityGroups.last)
-                SizedBox(height: compact ? 14 : 18),
+              if (section != capacitySections.last)
+                SizedBox(height: capacityGap),
             ],
           ],
         ),
@@ -216,70 +210,329 @@ class _TableGridState extends State<TableGrid> {
     if (ids.isEmpty) return null;
     return ids.first;
   }
-
-  List<_CapacityGroup> _groupTablesByCapacity(List<RestaurantTable> tables) {
-    final sortedTables = [...tables]
-      ..sort((a, b) {
-        final capacity = a.capacity.compareTo(b.capacity);
-        if (capacity != 0) return capacity;
-        final sortOrder = a.sortOrder.compareTo(b.sortOrder);
-        if (sortOrder != 0) return sortOrder;
-        return a.tableNumber.compareTo(b.tableNumber);
-      });
-    final groups = <_CapacityGroup>[];
-    for (final table in sortedTables) {
-      if (groups.isEmpty || groups.last.capacity != table.capacity) {
-        groups.add(_CapacityGroup(capacity: table.capacity, tables: [table]));
-      } else {
-        groups.last.tables.add(table);
-      }
-    }
-    return groups;
-  }
 }
 
 enum TableHighlightTone { best, nextBest, free, occupied }
 
-class _CapacityGroup {
-  _CapacityGroup({required this.capacity, required this.tables});
+class _FloorTablesContainer extends StatelessWidget {
+  const _FloorTablesContainer({
+    required this.floor,
+    required this.tables,
+    required this.compact,
+    required this.now,
+    required this.tableKeyFor,
+    required this.completedPartySizeFor,
+    required this.occupiedSinceFor,
+    required this.onTableRecommendationTap,
+    required this.onMealFinished,
+    required this.onUndoReservation,
+    required this.matchingTableIds,
+    required this.tableHighlightTones,
+  });
 
-  final int capacity;
+  final RestaurantFloor floor;
   final List<RestaurantTable> tables;
+  final bool compact;
+  final DateTime now;
+  final GlobalKey Function(String tableId) tableKeyFor;
+  final int Function(RestaurantTable table)? completedPartySizeFor;
+  final DateTime? Function(RestaurantTable table)? occupiedSinceFor;
+  final void Function(RestaurantTable table)? onTableRecommendationTap;
+  final void Function(RestaurantTable table, int initialPartySize)?
+  onMealFinished;
+  final void Function(RestaurantTable table)? onUndoReservation;
+  final Set<String> matchingTableIds;
+  final Map<String, TableHighlightTone> tableHighlightTones;
+
+  @override
+  Widget build(BuildContext context) {
+    return FloorContainer(
+      floorLabel: _floorLabel,
+      compact: compact,
+      child: tables.isEmpty
+          ? _EmptyFloorPlaceholder(compact: compact)
+          : _FloorTableWrap(
+              tables: tables,
+              compact: compact,
+              tableKeyFor: tableKeyFor,
+              tableBuilder: _buildTableCard,
+            ),
+    );
+  }
+
+  String get _floorLabel =>
+      '${floor.floorName} (${tables.length} ${tables.length == 1 ? 'Table' : 'Tables'})';
+
+  Widget _buildTableCard(RestaurantTable table) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {},
+      child: _TableCard(
+        table: table,
+        now: now,
+        initialPartySize: completedPartySizeFor?.call(table),
+        occupiedSince: occupiedSinceFor?.call(table),
+        onTableRecommendationTap: onTableRecommendationTap == null
+            ? null
+            : () => onTableRecommendationTap!(table),
+        highlightTone:
+            tableHighlightTones[table.id] ??
+            (matchingTableIds.contains(table.id)
+                ? TableHighlightTone.best
+                : null),
+        onMealFinished: onMealFinished == null
+            ? null
+            : () => onMealFinished!(
+                table,
+                completedPartySizeFor?.call(table) ?? table.capacity,
+              ),
+        onUndoReservation: onUndoReservation == null
+            ? null
+            : () => onUndoReservation!(table),
+      ),
+    );
+  }
 }
 
-class _CapacityHeader extends StatelessWidget {
-  const _CapacityHeader({required this.capacity, required this.count});
+class FloorContainer extends StatelessWidget {
+  const FloorContainer({
+    super.key,
+    required this.floorLabel,
+    required this.compact,
+    required this.child,
+  });
 
-  final int capacity;
-  final int count;
+  final String floorLabel;
+  final bool compact;
+  final Widget child;
+
+  static double horizontalPadding(bool compact) => compact ? 10.0 : 12.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final padding = EdgeInsets.all(horizontalPadding(compact));
+    return CustomPaint(
+      painter: _DottedBorderPainter(
+        color: const Color(0xFF8A9AA5).withValues(alpha: 0.9),
+        radius: 8,
+      ),
+      child: Container(
+        width: double.infinity,
+        constraints: BoxConstraints(minHeight: compact ? 216 : 242),
+        padding: padding,
+        decoration: BoxDecoration(
+          color: AppColors.softerSurface.withValues(alpha: 0.42),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _FloorHeader(label: floorLabel),
+            SizedBox(height: compact ? 12 : 14),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DottedBorderPainter extends CustomPainter {
+  const _DottedBorderPainter({required this.color, required this.radius});
+
+  final Color color;
+  final double radius;
+
+  static const _dashLength = 4.0;
+  static const _gapLength = 4.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final rect = Offset.zero & size;
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(rect.deflate(0.5), Radius.circular(radius)),
+      );
+
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final next = distance + _dashLength;
+        canvas.drawPath(
+          metric.extractPath(
+            distance,
+            next > metric.length ? metric.length : next,
+          ),
+          paint,
+        );
+        distance = next + _gapLength;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DottedBorderPainter oldDelegate) {
+    return color != oldDelegate.color || radius != oldDelegate.radius;
+  }
+}
+
+class _FloorTableWrap extends StatelessWidget {
+  const _FloorTableWrap({
+    required this.tables,
+    required this.compact,
+    required this.tableKeyFor,
+    required this.tableBuilder,
+  });
+
+  final List<RestaurantTable> tables;
+  final bool compact;
+  final GlobalKey Function(String tableId) tableKeyFor;
+  final Widget Function(RestaurantTable table) tableBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    final tileWidth = compact ? 160.0 : 196.0;
+    final aspectRatio = compact ? 0.9 : 1.0;
+    final gap = compact ? 8.0 : 12.0;
+
+    final tileHeight = tileWidth / aspectRatio;
+    return Wrap(
+      spacing: gap,
+      runSpacing: gap,
+      children: [
+        for (final table in tables)
+          SizedBox(
+            key: tableKeyFor(table.id),
+            width: tileWidth,
+            height: tileHeight,
+            child: tableBuilder(table),
+          ),
+      ],
+    );
+  }
+}
+
+class _FloorHeader extends StatelessWidget {
+  const _FloorHeader({required this.label});
+
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: const Color(0xFFEAF6FF),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: const Color(0x1A006687)),
-          ),
+        const Expanded(child: Divider(color: Color(0x4D8A9AA5))),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text(
-            '$capacity-top',
+            label.replaceFirst(' (', ' • ').replaceFirst(')', ''),
+            textAlign: TextAlign.center,
             style: const TextStyle(
-              color: AppColors.deepTeal,
-              fontSize: 13,
+              color: AppColors.inkBlue,
+              fontSize: 14,
               fontWeight: FontWeight.w800,
             ),
           ),
         ),
-        const SizedBox(width: 8),
-        Text(
-          '$count ${count == 1 ? 'table' : 'tables'}',
-          style: const TextStyle(
+        const Expanded(child: Divider(color: Color(0x4D8A9AA5))),
+      ],
+    );
+  }
+}
+
+class _EmptyFloorPlaceholder extends StatelessWidget {
+  const _EmptyFloorPlaceholder({required this.compact});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final tileWidth = compact ? 160.0 : 196.0;
+    final aspectRatio = compact ? 0.9 : 1.0;
+    return SizedBox(
+      width: double.infinity,
+      height: tileWidth / aspectRatio,
+      child: const Center(
+        child: Text(
+          'No tables on this floor.',
+          style: TextStyle(
             color: AppColors.mutedText,
             fontSize: 13,
             fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CapacityHeader extends StatelessWidget {
+  const _CapacityHeader({required this.capacityLabel, required this.count});
+
+  final String capacityLabel;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = Responsive.isCompact(context);
+    final countLabel = '$count ${count == 1 ? 'Table' : 'Tables'}';
+    return Row(
+      children: [
+        Container(
+          height: compact ? 44 : 46,
+          padding: EdgeInsets.symmetric(horizontal: compact ? 20 : 24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF3AA9F4).withValues(alpha: 0.18),
+                const Color(0xFF6D5CF5).withValues(alpha: 0.16),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: AppColors.primaryTeal.withValues(alpha: 0.22),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.table_restaurant_rounded,
+                size: 17,
+                color: AppColors.deepTeal,
+              ),
+              const SizedBox(width: 9),
+              Text(
+                capacityLabel,
+                style: TextStyle(
+                  color: AppColors.inkBlue,
+                  fontSize: compact ? 15 : 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 18),
+              Container(
+                width: 1,
+                height: 16,
+                color: AppColors.primaryTeal.withValues(alpha: 0.2),
+              ),
+              const SizedBox(width: 14),
+              Text(
+                countLabel,
+                style: TextStyle(
+                  color: AppColors.deepTeal.withValues(alpha: 0.72),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ),
         const Expanded(
@@ -385,10 +638,10 @@ class _TableCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                table.tableNumber,
+                _displayTableName,
                 style: TextStyle(
                   fontSize: compact ? 22 : 24,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
               Column(
@@ -508,6 +761,31 @@ class _TableCard extends StatelessWidget {
           child: card,
         ),
       ),
+    );
+  }
+
+  String get _displayTableName {
+    final displayTableName = table.displayTableName.trim();
+    if (displayTableName.isNotEmpty) return displayTableName;
+    final floorId = table.floorId.trim();
+    final tableNumber = table.tableNumber.trim();
+    if (floorId.isNotEmpty && tableNumber.isNotEmpty) {
+      _warnMissingDisplayTableName(table, fallback: '$floorId-$tableNumber');
+      return '$floorId-$tableNumber';
+    }
+    _warnMissingDisplayTableName(table, fallback: tableNumber);
+    return tableNumber;
+  }
+
+  void _warnMissingDisplayTableName(
+    RestaurantTable table, {
+    required String fallback,
+  }) {
+    if (!_warnedTableCardDisplayNameFallbacks.add(table.id)) return;
+    debugPrint(
+      '[TABLE_GRID] Missing displayTableName; using fallback="$fallback" '
+      'tableId=${table.id} tableNumber=${table.tableNumber} '
+      'floorId=${table.floorId}',
     );
   }
 

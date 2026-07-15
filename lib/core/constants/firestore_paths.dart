@@ -59,6 +59,9 @@ class FirestorePaths {
   static String table(String restaurantId, String branchId, String tableId) =>
       '${tables(restaurantId, branchId)}/$tableId';
 
+  static String floors(String restaurantId, String branchId) =>
+      '${branch(restaurantId, branchId)}/floors';
+
   static String queueEntries(String restaurantId, String branchId) =>
       '${branch(restaurantId, branchId)}/queueEntries';
 
