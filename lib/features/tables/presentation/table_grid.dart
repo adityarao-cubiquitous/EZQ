@@ -634,16 +634,20 @@ class _TableCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                _displayTableName,
-                style: TextStyle(
-                  fontSize: compact ? 22 : 24,
-                  fontWeight: FontWeight.w900,
+              Expanded(
+                child: Text(
+                  _displayTableName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: compact ? 22 : 24,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
+              SizedBox(width: compact ? 6 : 8),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [

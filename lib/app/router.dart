@@ -168,6 +168,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/admin/:restaurantSlug/:branchSlug/dashboard',
+        builder: (context, state) => AdminDashboardScreen(
+          restaurantId: state.pathParameters['restaurantSlug']!,
+          branchId: state.pathParameters['branchSlug']!,
+        ),
+      ),
+      GoRoute(
         path: '/admin/:restaurantBranchId/reports',
         builder: (context, state) {
           final restaurantBranchId =
@@ -177,6 +184,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             branchId: restaurantBranchId,
           );
         },
+      ),
+      GoRoute(
+        path: '/admin/:restaurantSlug/:branchSlug/reports',
+        builder: (context, state) => DailySummaryScreen(
+          restaurantId: state.pathParameters['restaurantSlug']!,
+          branchId: state.pathParameters['branchSlug']!,
+        ),
       ),
       GoRoute(
         path: '/app/login',

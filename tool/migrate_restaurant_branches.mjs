@@ -314,10 +314,60 @@ async function buildRestaurantBranchDocument({
   });
 }
 
-async function copySubcollection({ legacyBasePath, targetBasePath, collection }) {
+function buildMigratedFloorDocument(floorId, tables) {
+  const floorTables = tables.filter((table) => inferFloorId(table) === floorId);
+  return toDocument({
+    floorId,
+    floorName: floorId === 'F1' ? 'Main Floor' : `Floor ${floorId.replace(/^F/, '')}`,
+    displayOrder: Number(floorId.replace(/^F/, '')) || 1,
+    tableCount: floorTables.length,
+    seatCount: floorTables.reduce(
+      (total, table) => total + (tableCapacity(table) ?? 0),
+      0,
+    ),
+    updatedAt: new Date(),
+  });
+}
+
+function buildMigratedTableDocument(id, table) {
+  const floorId = inferFloorId(table);
+  const tableNumber = firstString(table.tableNumber, table.tableId, id);
+  return toDocument({
+    ...table,
+    tableNumber,
+    displayTableName: firstString(table.displayTableName, `${floorId}-${tableNumber}`),
+    floorId,
+  });
+}
+
+async function copySubcollection({
+  legacyBasePath,
+  targetBasePath,
+  collection,
+  tables = [],
+  floors = [],
+}) {
   const legacyDocs = await listDocuments(`${legacyBasePath}/${collection}`);
   summary.subcollectionsMigrated[collection] ??= 0;
   summary.subcollectionsSkipped[collection] ??= 0;
+
+  if (collection === 'floors' && legacyDocs.length === 0) {
+    const inferredFloorIds = [
+      ...new Set(tables.map(inferFloorId).filter((floorId) => floorId)),
+    ].sort();
+    for (const floorId of inferredFloorIds) {
+      const targetPath = `${targetBasePath}/${collection}/${floorId}`;
+      const existing = await getDocument(targetPath);
+      if (existing) {
+        summary.subcollectionsSkipped[collection]++;
+        continue;
+      }
+      await createDocument(targetPath, buildMigratedFloorDocument(floorId, tables));
+      summary.subcollectionsMigrated[collection]++;
+    }
+    return inferredFloorIds.length;
+  }
+
   for (const legacyDoc of legacyDocs) {
     const id = documentId(legacyDoc);
     const targetPath = `${targetBasePath}/${collection}/${id}`;
@@ -326,7 +376,17 @@ async function copySubcollection({ legacyBasePath, targetBasePath, collection })
       summary.subcollectionsSkipped[collection]++;
       continue;
     }
-    await createDocument(targetPath, { fields: legacyDoc.fields ?? {} });
+    const legacyData = fromDocument(legacyDoc);
+    const targetDoc =
+      collection === 'tables'
+        ? buildMigratedTableDocument(id, legacyData)
+        : collection === 'floors'
+          ? buildMigratedFloorDocument(
+              firstString(legacyData.floorId, legacyData.floorName, id),
+              tables,
+            )
+          : { fields: legacyDoc.fields ?? {} };
+    await createDocument(targetPath, targetDoc);
     summary.subcollectionsMigrated[collection]++;
   }
   return legacyDocs.length;
@@ -389,7 +449,13 @@ async function migrate() {
         }
 
         for (const collection of legacySubcollections) {
-          await copySubcollection({ legacyBasePath, targetBasePath, collection });
+          await copySubcollection({
+            legacyBasePath,
+            targetBasePath,
+            collection,
+            tables,
+            floors,
+          });
         }
       } catch (error) {
         summary.restaurantBranchesFailed++;

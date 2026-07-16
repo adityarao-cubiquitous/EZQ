@@ -3,9 +3,8 @@ import { request } from 'node:https';
 import { homedir } from 'node:os';
 
 const projectId = process.argv[2] ?? 'ezq-dev-cubiquitous';
-const restaurantId = 'the-spice-house';
-const branchId = 'indiranagar';
-const basePath = `restaurants/${restaurantId}/branches/${branchId}`;
+const restaurantBranchId = 'the-spice-house-indiranagar';
+const basePath = `restaurantBranches/${restaurantBranchId}`;
 const configPath = `${homedir()}/.config/configstore/firebase-tools.json`;
 const firebaseToolsConfig = JSON.parse(await readFile(configPath, 'utf8'));
 let accessToken = firebaseToolsConfig.tokens?.access_token;
@@ -171,6 +170,39 @@ const preferenceLabels = {
   family_section: 'Family section',
 };
 
+const spiceHouseTables = [
+  { id: 't1', tableNumber: 'T1', capacity: 2, section: 'main' },
+  { id: 't2', tableNumber: 'T2', capacity: 4, section: 'main' },
+  { id: 't3', tableNumber: 'T3', capacity: 4, section: 'patio' },
+  { id: 't4', tableNumber: 'T4', capacity: 6, section: 'family' },
+  { id: 't5', tableNumber: 'T5', capacity: 2, section: 'bar' },
+  { id: 't6', tableNumber: 'T6', capacity: 2, section: 'window' },
+  { id: 't7', tableNumber: 'T7', capacity: 2, section: 'patio' },
+  { id: 't8', tableNumber: 'T8', capacity: 4, section: 'main' },
+  { id: 't9', tableNumber: 'T9', capacity: 4, section: 'patio' },
+  { id: 't10', tableNumber: 'T10', capacity: 4, section: 'main' },
+  { id: 't11', tableNumber: 'T11', capacity: 6, section: 'family' },
+  { id: 't12', tableNumber: 'T12', capacity: 6, section: 'family' },
+  { id: 't13', tableNumber: 'T13', capacity: 8, section: 'private' },
+  { id: 't14', tableNumber: 'T14', capacity: 10, section: 'private' },
+  { id: 't15', tableNumber: 'T15', capacity: 2, section: 'main' },
+  { id: 't16', tableNumber: 'T16', capacity: 2, section: 'main' },
+  { id: 't17', tableNumber: 'T17', capacity: 2, section: 'main' },
+  { id: 't18', tableNumber: 'T18', capacity: 4, section: 'main' },
+  { id: 't19', tableNumber: 'T19', capacity: 4, section: 'main' },
+  { id: 't20', tableNumber: 'T20', capacity: 4, section: 'main' },
+  { id: 't21', tableNumber: 'T21', capacity: 4, section: 'main' },
+  { id: 't22', tableNumber: 'T22', capacity: 6, section: 'family' },
+  { id: 't23', tableNumber: 'T23', capacity: 6, section: 'family' },
+  { id: 't24', tableNumber: 'T24', capacity: 6, section: 'family' },
+  { id: 't25', tableNumber: 'T25', capacity: 8, section: 'private' },
+  { id: 't26', tableNumber: 'T26', capacity: 8, section: 'private' },
+  { id: 't27', tableNumber: 'T27', capacity: 10, section: 'private' },
+  { id: 't28', tableNumber: 'T28', capacity: 10, section: 'private' },
+  { id: 't29', tableNumber: 'T29', capacity: 12, section: 'banquet' },
+  { id: 't30', tableNumber: 'T30', capacity: 12, section: 'banquet' },
+];
+
 function partySizeBand(partySize) {
   if (partySize <= 2) return '1-2';
   if (partySize <= 4) return '3-4';
@@ -299,15 +331,64 @@ for (const doc of queueDocs) {
   await deleteDocument(doc.name);
 }
 
-const tableDocs = await listCollection(`${basePath}/tables`);
-for (const doc of tableDocs) {
-  const tablePath = doc.name.split('/documents/')[1];
-  const fields = doc.fields ?? {};
-  await patchDocument(tablePath, {
-    tableNumber: fields.tableNumber?.stringValue ?? '',
-    capacity: Number(fields.capacity?.integerValue ?? 2),
-    tableType: fields.tableType?.stringValue ?? '2-top',
-    section: fields.section?.stringValue ?? 'main',
+const existingFloorDocs = await listCollection(`${basePath}/floors`);
+for (const doc of existingFloorDocs) {
+  await deleteDocument(doc.name);
+}
+
+const floorId = 'F1';
+const tableSeededAt = new Date(now).toISOString();
+const totalSeats = spiceHouseTables.reduce((total, table) => total + table.capacity, 0);
+const capacityTypes = [
+  ...new Set(spiceHouseTables.map((table) => table.capacity)),
+].sort((left, right) => left - right);
+await patchDocument(basePath, {
+  id: restaurantBranchId,
+  slug: restaurantBranchId,
+  qrSlug: restaurantBranchId,
+  restaurantName: 'The Spice House',
+  branchName: 'Indiranagar',
+  displayName: 'The Spice House - Indiranagar',
+  area: 'Vijaya Bank Layout',
+  address: 'Vijaya Bank Layout near IIM Bangalore, Bengaluru',
+  city: 'Bengaluru',
+  country: 'India',
+  geoPoint: { latitude: 12.89868, longitude: 77.61205 },
+  subscription: { plan: 'starter', status: 'trial' },
+  hiddenObjectPuzzleImageUrl:
+    'https://ezq-dev-cubiquitous.web.app/wait-puzzles/puzzle-01.jpg',
+  menuPdfUrl: '/demo-menu.pdf',
+  menuPreviewImageUrl: '/demo-menu-page-1.png',
+  averageTurnoverMinutes: 35,
+  floorCount: 1,
+  totalTables: spiceHouseTables.length,
+  totalSeats,
+  capacityTypes,
+  onboardingCompleted: true,
+  isActive: true,
+  provisioningStatus: 'completed',
+  qrEnabled: true,
+  createdAt: '2026-06-25T10:57:13.435Z',
+  updatedAt: tableSeededAt,
+});
+
+await patchDocument(`${basePath}/floors/${floorId}`, {
+  floorId,
+  floorName: 'Main Floor',
+  displayOrder: 1,
+  tableCount: spiceHouseTables.length,
+  seatCount: totalSeats,
+  updatedAt: tableSeededAt,
+});
+
+for (const [index, table] of spiceHouseTables.entries()) {
+  await patchDocument(`${basePath}/tables/${table.id}`, {
+    tableNumber: table.tableNumber,
+    displayTableName: `${floorId}-${table.tableNumber}`,
+    floorId,
+    capacity: table.capacity,
+    tableType: `${table.capacity}-top`,
+    section: table.section,
     status: 'available',
     currentQueueEntryId: null,
     currentTokenCode: null,
@@ -317,7 +398,8 @@ for (const doc of tableDocs) {
     reservedAt: null,
     occupiedAt: null,
     cleaningStartedAt: null,
-    sortOrder: Number(fields.sortOrder?.integerValue ?? 0),
+    sortOrder: index + 1,
+    updatedAt: tableSeededAt,
   });
 }
 
@@ -377,21 +459,18 @@ const partialOccupancyScenarios = [
 
 const usedTablePaths = new Set();
 for (const scenario of partialOccupancyScenarios) {
-  const tableDoc = tableDocs.find((doc) => {
-    const tablePath = doc.name.split('/documents/')[1];
-    const capacity = Number(doc.fields?.capacity?.integerValue ?? 0);
-    return capacity === scenario.capacity && !usedTablePaths.has(tablePath);
+  const table = spiceHouseTables.find((item) => {
+    return item.capacity === scenario.capacity && !usedTablePaths.has(item.id);
   });
-  if (!tableDoc) continue;
+  if (!table) continue;
 
-  const tablePath = tableDoc.name.split('/documents/')[1];
-  const tableFields = tableDoc.fields ?? {};
-  const tableId = tablePath.split('/').pop();
-  const tableNumber = tableFields.tableNumber?.stringValue ?? tableId;
+  const tablePath = `${basePath}/tables/${table.id}`;
+  const tableId = table.id;
+  const tableNumber = table.tableNumber;
   const queueEntryId = `seated-demo-${scenario.tokenNumber}`;
   const tokenCode = `Q${scenario.tokenNumber}`;
   const seatedAt = minutesAgo(18 + (scenario.tokenNumber - 900) * 4);
-  usedTablePaths.add(tablePath);
+  usedTablePaths.add(table.id);
 
   await patchDocument(`${basePath}/queueEntries/${queueEntryId}`, {
     tokenNumber: scenario.tokenNumber,
@@ -431,9 +510,11 @@ for (const scenario of partialOccupancyScenarios) {
 
   await patchDocument(tablePath, {
     tableNumber,
+    displayTableName: `${floorId}-${tableNumber}`,
+    floorId,
     capacity: scenario.capacity,
-    tableType: tableFields.tableType?.stringValue ?? `${scenario.capacity}-top`,
-    section: tableFields.section?.stringValue ?? 'main',
+    tableType: `${scenario.capacity}-top`,
+    section: table.section,
     status: 'occupied',
     currentQueueEntryId: queueEntryId,
     currentTokenCode: tokenCode,
@@ -464,5 +545,5 @@ await patchDocument(`${basePath}/dailyCounters/${businessDate}`, {
 });
 
 console.log(
-  `Seeded ${queueCount} waiting parties in Q-number/FIFO order and reset ${tableDocs.length} tables to available in ${projectId}.`,
+  `Seeded ${queueCount} waiting parties in Q-number/FIFO order and reset ${spiceHouseTables.length} tables on ${restaurantBranchId} in ${projectId}.`,
 );
