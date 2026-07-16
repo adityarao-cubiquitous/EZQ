@@ -1,389 +1,444 @@
-
-<h2 class="sr-only">EZQ unified analytics dashboard with hover on prior period line</h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EZQ Analytics — The Spice House</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-.w{padding:1rem 0;font-family:var(--font-sans)}
-.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:12px;margin-bottom:14px;border-bottom:0.5px solid var(--border)}
-.bar label{font-size:12px;color:var(--text-muted)}
-.di{display:flex;align-items:center;gap:5px}
-.di input{font-size:12px;padding:4px 8px;border:0.5px solid var(--border-strong);border-radius:var(--radius);background:var(--surface-1);color:var(--text-primary);width:118px}
-.di span{font-size:12px;color:var(--text-muted)}
-.qg{display:flex;gap:3px}
-.qb{font-size:12px;padding:5px 10px;border:0.5px solid var(--border-strong);border-radius:var(--radius);background:var(--surface-1);color:var(--text-secondary);cursor:pointer}
-.qb.on{background:var(--bg-accent);border-color:var(--border-accent);color:var(--text-accent);font-weight:500}
-.vg{display:flex;gap:2px;background:var(--surface-1);border-radius:var(--radius);padding:3px;margin-left:auto}
-.vb{font-size:12px;padding:5px 13px;border:none;background:none;border-radius:calc(var(--radius) - 2px);color:var(--text-muted);cursor:pointer;font-weight:500}
-.vb.on{background:var(--surface-2);color:var(--text-primary)}
-.kr{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:14px}
-.kc{background:var(--surface-1);border-radius:var(--radius);padding:10px 12px}
-.kl{font-size:11px;color:var(--text-muted);margin-bottom:3px}
-.kv{font-size:20px;font-weight:500;color:var(--text-primary);line-height:1.1}
-.kd{font-size:11px;margin-top:3px}
-.up{color:var(--text-success)}.dn{color:var(--text-danger)}
-.cc{background:var(--surface-1);border-radius:12px;padding:12px 14px;margin-bottom:10px}
-.g2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-bottom:10px}
-.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}
-.ct{font-size:11px;font-weight:500;color:var(--text-secondary);margin-bottom:4px}
-.sub{font-size:11px;color:var(--text-muted);margin-bottom:7px}
-.lg{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;font-size:11px;color:var(--text-secondary);align-items:center}
-.li{display:flex;align-items:center;gap:5px}
-.sq{width:10px;height:10px;border-radius:2px;flex-shrink:0}
-.line-sw{width:24px;height:0;border-top:2px dashed #b5d4f4;flex-shrink:0}
-.ins{border-left:3px solid var(--border-accent);background:var(--bg-accent);padding:9px 13px;font-size:12px;color:var(--text-accent);border-radius:0;margin-bottom:8px}
-.ins.g{border-color:var(--border-success);background:var(--bg-success);color:var(--text-success)}
+:root {
+  --purple:#6A40D7; --teal:#12A9DC; --cyan:#7FD9EB; --navy:#0D1F2D;
+  --green:#16a34a; --red:#dc2626; --amber:#eda100; --orange:#ff8a3d;
+  --bg:#F5F3FF; --card:#FFFFFF; --border:#E2DAF5; --dim:#6B5E8A;
+  --text:#1A0F3C; --sub:#8878AA;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; padding: 0 0 64px; }
+
+/* PAGE HEADER */
+.page-header {
+  background: linear-gradient(135deg, #6A40D7 0%, #9060E0 45%, #12A9DC 100%);
+  padding: 18px 24px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px; margin-bottom: 20px;
+}
+.header-left { display: flex; align-items: center; gap: 13px; }
+.logo-mark {
+  width: 40px; height: 40px; background: rgba(255,255,255,0.18);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 900; color: #fff; letter-spacing: -1px; flex-shrink: 0;
+}
+.header-brand { font-size: 19px; font-weight: 800; color: #fff; letter-spacing: -.3px; line-height: 1.2; }
+.header-loc { font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 1px; }
+.header-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.hbadge {
+  font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.9);
+  background: rgba(255,255,255,0.15); padding: 4px 10px;
+  border-radius: 20px; border: 1px solid rgba(255,255,255,0.22);
+}
+
+/* CONTENT */
+.content { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+
+/* CONTROLS */
+.ctrl {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 11px 14px; background: var(--card); border-radius: 12px;
+  border: 1px solid var(--border); box-shadow: 0 1px 4px rgba(106,64,215,0.07);
+  margin-bottom: 16px;
+}
+.ctrl label { font-size: 12px; color: var(--dim); font-weight: 500; }
+.drow { display: flex; align-items: center; gap: 5px; }
+.drow input { font-size: 12px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: inherit; width: 118px; }
+.drow span { font-size: 12px; color: var(--dim); }
+.qbs { display: flex; gap: 3px; }
+.qb { font-size: 12px; padding: 5px 11px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--dim); cursor: pointer; font-family: inherit; }
+.qb.on { background: var(--purple); border-color: var(--purple); color: #fff; font-weight: 600; }
+.vps { display: flex; gap: 2px; background: var(--bg); border-radius: 9px; padding: 3px; margin-left: auto; border: 1px solid var(--border); }
+.vp { font-size: 12px; padding: 5px 13px; border: none; background: none; border-radius: 7px; color: var(--dim); cursor: pointer; font-family: inherit; font-weight: 500; }
+.vp.on { background: linear-gradient(90deg, var(--purple), var(--teal)); color: #fff; font-weight: 600; box-shadow: 0 2px 8px rgba(106,64,215,0.28); }
+
+/* PLAYBOOK */
+.playbook {
+  background: linear-gradient(135deg, #6A40D7 0%, #8B5CF6 50%, #12A9DC 100%);
+  border-radius: 16px; padding: 18px 20px; margin-bottom: 18px;
+  position: relative; overflow: hidden; box-shadow: 0 4px 24px rgba(106,64,215,0.22);
+}
+.playbook::before { content: ''; position: absolute; top: -40%; right: -5%; width: 320px; height: 320px; background: radial-gradient(circle, rgba(255,255,255,0.16), transparent 65%); pointer-events: none; }
+.pb-eye { font-size: 10px; letter-spacing: .1em; color: var(--cyan); font-weight: 700; text-transform: uppercase; margin-bottom: 2px; }
+.pb-title { font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+.pb-sub { font-size: 11px; color: rgba(255,255,255,0.6); margin-bottom: 13px; }
+.pb-list { display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 1; }
+.pb-item { display: flex; align-items: flex-start; gap: 10px; background: rgba(255,255,255,0.13); border-radius: 10px; padding: 10px 13px; border-left: 3px solid; }
+.pb-item.p0 { border-color: #e34948; }
+.pb-item.p1 { border-color: #eda100; }
+.pb-item.p2 { border-color: #1baf7a; }
+.pb-tag { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px; white-space: nowrap; margin-top: 2px; }
+.pb-tag.p0 { background: #e34948; color: #fff; }
+.pb-tag.p1 { background: #eda100; color: #1a1000; }
+.pb-tag.p2 { background: #1baf7a; color: #fff; }
+.pb-text { font-size: 12.5px; color: rgba(255,255,255,0.92); line-height: 1.5; }
+.pb-text strong { color: #fff; }
+.pb-impact { font-size: 10.5px; color: var(--cyan); margin-top: 3px; font-style: italic; }
+
+/* KPI */
+.krow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+.kc { background: var(--card); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--border); position: relative; box-shadow: 0 1px 4px rgba(106,64,215,0.06); }
+.kl { font-size: 11px; color: var(--sub); margin-bottom: 3px; font-weight: 500; }
+.kv { font-size: 24px; font-weight: 700; color: var(--navy); line-height: 1.1; }
+.kd { font-size: 11px; margin-top: 4px; font-weight: 500; }
+.up { color: #16a34a; } .dn { color: #dc2626; }
+.kflag { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 10px; position: absolute; top: 10px; right: 10px; background: rgba(220,38,38,0.1); color: #dc2626; }
+
+/* CHART CARD — flex column so header + body + footer stay aligned */
+.cc {
+  background: var(--card); border-radius: 14px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 6px rgba(106,64,215,0.06);
+  display: flex; flex-direction: column;
+}
+
+/* CHART HEADER — fixed structure, always same padding */
+.ch {
+  padding: 13px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ct { font-size: 13px; font-weight: 600; color: var(--navy); margin-bottom: 5px; line-height: 1.35; }
+.cuse {
+  display: inline-flex; align-items: center;
+  font-size: 10px; font-weight: 600; color: #fff;
+  background: linear-gradient(90deg, var(--purple), var(--teal));
+  padding: 2px 9px; border-radius: 20px;
+  box-shadow: 0 1px 5px rgba(106,64,215,0.22);
+  white-space: nowrap; letter-spacing: .02em; margin-bottom: 5px;
+}
+.csub { font-size: 11px; color: var(--sub); line-height: 1.4; }
+.leg { display: flex; flex-wrap: wrap; gap: 8px; font-size: 11px; color: var(--dim); align-items: center; margin-top: 6px; }
+.li { display: flex; align-items: center; gap: 4px; }
+.sq { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.linesw { width: 22px; height: 0; border-top: 2.5px dashed #ff8a3d; flex-shrink: 0; }
+
+/* CHART BODY — canvas lives here, fixed height via wrapper */
+.cb { padding: 12px 16px; flex: 1 0 auto; }
+.cb canvas { display: block; width: 100% !important; }
+
+/* CHART FOOTER — takeaway */
+.cf { padding: 0 16px 13px; flex-shrink: 0; }
+.take { font-size: 11.5px; padding: 8px 11px; border-radius: 8px; display: flex; align-items: flex-start; gap: 6px; line-height: 1.45; }
+.take.info { background: rgba(106,64,215,0.07); color: #4A2AA0; border-left: 3px solid var(--purple); }
+.take.warn { background: rgba(220,38,38,0.06); color: #9b1c1c; border-left: 3px solid #dc2626; }
+.take.good { background: rgba(22,163,74,0.07); color: #14532d; border-left: 3px solid #16a34a; }
+
+/* GRID ROWS */
+.row-full { margin-bottom: 12px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+
+/* CANVAS HEIGHT WRAPPERS — explicit so every chart fills correctly */
+.h200 { height: 200px; position: relative; }
+.h160 { height: 160px; position: relative; }
+.h155 { height: 155px; position: relative; }
+.h130 { height: 130px; position: relative; }
+
+@media (max-width: 720px) {
+  .krow { grid-template-columns: repeat(2, 1fr); }
+  .row2, .row3 { grid-template-columns: 1fr; }
+  .vps { margin-left: 0; width: 100%; }
+  .ctrl { flex-direction: column; align-items: stretch; }
+}
 </style>
+</head>
+<body>
 
-<div class="w">
+<div class="page-header">
+  <div class="header-left">
+    <div class="logo-mark">EZQ</div>
+    <div>
+      <div class="header-brand">EZQ Analytics</div>
+      <div class="header-loc">The Spice House · Indiranagar, Bengaluru</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="hbadge" id="hdr-range">Jun 1 – Jun 29</span>
+    <span class="hbadge" id="hdr-view">All days</span>
+  </div>
+</div>
 
-<div class="bar">
+<div class="content">
+
+<div class="ctrl">
   <label>Date range</label>
-  <div class="di">
+  <div class="drow">
     <input type="date" id="df" value="2026-06-01">
     <span>to</span>
     <input type="date" id="dt" value="2026-06-29">
   </div>
-  <div class="qg">
+  <div class="qbs">
     <button class="qb" onclick="rng(7,this)">7d</button>
     <button class="qb on" onclick="rng(28,this)">28d</button>
     <button class="qb" onclick="rng(90,this)">3m</button>
     <button class="qb" onclick="rng(365,this)">1y</button>
   </div>
-  <div class="vg">
-    <button class="vb on" onclick="sv('all',this)">All days</button>
-    <button class="vb" onclick="sv('wknd',this)">Weekends</button>
-    <button class="vb" onclick="sv('wkdy',this)">Weekdays</button>
+  <div class="vps">
+    <button class="vp on" onclick="sv('all',this)">All days</button>
+    <button class="vp" onclick="sv('wknd',this)">Weekends</button>
+    <button class="vp" onclick="sv('wkdy',this)">Weekdays</button>
   </div>
 </div>
 
-<div class="kr">
+<div class="playbook">
+  <div class="pb-eye">Owner playbook</div>
+  <div class="pb-title">🎯 What to do this period</div>
+  <div class="pb-sub" id="pb-sub">Recommendations based on your data — ranked by priority</div>
+  <div class="pb-list" id="pb-list"></div>
+</div>
+
+<div class="krow">
   <div class="kc"><div class="kl">Customers seated</div><div class="kv" id="v1">1,840</div><div class="kd up" id="d1">+14% vs prior period</div></div>
-  <div class="kc"><div class="kl">Avg wait time</div><div class="kv" id="v2">19m</div><div class="kd up" id="d2">-3m vs prior period</div></div>
-  <div class="kc"><div class="kl">No-show rate</div><div class="kv" id="v3">8%</div><div class="kd up" id="d3">-2pp vs prior period</div></div>
+  <div class="kc"><div class="kl">Avg party size</div><div class="kv" id="v2">3.6</div><div class="kd up" id="d2">+0.2 vs prior period</div></div>
+  <div class="kc"><div class="kflag" id="kf3" style="display:none">HIGH</div><div class="kl">No-show rate</div><div class="kv" id="v3">8%</div><div class="kd up" id="d3">-2pp vs prior period</div></div>
   <div class="kc"><div class="kl">Table turns per day</div><div class="kv" id="v4">3.8</div><div class="kd up" id="d4">+0.4 vs prior period</div></div>
-  <div class="kc"><div class="kl">Est. revenue uplift</div><div class="kv" id="v5">₹1.2L</div><div class="kd up" id="d5">+30% vs prior period</div></div>
 </div>
 
-<div class="cc">
-  <div class="ct" id="mct">Customers seated per day — Jun 1 to Jun 29</div>
-  <div class="sub" id="msub">How many customers were successfully seated each day. Darker blue bars are Saturday and Sunday.</div>
-  <div class="lg">
-    <span class="li"><span class="sq" style="background:rgba(42,120,214,0.42)"></span>Weekday (Mon–Fri)</span>
-    <span class="li"><span class="sq" style="background:rgba(42,120,214,0.88)"></span>Weekend (Sat–Sun)</span>
-    <span class="li"><span class="line-sw"></span>Same days last period — hover to compare</span>
-  </div>
-  <div style="position:relative;height:185px"><canvas id="c0" role="img" aria-label="Bar chart of customers seated per day. Hover any bar to see this period vs same day last period.">Customers seated daily.</canvas></div>
-</div>
-
-<div class="g3">
-  <div class="cc" style="margin-bottom:0">
-    <div class="ct" id="hct">Customers joining queue — by hour</div>
-    <div class="sub">Average number of people joining per hour across the period</div>
-    <div class="lg" id="hleg">
-      <span class="li"><span class="sq" style="background:#1baf7a"></span>Weekday avg</span>
-      <span class="li"><span class="sq" style="background:#2a78d6"></span>Weekend avg</span>
+<!-- MAIN DAILY CHART -->
+<div class="row-full">
+  <div class="cc">
+    <div class="ch">
+      <div class="ct" id="mct">Customers seated per day, by party size</div>
+      <div class="cuse">→ Spot which days underperform and whether it's a small-group or large-group problem</div>
+      <div class="csub" id="msub">Each bar = customers seated by group size. Orange dashed line = same days last period.</div>
+      <div class="leg">
+        <span class="li"><span class="sq" style="background:#7fd9eb"></span>1–2 guests</span>
+        <span class="li"><span class="sq" style="background:#2a78d6"></span>3–4 guests</span>
+        <span class="li"><span class="sq" style="background:#6a40d7"></span>5–6 guests</span>
+        <span class="li"><span class="sq" style="background:#3a2370"></span>7+ guests</span>
+        <span class="li"><span class="linesw"></span>Same days last period</span>
+      </div>
     </div>
-    <div style="position:relative;height:115px"><canvas id="c1" role="img" aria-label="Line chart of average hourly queue joins weekday vs weekend">Hourly pattern.</canvas></div>
-  </div>
-  <div class="cc" style="margin-bottom:0">
-    <div class="ct">No-show rate — by day of week</div>
-    <div class="sub">% of customers who got a table alert but never arrived</div>
-    <div style="position:relative;height:115px"><canvas id="c2" role="img" aria-label="Bar chart of no-show rate by day, Saturday highest at 12%">No-show by day.</canvas></div>
-  </div>
-  <div class="cc" style="margin-bottom:0">
-    <div class="ct">Average wait time — by day of week</div>
-    <div class="sub">Minutes from joining queue to sitting down</div>
-    <div style="position:relative;height:115px"><canvas id="c3" role="img" aria-label="Line chart of average wait time by day, Saturday peaks at 27 min">Wait by day.</canvas></div>
+    <div class="cb"><div class="h200"><canvas id="c0"></canvas></div></div>
   </div>
 </div>
 
-<div class="g2">
-  <div class="cc" style="margin-bottom:0">
-    <div class="ct" id="sct">Customers seated per day — weekday vs weekend</div>
-    <div class="sub" id="ssub">Average number of people seated on a typical weekday vs a weekend day</div>
-    <div class="lg">
-      <span class="li" id="sl1"><span class="sq" style="background:#1baf7a"></span>Weekday (Mon–Fri)</span>
-      <span class="li" id="sl2"><span class="sq" style="background:#2a78d6"></span>Weekend (Sat–Sun)</span>
+<!-- HOURLY -->
+<div class="row-full">
+  <div class="cc">
+    <div class="ch">
+      <div class="ct" id="hct">Customers joining queue — by hour</div>
+      <div class="cuse">→ Decide staffing levels — add or reduce hosts at the hours where the queue spikes</div>
+      <div class="csub">Average customers joining per hour across the period</div>
+      <div class="leg" id="hleg">
+        <span class="li"><span class="sq" style="background:#1baf7a"></span>Weekday avg</span>
+        <span class="li"><span class="sq" style="background:#2a78d6"></span>Weekend avg</span>
+      </div>
     </div>
-    <div style="position:relative;height:130px"><canvas id="c4" role="img" aria-label="Grouped bars comparing avg customers per day on weekdays vs weekends">Weekday vs weekend seated.</canvas></div>
+    <div class="cb"><div class="h160"><canvas id="c-hr"></canvas></div></div>
+    <div class="cf"><div class="take info">⏰ Lunch peaks at 1pm — especially on weekends (28 customers/hour vs 10 on weekdays). Staff up from 12:30pm on Saturdays and Sundays.</div></div>
   </div>
-  <div class="cc" style="margin-bottom:0">
-    <div class="ct">Customers seated per week — Mon–Fri vs Sat–Sun</div>
-    <div class="sub">Each bar is one week. The stack shows how much came from weekdays vs the weekend</div>
-    <div class="lg">
-      <span class="li" id="tl1"><span class="sq" style="background:#1baf7a"></span>Mon–Fri customers</span>
-      <span class="li" id="tl2"><span class="sq" style="background:#2a78d6"></span>Sat–Sun customers</span>
+</div>
+
+<!-- PARTY MIX + WAIT BY PARTY -->
+<div class="row2">
+  <div class="cc">
+    <div class="ch">
+      <div class="ct">Customers seated — by party size</div>
+      <div class="cuse">→ Plan your table configuration — more of the sizes you seat most</div>
+      <div class="csub" id="psub">Total mix across the selected period</div>
     </div>
-    <div style="position:relative;height:130px"><canvas id="c5" role="img" aria-label="Stacked weekly bar chart of customers seated split by weekday and weekend">Weekly stacked customers.</canvas></div>
+    <div class="cb"><div class="h155"><canvas id="c-pie"></canvas></div></div>
+    <div class="cf"><div class="take info">🪑 3–4 guests is your biggest segment. Always have 4-tops available on Saturdays.</div></div>
+  </div>
+  <div class="cc">
+    <div class="ch">
+      <div class="ct">Average wait time — by party size</div>
+      <div class="cuse">→ Find which group sizes are held back — they reveal your table bottleneck</div>
+      <div class="csub">Minutes from joining queue to being seated</div>
+    </div>
+    <div class="cb"><div class="h155"><canvas id="c-wps"></canvas></div></div>
+    <div class="cf"><div class="take warn">⚠️ Groups of 5+ wait nearly twice as long. Your 6-tops are the bottleneck — try Smart Table Splitting on busy afternoons.</div></div>
   </div>
 </div>
 
-<div style="margin-top:10px">
-  <div class="ins" id="i1">Weekends seat 81% more customers per day than weekdays — but wait times are 2x longer and no-shows are nearly 2x higher. Consider reducing the table hold time from 7 to 5 minutes on Saturdays.</div>
-  <div class="ins g" id="i2">No-show rate fell from 12% to 8% over this period — customers are trusting the alert system. Thursday is your strongest weekday at 62 customers seated.</div>
+<!-- THREE-UP: NO-SHOW / WAIT / PARTY SIZE BY DAY -->
+<div class="row3">
+  <div class="cc">
+    <div class="ch">
+      <div class="ct">No-show rate — by day</div>
+      <div class="cuse">→ Set your hold timer per day</div>
+      <div class="csub">% who got a table alert but never arrived</div>
+    </div>
+    <div class="cb"><div class="h130"><canvas id="c-ns"></canvas></div></div>
+  </div>
+  <div class="cc">
+    <div class="ch">
+      <div class="ct">Avg wait time — by day</div>
+      <div class="cuse">→ See when your queue is under most pressure</div>
+      <div class="csub">Minutes from joining queue to being seated</div>
+    </div>
+    <div class="cb"><div class="h130"><canvas id="c-wd"></canvas></div></div>
+  </div>
+  <div class="cc">
+    <div class="ch">
+      <div class="ct">Avg party size — by day</div>
+      <div class="cuse">→ Pre-arrange your floor before large-group days</div>
+      <div class="csub">Are bigger groups concentrated on certain days?</div>
+    </div>
+    <div class="cb"><div class="h130"><canvas id="c-ps"></canvas></div></div>
+  </div>
+</div>
+
+<div id="sat-take" style="margin-bottom:12px">
+  <div class="take warn" style="border-radius:10px;border:1px solid rgba(220,38,38,0.14)">
+    🔴 Saturday is your hardest day: highest no-shows (12%), longest waits (27 min), biggest groups. Reduce hold timer to 5 min on Saturdays — this single change frees tables faster without turning anyone away.
+  </div>
+</div>
+
+<!-- NO-SHOW BY PARTY SIZE -->
+<div class="row-full">
+  <div class="cc">
+    <div class="ch">
+      <div class="ct">No-show rate — by party size and day</div>
+      <div class="cuse">→ Set different hold timers per group size — small parties no-show most, large parties almost never do</div>
+      <div class="csub">Larger groups rarely no-show — your hold timer can afford to be more generous for them</div>
+      <div class="leg">
+        <span class="li"><span class="sq" style="background:#7fd9eb"></span>1–2 guests</span>
+        <span class="li"><span class="sq" style="background:#2a78d6"></span>3–4 guests</span>
+        <span class="li"><span class="sq" style="background:#6a40d7"></span>5–6 guests</span>
+        <span class="li"><span class="sq" style="background:#3a2370"></span>7+ guests</span>
+      </div>
+    </div>
+    <div class="cb"><div class="h160"><canvas id="c-nps"></canvas></div></div>
+    <div class="cf"><div class="take good">💡 1–2 guest tables no-show at nearly 2× the rate of larger groups. Try a 4-minute hold for solo and couple diners, keep 7 minutes for groups of 5+.</div></div>
+  </div>
 </div>
 
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-const dk=window.matchMedia('(prefers-color-scheme:dark)').matches;
-const gc=dk?'rgba(255,255,255,0.07)':'#e1e0d9',tk='#898781';
-const chs={};
-let CV='all',CD=28;
-const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const GC='rgba(106,64,215,0.08)',TK='#8878AA',PRIOR='#ff8a3d';
+const chs={};let CV='all',CD=28;
+const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const D7=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const DFULL=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const HRS=['10am','11am','12pm','1pm','2pm','3pm','4pm','5pm','6pm','7pm','8pm','9pm'];
+const PS={c:{'1-2':'#7fd9eb','3-4':'#2a78d6','5-6':'#6a40d7','7+':'#3a2370'},l:{'1-2':'1–2 guests','3-4':'3–4 guests','5-6':'5–6 guests','7+':'7+ guests'}};
 const BASE=[42,38,48,62,58,94,73];
-
-// Prior period dates — offset by one period length
-function getPriorDate(d, rangeDays) {
-  const p = new Date(d);
-  p.setDate(p.getDate() - rangeDays);
-  return p;
-}
-
-const VD={
-  all:{v:['1,840','19m','8%','3.8','₹1.2L'],d:['+14%','-3m','-2pp','+0.4','+30%'],
-    i1:'Weekends seat 81% more customers per day than weekdays — but wait times are 2x longer and no-shows are nearly 2x higher. Consider reducing the table hold time from 7 to 5 minutes on Saturdays.',
-    i2:'No-show rate fell from 12% to 8% over this period. Thursday is your strongest weekday at 62 customers seated.'},
-  wknd:{v:['312','27m','11%','4.8','₹36K'],d:['+12%','+5m','-2pp','+0.4','+30%'],
-    i1:'Weekend footfall grew 12% vs the same weekends last period. Peak queue hit 19 people waiting simultaneously on Saturdays.',
-    i2:'Pre-orders grew 73% weekend-over-weekend. 68% of customers who won a reward redeemed it.'},
-  wkdy:{v:['52','15m','6%','3.2','₹5.8K'],d:['+8%','-2m','-1pp','+0.2','+18%'],
-    i1:'Weekday operations are smooth — shorter waits and lower no-shows. Thursday leads at 62 customers seated vs 42 on Monday.',
-    i2:'Weekday revenue uplift growing +18% vs prior. 15% of weekday customers pre-ordered from the queue.'}
+const MWD={'1-2':.34,'3-4':.40,'5-6':.17,'7+':.09};
+const MWE={'1-2':.24,'3-4':.36,'5-6':.24,'7+':.16};
+const mix=we=>we?MWE:MWD;
+const avgPS=m=>{const mid={'1-2':1.5,'3-4':3.5,'5-6':5.5,'7+':8};return Object.keys(m).reduce((s,b)=>s+m[b]*mid[b],0);};
+const bands=Object.keys(PS.c);
+const PB={
+  all:[
+    {p:'p0',t:'<strong>Cut Saturday hold timer to 5 minutes.</strong> Saturday no-shows (12%) are 50% above your weekly average — tables sit empty while the next customer is still in the building.',imp:'Estimated: 3–4 extra seatings per Saturday'},
+    {p:'p1',t:'<strong>Staff up at 12:30pm on weekends.</strong> Weekend lunch queue hits 28 customers per hour at 1pm — your sharpest spike of the week.',imp:'Reduces peak wait and stops walk-aways'},
+    {p:'p2',t:'<strong>Enable Smart Table Splitting on Saturday afternoons.</strong> Groups of 5+ wait 29–31 minutes — nearly twice as long as smaller parties.',imp:'Faster seating for your highest-spend tables'},
+  ],
+  wknd:[
+    {p:'p0',t:'<strong>Shorten weekend hold timer to 5 minutes.</strong> Weekend no-shows (11%) are nearly double weekday rates.',imp:'Estimated: 6–8 extra seatings per weekend'},
+    {p:'p1',t:'<strong>Pre-stage 6-tops for splitting on Saturday afternoons.</strong> 40% of weekend customers arrive in groups of 5 or more.',imp:'Captures revenue from idle large tables'},
+    {p:'p2',t:'<strong>Push dish reel pre-ordering on weekends.</strong> Weekend waits average 27 minutes — enough time for customers to pre-order and cut dead table time.',imp:'Faster table turns after seating'},
+  ],
+  wkdy:[
+    {p:'p1',t:'<strong>Promote Thursday.</strong> Thursday is your strongest weekday — a happy hour or loyalty offer could push it higher without new marketing spend.',imp:'Weekday revenue growth at low cost'},
+    {p:'p2',t:'<strong>Weekday operations are healthy — no urgent changes.</strong> No-shows are low (6%) and waits are short (15 min avg). Weekend focus takes priority.',imp:'Monitor only this period'},
+    {p:'p2',t:'<strong>Trial a 4-minute hold for 1–2 guest tables.</strong> Solo and couple diners no-show more than any other group, even on quieter weekdays.',imp:'Marginal no-show reduction'},
+  ]
 };
-
-function fmtD(d){return MONTHS[d.getMonth()]+' '+d.getDate();}
-function getF(){return new Date(document.getElementById('df').value+'T00:00:00');}
-function getT(){return new Date(document.getElementById('dt').value+'T00:00:00');}
-
-function rng(d,b){
-  document.querySelectorAll('.qb').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on');CD=d;
-  const t=new Date(),f=new Date();f.setDate(t.getDate()-d);
-  document.getElementById('dt').value=t.toISOString().slice(0,10);
-  document.getElementById('df').value=f.toISOString().slice(0,10);
-  go();
-}
-function sv(v,b){
-  document.querySelectorAll('.vb').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on');CV=v;go();
-}
-
+const VD={
+  all:{v:['1,840','3.6','8%','3.8'],d:['+14%','+0.2','-2pp','+0.4'],hi:false},
+  wknd:{v:['312','4.1','11%','4.8'],d:['+12%','+0.3','-2pp','+0.4'],hi:true},
+  wkdy:{v:['52','3.3','6%','3.2'],d:['+8%','+0.1','-1pp','+0.2'],hi:false}
+};
+const fmtD=d=>M[d.getMonth()]+' '+d.getDate();
+const getF=()=>new Date(document.getElementById('df').value+'T00:00:00');
+const getT=()=>new Date(document.getElementById('dt').value+'T00:00:00');
+function rng(d,b){document.querySelectorAll('.qb').forEach(x=>x.classList.remove('on'));b.classList.add('on');CD=d;const t=new Date(),f=new Date();f.setDate(t.getDate()-d);document.getElementById('dt').value=t.toISOString().slice(0,10);document.getElementById('df').value=f.toISOString().slice(0,10);go();}
+function sv(v,b){document.querySelectorAll('.vp').forEach(x=>x.classList.remove('on'));b.classList.add('on');CV=v;go();}
+function renderPB(){const list=document.getElementById('pb-list');list.innerHTML='';PB[CV].forEach(a=>{const d=document.createElement('div');d.className='pb-item '+a.p;d.innerHTML='<span class="pb-tag '+a.p+'">'+a.p.toUpperCase()+'</span><div><div class="pb-text">'+a.t+'</div><div class="pb-impact">→ '+a.imp+'</div></div>';list.appendChild(d);});document.getElementById('pb-sub').textContent=PB[CV].length+' recommendations based on your data — ranked by priority';}
 function go(){
-  const V=VD[CV];
-  const from=getF(),to=getT();
-  const rangeDays=Math.round((to-from)/(1000*60*60*24));
-
-  for(let i=1;i<=5;i++){
-    document.getElementById('v'+i).textContent=V.v[i-1];
-    const el=document.getElementById('d'+i);
-    el.textContent=V.d[i-1]+' vs prior period';
-    const good=(V.d[i-1].startsWith('+')&&[0,3,4].includes(i-1))||(V.d[i-1].startsWith('-')&&[1,2].includes(i-1));
-    el.className='kd '+(good?'up':'dn');
-  }
-  document.getElementById('i1').textContent=V.i1;
-  document.getElementById('i2').textContent=V.i2;
-
+  const V=VD[CV],from=getF(),to=getT(),rd=Math.round((to-from)/864e5);
+  for(let i=1;i<=4;i++){document.getElementById('v'+i).textContent=V.v[i-1];const el=document.getElementById('d'+i);el.textContent=V.d[i-1]+' vs prior period';const g=(V.d[i-1].startsWith('+')&&[0,1,3].includes(i-1))||(V.d[i-1].startsWith('-')&&i===3);el.className='kd '+(g?'up':'dn');}
+  document.getElementById('kf3').style.display=V.hi?'block':'none';
   const rl=fmtD(from)+' – '+fmtD(to);
-  const priorFrom=getPriorDate(from,rangeDays);
-  const priorTo=getPriorDate(to,rangeDays);
-  const prl=fmtD(priorFrom)+' – '+fmtD(priorTo);
-
-  document.getElementById('mct').textContent={all:'Customers seated per day — '+rl,wknd:'Weekend customers seated per day — '+rl,wkdy:'Weekday customers seated per day — '+rl}[CV];
-  document.getElementById('msub').textContent={
-    all:'How many customers were successfully seated each day. Darker blue = weekends. Dashed line = same days last period ('+prl+').',
-    wknd:'Saturday and Sunday only. Dashed line = same weekends last period ('+prl+').',
-    wkdy:'Monday to Friday only. Dashed line = same weekdays last period ('+prl+').'
-  }[CV];
-
-  document.getElementById('hleg').style.display=CV==='all'?'flex':'none';
+  const pf=new Date(from);pf.setDate(pf.getDate()-rd);
+  const pt=new Date(to);pt.setDate(pt.getDate()-rd);
+  const prl=fmtD(pf)+' – '+fmtD(pt);
+  document.getElementById('hdr-range').textContent=rl;
+  document.getElementById('hdr-view').textContent={all:'All days',wknd:'Weekends only',wkdy:'Weekdays only'}[CV];
+  document.getElementById('mct').textContent={all:'Customers seated per day, by party size — '+rl,wknd:'Weekend customers seated, by party size — '+rl,wkdy:'Weekday customers seated, by party size — '+rl}[CV];
+  document.getElementById('msub').textContent={all:'Each bar = customers by group size. Darker = weekends. Dashed line = same days last period ('+prl+').',wknd:'Saturdays and Sundays only. Dashed line = same weekends last period ('+prl+').',wkdy:'Mondays–Fridays only. Dashed line = same weekdays last period ('+prl+').'}[CV];
+  document.getElementById('psub').textContent={all:'All days in selected period',wknd:'Weekend mix only — Sat + Sun',wkdy:'Weekday mix only — Mon–Fri'}[CV];
   document.getElementById('hct').textContent=CV==='all'?'Customers joining queue — by hour':CV==='wknd'?'Weekend: customers joining queue by hour':'Weekday: customers joining queue by hour';
-  document.getElementById('sct').textContent=CV==='all'?'Customers seated per day — weekday vs weekend':CV==='wknd'?'Weekend avg customers per day vs prior':'Weekday avg customers per day vs prior';
-  document.getElementById('ssub').textContent=CV==='all'?'Average on a typical weekday vs a weekend day':CV==='wknd'?'Sat+Sun average — this period ('+rl+') vs prior ('+prl+')':'Mon–Fri average — this period ('+rl+') vs prior ('+prl+')';
-  document.getElementById('sl1').style.display=CV==='wknd'?'none':'flex';
-  document.getElementById('sl2').style.display=CV==='wkdy'?'none':'flex';
-  document.getElementById('tl1').style.display=CV==='wknd'?'none':'flex';
-  document.getElementById('tl2').style.display=CV==='wkdy'?'none':'flex';
-
-  buildMain(from,to,priorFrom,rangeDays);
-  buildHourly();buildNosh();buildWait();buildSplit(rl,prl);buildTrend(from,to);
+  document.getElementById('hleg').style.display=CV==='all'?'flex':'none';
+  document.getElementById('sat-take').style.display=CV==='wkdy'?'none':'block';
+  renderPB();buildAll(from,to,rd);
 }
-
 function kill(id){if(chs[id]){chs[id].destroy();delete chs[id];}}
-function bOpts(sc){return{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:Object.assign({x:{grid:{color:gc},ticks:{color:tk,font:{size:10}}},y:{grid:{color:gc},ticks:{color:tk,font:{size:10}},beginAtZero:true}},sc||{})};}
-function nz(v,s){return v?Math.max(0,v+Math.round((Math.random()-0.43)*(s||9))):0;}
+function nz(v,s){return Math.max(0,v+Math.round((Math.random()-.43)*(s||9)));}
+function tip(x){return{backgroundColor:'rgba(20,8,50,.95)',borderColor:PRIOR,borderWidth:1,titleColor:'#fff',bodyColor:'#C8B8E8',padding:10,titleFont:{weight:'600'},...(x||{})};}
 
-function buildMain(from,to,priorFrom,rangeDays){
+function buildAll(from,to,rd){
+  // MAIN
   kill('c0');
-  const labels=[],dates=[],priDates=[],cur=[],pri=[],bg=[];
+  const labels=[],dates=[],priDates=[],bd={'1-2':[],'3-4':[],'5-6':[],'7+':[]},priLine=[];
   const c=new Date(from);
-  while(c<=to){
-    const di=(c.getDay()+6)%7;
-    if(!(CV==='wknd'&&di<5||CV==='wkdy'&&di>=5)){
-      labels.push(fmtD(c));
-      dates.push(new Date(c));
-      const pd=new Date(c); pd.setDate(pd.getDate()-rangeDays);
-      priDates.push(new Date(pd));
-      cur.push(nz(BASE[di],10));
-      pri.push(nz(BASE[di]*0.87,8));
-      bg.push(di>=5?'rgba(42,120,214,0.88)':'rgba(42,120,214,0.42)');
-    }
-    c.setDate(c.getDate()+1);
-  }
-
+  while(c<=to){const di=(c.getDay()+6)%7;if(!(CV==='wknd'&&di<5||CV==='wkdy'&&di>=5)){labels.push(fmtD(c));dates.push(new Date(c));const pd=new Date(c);pd.setDate(pd.getDate()-rd);priDates.push(pd);const tot=nz(BASE[di],10),m=mix(di>=5);let s=0;bands.forEach(b=>{const v=Math.round(tot*m[b]);bd[b].push(v);s+=v;});priLine.push(Math.round(s*.87));}c.setDate(c.getDate()+1);}
   const mt=Math.min(labels.length,CD<=7?7:CD<=28?10:12);
+  const mx=Math.max(...labels.map((_,i)=>bands.reduce((s,b)=>s+bd[b][i],0)));
+  chs['c0']=new Chart(document.getElementById('c0'),{type:'bar',data:{labels,datasets:[
+    ...bands.map((b,oi)=>({data:bd[b],backgroundColor:PS.c[b],stack:'s',label:PS.l[b],order:3,borderRadius:oi===3?3:0})),
+    {data:priLine,type:'line',borderColor:PRIOR,backgroundColor:'transparent',borderDash:[6,4],borderWidth:3,tension:.35,pointRadius:4,pointHoverRadius:7,pointBackgroundColor:PRIOR,pointBorderColor:'#fff',pointBorderWidth:2,label:'Same day last period',order:1}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:false},tooltip:{...tip(),callbacks:{
+      title(it){const i=it[0].dataIndex;return DFULL[(dates[i].getDay()+6)%7]+', '+fmtD(dates[i]);},
+      label(it){if(it.dataset.label.includes('last period'))return '● Last period ('+fmtD(priDates[it.dataIndex])+'): '+it.parsed.y;return it.dataset.label+': '+it.parsed.y+' customers';},
+      afterBody(it){const bars=it.filter(i=>!i.dataset.label.includes('last period'));const tot=bars.reduce((s,i)=>s+i.parsed.y,0);const pr=it.find(i=>i.dataset.label.includes('last period'));const r=['','Total: '+tot+' customers'];if(pr){const d=tot-pr.parsed.y;r.push((d>=0?'▲':'▼')+' '+(d>=0?'+':'')+d+' vs last period ('+Math.round(d/pr.parsed.y*100)+'%)');}return r;}
+    }}},
+    scales:{x:{stacked:true,grid:{color:GC},ticks:{color:TK,font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:mt}},y:{stacked:true,grid:{color:GC},ticks:{color:TK,font:{size:10}},beginAtZero:true,suggestedMax:Math.ceil(mx*1.15)}}}});
 
-  chs['c0']=new Chart(document.getElementById('c0'),{
-    type:'bar',
-    data:{labels,datasets:[
-      {
-        data:cur,backgroundColor:bg,borderRadius:3,order:2,
-        label:'Customers seated'
-      },
-      {
-        // Give the line visible points on hover
-        data:pri,
-        type:'line',
-        borderColor:'#93b8d9',
-        backgroundColor:'transparent',
-        borderDash:[5,3],
-        tension:0.35,
-        // Small invisible points — hover still works
-        pointRadius:3,
-        pointHoverRadius:6,
-        pointBackgroundColor:'#93b8d9',
-        pointBorderColor:dk?'#1a1a19':'#fff',
-        pointBorderWidth:2,
-        pointHoverBackgroundColor:'#ffffff',
-        pointHoverBorderColor:'#2a78d6',
-        pointHoverBorderWidth:2,
-        // Keep points invisible normally, visible on hover
-        pointStyle:'circle',
-        borderWidth:1.5,
-        order:1,
-        label:'Same day last period'
-      }
-    ]},
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      interaction:{mode:'index',intersect:false},
-      plugins:{
-        legend:{display:false},
-        tooltip:{
-          backgroundColor:dk?'rgba(20,28,40,0.96)':'rgba(255,255,255,0.97)',
-          borderColor:'#2a78d6',
-          borderWidth:1,
-          titleColor:dk?'#e0e8f0':'#0D1F2D',
-          bodyColor:dk?'#93b0c8':'#607D8B',
-          padding:10,
-          callbacks:{
-            title(items){
-              const idx=items[0].dataIndex;
-              return DFULL[(dates[idx].getDay()+6)%7]+', '+fmtD(dates[idx]);
-            },
-            label(item){
-              if(item.datasetIndex===0){
-                return '  This period:         '+item.parsed.y+' customers seated';
-              } else {
-                return '  Same day last period ('+fmtD(priDates[item.dataIndex])+'):  '+item.parsed.y+' customers';
-              }
-            },
-            afterBody(items){
-              if(items.length===2){
-                const diff=items[0].parsed.y - items[1].parsed.y;
-                const pct=Math.round((diff/items[1].parsed.y)*100);
-                const arrow=diff>=0?'▲':'▼';
-                return ['','  '+arrow+' '+(diff>=0?'+':'')+diff+' customers ('+pct+'% vs last period)'];
-              }
-              return [];
-            }
-          }
-        }
-      },
-      scales:{
-        x:{grid:{color:gc},ticks:{color:tk,font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:mt}},
-        y:{grid:{color:gc},ticks:{color:tk,font:{size:10}},beginAtZero:true}
-      }
-    }
-  });
-}
-
-function buildHourly(){
-  kill('c1');
+  // HOURLY
+  kill('c-hr');
   const wd=[2,4,7,10,9,6,4,6,8,6,4,2],we=[3,7,12,28,18,10,6,9,14,12,7,5];
-  const ds=CV==='wknd'?
-    [{data:we,borderColor:'#2a78d6',backgroundColor:'rgba(42,120,214,0.10)',tension:0.4,fill:true,pointRadius:2,pointHoverRadius:5,pointBackgroundColor:'#2a78d6',label:'Weekend avg'}]:
-    CV==='wkdy'?
-    [{data:wd,borderColor:'#1baf7a',backgroundColor:'rgba(27,175,122,0.10)',tension:0.4,fill:true,pointRadius:2,pointHoverRadius:5,pointBackgroundColor:'#1baf7a',label:'Weekday avg'}]:
-    [{data:wd,borderColor:'#1baf7a',backgroundColor:'rgba(27,175,122,0.08)',tension:0.4,fill:true,pointRadius:2,pointHoverRadius:5,pointBackgroundColor:'#1baf7a',label:'Weekday avg'},
-     {data:we,borderColor:'#2a78d6',backgroundColor:'rgba(42,120,214,0.08)',tension:0.4,fill:true,pointRadius:2,pointHoverRadius:5,pointBackgroundColor:'#2a78d6',label:'Weekend avg'}];
-  chs['c1']=new Chart(document.getElementById('c1'),{type:'line',data:{labels:HRS,datasets:ds},
-    options:{...bOpts(),interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},
-      tooltip:{backgroundColor:dk?'rgba(20,28,40,0.96)':'rgba(255,255,255,0.97)',borderColor:gc,borderWidth:1,titleColor:dk?'#e0e8f0':'#0D1F2D',bodyColor:dk?'#93b0c8':'#607D8B',padding:8,
-        callbacks:{label:i=>i.dataset.label+': '+i.parsed.y+' customers joining'}}}}});
-}
+  const hds=CV==='wknd'?[{data:we,borderColor:'#2a78d6',backgroundColor:'rgba(42,120,214,.1)',tension:.4,fill:true,pointRadius:2,pointHoverRadius:5,pointBackgroundColor:'#2a78d6',label:'Weekend avg'}]:CV==='wkdy'?[{data:wd,borderColor:PS.c['1-2'],backgroundColor:'rgba(127,217,235,.1)',tension:.4,fill:true,pointRadius:2,pointHoverRadius:5,pointBackgroundColor:PS.c['1-2'],label:'Weekday avg'}]:[{data:wd,borderColor:PS.c['1-2'],backgroundColor:'rgba(127,217,235,.08)',tension:.4,fill:true,pointRadius:2,pointHoverRadius:5,pointBackgroundColor:PS.c['1-2'],label:'Weekday avg'},{data:we,borderColor:'#2a78d6',backgroundColor:'rgba(42,120,214,.08)',tension:.4,fill:true,pointRadius:2,pointHoverRadius:5,pointBackgroundColor:'#2a78d6',label:'Weekend avg'}];
+  chs['c-hr']=new Chart(document.getElementById('c-hr'),{type:'line',data:{labels:HRS,datasets:hds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{...tip(),callbacks:{label:i=>i.dataset.label+': '+i.parsed.y+' customers joining'}}},scales:{x:{grid:{color:GC},ticks:{color:TK,font:{size:10}}},y:{grid:{color:GC},ticks:{color:TK,font:{size:10}},beginAtZero:true}}}});
 
-function buildNosh(){
-  kill('c2');
+  // PIE
+  kill('c-pie');
+  const pm=CV==='wknd'?MWE:CV==='wkdy'?MWD:{'1-2':(MWD['1-2']*5+MWE['1-2']*2)/7,'3-4':(MWD['3-4']*5+MWE['3-4']*2)/7,'5-6':(MWD['5-6']*5+MWE['5-6']*2)/7,'7+':(MWD['7+']*5+MWE['7+']*2)/7};
+  chs['c-pie']=new Chart(document.getElementById('c-pie'),{type:'doughnut',data:{labels:bands.map(b=>PS.l[b]),datasets:[{data:bands.map(b=>Math.round(pm[b]*100)),backgroundColor:bands.map(b=>PS.c[b]),borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:false},tooltip:{...tip(),callbacks:{label:i=>i.label+': '+i.parsed+'%'}}}}});
+
+  // WAIT BY PARTY
+  kill('c-wps');
+  const wps=CV==='wknd'?{'1-2':19,'3-4':24,'5-6':29,'7+':31}:CV==='wkdy'?{'1-2':11,'3-4':14,'5-6':17,'7+':18}:{'1-2':14,'3-4':18,'5-6':22,'7+':24};
+  chs['c-wps']=new Chart(document.getElementById('c-wps'),{type:'bar',data:{labels:bands.map(b=>PS.l[b]),datasets:[{data:bands.map(b=>wps[b]),backgroundColor:bands.map(b=>PS.c[b]),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...tip(),callbacks:{label:i=>i.parsed.y+' min avg wait'}}},scales:{x:{grid:{color:GC},ticks:{color:TK,font:{size:10}}},y:{grid:{color:GC},ticks:{color:TK,font:{size:9},callback:v=>v+'m'},beginAtZero:true}}}});
+
+  // NO-SHOW BY DAY
+  kill('c-ns');
   const nr=[5,4,6,7,8,12,10];
   const nd=nr.map((v,i)=>CV==='wknd'?i>=5?v:null:CV==='wkdy'?i<5?v:null:v);
-  chs['c2']=new Chart(document.getElementById('c2'),{type:'bar',data:{labels:D7,datasets:[{data:nd,backgroundColor:nr.map((_,i)=>i>=5?'#e34948':'#1baf7a'),borderRadius:3,hoverBackgroundColor:nr.map((_,i)=>i>=5?'#ff6b6b':'#22c98a')}]},
-    options:{...bOpts(),plugins:{legend:{display:false},tooltip:{backgroundColor:dk?'rgba(20,28,40,0.96)':'rgba(255,255,255,0.97)',borderColor:gc,borderWidth:1,titleColor:dk?'#e0e8f0':'#0D1F2D',bodyColor:dk?'#93b0c8':'#607D8B',padding:8,
-      callbacks:{label:i=>i.parsed.y+'% of reserved customers didn\'t arrive'}}},
-      scales:{x:{grid:{color:gc},ticks:{color:tk,font:{size:10},autoSkip:false}},y:{grid:{color:gc},ticks:{color:tk,font:{size:9},callback:v=>v+'%'},beginAtZero:true,max:16}}}});
-}
+  chs['c-ns']=new Chart(document.getElementById('c-ns'),{type:'bar',data:{labels:D7,datasets:[{data:nd,backgroundColor:nr.map((_,i)=>i>=5?'#e34948':'#1baf7a'),borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...tip(),callbacks:{label:i=>i.parsed.y+"% didn't arrive"}}},scales:{x:{grid:{color:GC},ticks:{color:TK,font:{size:10},autoSkip:false}},y:{grid:{color:GC},ticks:{color:TK,font:{size:9},callback:v=>v+'%'},beginAtZero:true,max:16}}}});
 
-function buildWait(){
-  kill('c3');
+  // WAIT BY DAY
+  kill('c-wd');
   const wr=[13,11,14,16,20,27,22];
   const wrd=wr.map((v,i)=>CV==='wknd'?i>=5?v:null:CV==='wkdy'?i<5?v:null:v);
-  chs['c3']=new Chart(document.getElementById('c3'),{type:'line',data:{labels:D7,datasets:[{data:wrd,borderColor:'#eda100',backgroundColor:'rgba(237,161,0,0.08)',tension:0.4,fill:true,pointRadius:4,pointHoverRadius:6,pointBackgroundColor:wr.map((_,i)=>i>=5?'#e34948':'#eda100'),pointBorderColor:dk?'#1a1a19':'#fff',pointBorderWidth:2}]},
-    options:{...bOpts(),plugins:{legend:{display:false},tooltip:{backgroundColor:dk?'rgba(20,28,40,0.96)':'rgba(255,255,255,0.97)',borderColor:gc,borderWidth:1,titleColor:dk?'#e0e8f0':'#0D1F2D',bodyColor:dk?'#93b0c8':'#607D8B',padding:8,
-      callbacks:{label:i=>i.parsed.y+' min average wait time'}}},
-      scales:{x:{grid:{color:gc},ticks:{color:tk,font:{size:9},autoSkip:false}},y:{grid:{color:gc},ticks:{color:tk,font:{size:9},callback:v=>v+' min'},beginAtZero:true}}}});
-}
+  chs['c-wd']=new Chart(document.getElementById('c-wd'),{type:'line',data:{labels:D7,datasets:[{data:wrd,borderColor:'#eda100',backgroundColor:'rgba(237,161,0,.1)',tension:.4,fill:true,pointRadius:4,pointHoverRadius:6,pointBackgroundColor:wr.map((_,i)=>i>=5?'#e34948':'#eda100'),pointBorderColor:'#fff',pointBorderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...tip(),callbacks:{label:i=>i.parsed.y+' min avg wait'}}},scales:{x:{grid:{color:GC},ticks:{color:TK,font:{size:10},autoSkip:false}},y:{grid:{color:GC},ticks:{color:TK,font:{size:9},callback:v=>v+'m'},beginAtZero:true}}}});
 
-function buildSplit(rl,prl){
-  kill('c4');
-  const labels=CV==='wknd'?['Weekend (Sat–Sun)']:CV==='wkdy'?['Weekday (Mon–Fri)']:['Weekday (Mon–Fri)','Weekend (Sat–Sun)'];
-  const thisP=CV==='wknd'?[94]:CV==='wkdy'?[52]:[52,94];
-  const priorP=thisP.map(v=>Math.round(v*0.88));
-  const colors=CV==='wknd'?['#2a78d6']:CV==='wkdy'?['#1baf7a']:['#1baf7a','#2a78d6'];
-  chs['c4']=new Chart(document.getElementById('c4'),{type:'bar',data:{labels,datasets:[
-    {data:thisP,backgroundColor:colors,borderRadius:4,label:'This period ('+rl+')'},
-    {data:priorP,backgroundColor:colors.map(c=>c+'66'),borderRadius:4,label:'Prior period ('+prl+')'}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-    plugins:{legend:{display:false},tooltip:{backgroundColor:dk?'rgba(20,28,40,0.96)':'rgba(255,255,255,0.97)',borderColor:gc,borderWidth:1,titleColor:dk?'#e0e8f0':'#0D1F2D',bodyColor:dk?'#93b0c8':'#607D8B',padding:8,
-      callbacks:{label:i=>(i.datasetIndex===0?'This period':'Prior period')+': avg '+i.parsed.y+' customers/day',
-        afterBody(items){if(items.length===2){const d=items[0].parsed.y-items[1].parsed.y;return['','▲ +'+(d>0?d:Math.abs(d))+' more customers/day vs prior'];} return [];}}}},
-    scales:{x:{grid:{color:gc},ticks:{color:tk,font:{size:10}}},y:{grid:{color:gc},ticks:{color:tk,font:{size:10}},beginAtZero:true}}}});
-}
+  // AVG PARTY SIZE BY DAY
+  kill('c-ps');
+  const apd=D7.map((_,i)=>Math.round(avgPS(mix(i>=5))*10)/10);
+  chs['c-ps']=new Chart(document.getElementById('c-ps'),{type:'bar',data:{labels:D7,datasets:[{data:apd,backgroundColor:D7.map((_,i)=>i>=5?PS.c['5-6']:PS.c['1-2']),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...tip(),callbacks:{label:i=>'Avg '+i.parsed.y+' guests per party'}}},scales:{x:{grid:{color:GC},ticks:{color:TK,font:{size:10},autoSkip:false}},y:{grid:{color:GC},ticks:{color:TK,font:{size:9}},beginAtZero:false,min:2,max:5}}}});
 
-function buildTrend(from,to){
-  kill('c5');
-  const wLabels=[];
-  const c=new Date(from);
-  while(c<=to){wLabels.push(fmtD(c));c.setDate(c.getDate()+7);}
-  const wdB=CV==='wknd'?0:52*5,weB=CV==='wkdy'?0:94*2;
-  const wdData=wLabels.map(()=>wdB?Math.max(0,wdB+Math.round((Math.random()-0.4)*30)):0);
-  const weData=wLabels.map(()=>weB?Math.max(0,weB+Math.round((Math.random()-0.4)*25)):0);
-  const tds=[];
-  if(CV!=='wknd') tds.push({label:'Mon–Fri customers',data:wdData,backgroundColor:'#1baf7a',borderRadius:0,stack:'s'});
-  if(CV!=='wkdy') tds.push({label:'Sat–Sun customers',data:weData,backgroundColor:'#2a78d6',borderRadius:4,stack:'s'});
-  chs['c5']=new Chart(document.getElementById('c5'),{type:'bar',data:{labels:wLabels,datasets:tds},
-    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:false},tooltip:{backgroundColor:dk?'rgba(20,28,40,0.96)':'rgba(255,255,255,0.97)',borderColor:gc,borderWidth:1,titleColor:dk?'#e0e8f0':'#0D1F2D',bodyColor:dk?'#93b0c8':'#607D8B',padding:8,
-        callbacks:{title:i=>'Week of '+i[0].label,label:i=>i.dataset.label+': '+i.parsed.y+' customers',
-          afterBody(items){const tot=items.reduce((s,i)=>s+i.parsed.y,0);return['','Total this week: '+tot+' customers'];}}}},
-      scales:{x:{stacked:true,grid:{color:gc},ticks:{color:tk,font:{size:10},maxRotation:0,maxTicksLimit:8}},
-              y:{stacked:true,grid:{color:gc},ticks:{color:tk,font:{size:9}},beginAtZero:true}}}});
+  // NO-SHOW BY PARTY + DAY
+  kill('c-nps');
+  const npd={'1-2':[6,5,7,8,9,11,9],'3-4':[5,4,5,6,7,10,8],'5-6':[3,2,4,4,5,7,6],'7+':[1,1,2,2,3,4,3]};
+  chs['c-nps']=new Chart(document.getElementById('c-nps'),{type:'bar',data:{labels:D7,datasets:bands.map(b=>({label:PS.l[b],data:npd[b],backgroundColor:PS.c[b],borderRadius:3}))},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{...tip(),callbacks:{label:i=>i.dataset.label+': '+i.parsed.y+'% no-show'}}},scales:{x:{grid:{color:GC},ticks:{color:TK,font:{size:10},autoSkip:false}},y:{grid:{color:GC},ticks:{color:TK,font:{size:9},callback:v=>v+'%'},beginAtZero:true,max:14}}}});
 }
 
 document.getElementById('df').addEventListener('change',go);
 document.getElementById('dt').addEventListener('change',go);
 go();
 </script>
+</body>
+</html>
