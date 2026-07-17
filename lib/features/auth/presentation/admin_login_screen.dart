@@ -286,13 +286,6 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
             label: _sendingCode ? 'Sending code...' : 'Send OTP',
             onPressed: _isBusy ? null : _sendCode,
           ),
-          const SizedBox(height: 12),
-          Center(
-            child: TextButton(
-              onPressed: _isBusy ? null : () => context.go('/admin/register'),
-              child: const Text('New manager? Register and Onboard'),
-            ),
-          ),
         ],
       ),
     );
