@@ -116,14 +116,20 @@ service cloud.firestore {
       allow read: if resource.data.isActive == true
         || isRootRestaurantBranchAdmin(restaurantBranchId);
       allow update: if isRootRestaurantBranchAdmin(restaurantBranchId)
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'onboardingCompleted',
           'provisioningStatus',
           'qrEnabled',
+          'qrSlug',
+          'queueUrl',
+          'qrPngLocalPath',
+          'qrSvgLocalPath',
           'floorCount',
           'totalTables',
           'totalSeats',
           'capacityTypes',
+          'onboardingDraft',
+          'onboardingDraftUpdatedAt',
           'updatedAt'
         ]);
       allow create, delete: if false;

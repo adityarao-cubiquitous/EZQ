@@ -26,6 +26,7 @@ import '../../tables/presentation/table_grid.dart';
 import '../../queue/presentation/queue_panel.dart';
 import '../../customer/domain/seating_preference_service.dart';
 import 'qr_management_panel.dart';
+import 'widgets/admin_branch_identity_pill.dart';
 
 final Set<String> _warnedDashboardDisplayNameFallbacks = <String>{};
 
@@ -552,7 +553,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       restaurantName: _restaurantDisplayName(
                         widget.restaurantId,
                       ),
-                      branchName: 'Indiranagar',
                       freeTables: free,
                       occupiedTables: occupied,
                       waitingCount: liveQueue.length,
@@ -2298,7 +2298,6 @@ class _AdminTopBar extends StatelessWidget {
     required this.restaurantId,
     required this.branchId,
     required this.restaurantName,
-    required this.branchName,
     required this.freeTables,
     required this.occupiedTables,
     required this.waitingCount,
@@ -2312,7 +2311,6 @@ class _AdminTopBar extends StatelessWidget {
   final String restaurantId;
   final String branchId;
   final String restaurantName;
-  final String branchName;
   final int freeTables;
   final int occupiedTables;
   final int waitingCount;
@@ -2354,21 +2352,11 @@ class _AdminTopBar extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const BrandMark(size: 22),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'EZQ',
-                      style: TextStyle(
-                        color: AppColors.deepTeal,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
+                    const BrandMark(size: 50),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: _AdminLocationTitle(
+                      child: AdminBranchIdentityPill(
                         restaurantName: restaurantName,
-                        branchName: branchName,
                         compact: true,
                       ),
                     ),
@@ -2445,21 +2433,9 @@ class _AdminTopBar extends StatelessWidget {
               height: tablet ? 72 : 76,
               child: Row(
                 children: [
-                  const BrandMark(size: 24),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'EZQ',
-                    style: TextStyle(
-                      color: AppColors.deepTeal,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  _AdminLocationTitle(
-                    restaurantName: restaurantName,
-                    branchName: branchName,
-                  ),
+                  const BrandMark(size: 70),
+                  const SizedBox(width: 30),
+                  AdminBranchIdentityPill(restaurantName: restaurantName),
                   const Spacer(),
                   _TopMetric(
                     label: 'Free',
@@ -2515,80 +2491,6 @@ class _AdminTopBar extends StatelessWidget {
                 ],
               ),
             ),
-    );
-  }
-}
-
-class _AdminLocationTitle extends StatelessWidget {
-  const _AdminLocationTitle({
-    required this.restaurantName,
-    required this.branchName,
-    this.compact = false,
-  });
-
-  final String restaurantName;
-  final String branchName;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    if (compact) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            restaurantName,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.navyText,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          Text(
-            branchName,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.mutedText,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          restaurantName,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: AppColors.navyText,
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: AppColors.softSurface,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: AppColors.line.withValues(alpha: 0.65)),
-          ),
-          child: Text(
-            branchName,
-            style: const TextStyle(
-              color: AppColors.deepTeal,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

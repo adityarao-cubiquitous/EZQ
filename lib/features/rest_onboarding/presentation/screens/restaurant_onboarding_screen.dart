@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/brand_mark.dart';
+import '../../../admin/presentation/widgets/admin_branch_identity_pill.dart';
+import '../../../auth/data/auth_repository.dart';
 import '../../providers/restaurant_onboarding_controller.dart';
 import '../widgets/complete_onboarding_step.dart';
 import '../widgets/floors_tables_step.dart';
@@ -87,12 +90,43 @@ class _RestaurantOnboardingScreenState
     debugPrint('[ONBOARDING_INIT] AFTER await loadAdminContext');
   }
 
-  void _saveDraft() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Draft saved locally for this onboarding session'),
-      ),
-    );
+  Future<void> _saveDraft() async {
+    try {
+      await _controller.saveDraft();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Draft saved')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save draft: $error')));
+    }
+  }
+
+  Future<void> _logoutAdmin() async {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    try {
+      await _controller.saveDraft();
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[ONBOARDING_LOGOUT] draft save failed before logout: $error\n'
+        '$stackTrace',
+      );
+    }
+
+    try {
+      await ref.read(authRepositoryProvider).signOut();
+      ref.invalidate(restaurantOnboardingControllerProvider);
+      if (!mounted) return;
+      context.go('/admin/login');
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not logout: $error')));
+    }
   }
 
   Future<void> _confirmReview() async {
@@ -187,6 +221,12 @@ class _RestaurantOnboardingScreenState
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  _OnboardingTopBar(
+                    restaurantName: state.trimmedRestaurantName.isEmpty
+                        ? state.restaurantBranchId
+                        : state.trimmedRestaurantName,
+                    onLogout: _logoutAdmin,
+                  ),
                   Padding(
                     padding: EdgeInsets.fromLTRB(
                       horizontalPadding,
@@ -363,6 +403,79 @@ class _RestaurantOnboardingScreenState
       onBackToReview: _controller.backToReviewFromFailure,
       onViewSummary: () => _downloadSetupSummary(state),
       onGoToDashboard: () => _goToDashboard(state),
+    );
+  }
+}
+
+class _OnboardingTopBar extends StatelessWidget {
+  const _OnboardingTopBar({
+    required this.restaurantName,
+    required this.onLogout,
+  });
+
+  final String restaurantName;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 1100;
+    final horizontalPadding = compact ? 14.0 : 32.0;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        horizontalPadding,
+        compact ? 12 : 0,
+        horizontalPadding,
+        compact ? 12 : 0,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: AppColors.primaryTeal, width: 4),
+          bottom: BorderSide(color: Color(0x1ABDC8D0)),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x12006687),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: compact
+          ? Row(
+              children: [
+                const BrandMark(size: 50),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: AdminBranchIdentityPill(
+                    restaurantName: restaurantName,
+                    compact: true,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Logout',
+                  onPressed: onLogout,
+                  icon: const Icon(Icons.logout_rounded),
+                ),
+              ],
+            )
+          : SizedBox(
+              height: 76,
+              child: Row(
+                children: [
+                  const BrandMark(size: 70),
+                  const SizedBox(width: 30),
+                  AdminBranchIdentityPill(restaurantName: restaurantName),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Logout',
+                    onPressed: onLogout,
+                    icon: const Icon(Icons.logout_rounded),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }

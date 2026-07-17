@@ -74,8 +74,16 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/brand/cubiquitous.png
+    - assets/brand/ezq_logo.png
+    - assets/brand/restaurant_logo.png
     - assets/qr/
     - assets/analytics/ezq_analytics_v5.html
+
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+          weight: 400
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

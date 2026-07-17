@@ -7,7 +7,6 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/customer_qr_repository.dart';
@@ -159,50 +158,25 @@ class _ScannerHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 54,
-          height: 54,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0x33BDEAF8)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1012A9DC),
-                blurRadius: 12,
-                offset: Offset(0, 6),
-              ),
-            ],
+        Text(
+          'EZQ Camera Lens',
+          style: TextStyle(
+            color: AppColors.navyText,
+            fontSize: 27,
+            fontWeight: FontWeight.w900,
+            height: 1.05,
           ),
-          child: const Center(child: BrandMark(size: 30)),
         ),
-        const SizedBox(width: 12),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'EZQ Camera Lens',
-                style: TextStyle(
-                  color: AppColors.navyText,
-                  fontSize: 27,
-                  fontWeight: FontWeight.w900,
-                  height: 1.05,
-                ),
-              ),
-              SizedBox(height: 6),
-              Text(
-                'Scan an EZQ restaurant QR to join the right queue.',
-                style: TextStyle(
-                  color: AppColors.mutedText,
-                  fontSize: 14,
-                  height: 1.3,
-                ),
-              ),
-            ],
+        SizedBox(height: 6),
+        Text(
+          'Scan an EZQ restaurant QR to join the right queue.',
+          style: TextStyle(
+            color: AppColors.mutedText,
+            fontSize: 14,
+            height: 1.3,
           ),
         ),
       ],

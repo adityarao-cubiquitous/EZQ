@@ -109,7 +109,7 @@ class _TableGridState extends State<TableGrid> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Tables by Capacity',
+              'Tables',
               style: TextStyle(
                 fontSize: compact ? 20 : 24,
                 fontWeight: FontWeight.w800,
@@ -827,11 +827,11 @@ class _TableCard extends StatelessWidget {
 
   String _statusLabel(int occupiedCount) {
     return switch (table.status) {
-      TableStatus.available => 'available',
-      TableStatus.reserved => 'reserved',
+      TableStatus.available => 'Available',
+      TableStatus.reserved => 'Reserved',
       TableStatus.occupied =>
-        occupiedCount >= table.capacity ? 'full' : 'partial',
-      TableStatus.blocked => 'blocked',
+        occupiedCount >= table.capacity ? 'Full' : 'Partial',
+      TableStatus.blocked => 'Blocked',
     };
   }
 

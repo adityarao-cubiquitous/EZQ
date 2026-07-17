@@ -19,6 +19,7 @@ import '../features/customer/presentation/customer_qr_scanner_screen.dart';
 import '../features/customer/presentation/customer_route_guard.dart';
 import '../features/customer/presentation/customer_support_screen.dart';
 import '../features/customer/presentation/nearby_restaurants_screen.dart';
+import '../features/customer/domain/restaurant_branch_readiness.dart';
 import '../features/customer/presentation/seated_view.dart';
 import '../features/customer/presentation/table_ready_view.dart';
 import '../features/reports/presentation/daily_summary_screen.dart';
@@ -228,9 +229,11 @@ Future<String> _adminBranchDestination(String restaurantBranchId) async {
       .doc(FirestorePaths.restaurantBranch(restaurantBranchId))
       .get();
   final branchData = branchSnapshot.data();
-  final onboardingCompleted =
-      branchData?['onboardingCompleted'] as bool? ?? false;
-  if (onboardingCompleted) {
+  final readiness = evaluateRestaurantBranchReadiness(
+    branchExists: branchSnapshot.exists,
+    branchData: branchData,
+  );
+  if (readiness.isReady) {
     return '/admin/$restaurantBranchId/dashboard';
   }
   return '/admin/$restaurantBranchId/register/onboarding';
