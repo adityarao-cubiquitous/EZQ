@@ -26,6 +26,7 @@ import '../../tables/presentation/table_grid.dart';
 import '../../queue/presentation/queue_panel.dart';
 import '../../customer/domain/seating_preference_service.dart';
 import 'qr_management_panel.dart';
+import 'widgets/admin_branch_identity_pill.dart';
 
 final Set<String> _warnedDashboardDisplayNameFallbacks = <String>{};
 
@@ -2351,13 +2352,10 @@ class _AdminTopBar extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 1),
-                      child: BrandMark(size: 50),
-                    ),
+                    const BrandMark(size: 50),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _AdminLocationTitle(
+                      child: AdminBranchIdentityPill(
                         restaurantName: restaurantName,
                         compact: true,
                       ),
@@ -2435,12 +2433,9 @@ class _AdminTopBar extends StatelessWidget {
               height: tablet ? 72 : 76,
               child: Row(
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 1),
-                    child: BrandMark(size: 70),
-                  ),
+                  const BrandMark(size: 70),
                   const SizedBox(width: 30),
-                  _AdminLocationTitle(restaurantName: restaurantName),
+                  AdminBranchIdentityPill(restaurantName: restaurantName),
                   const Spacer(),
                   _TopMetric(
                     label: 'Free',
@@ -2496,92 +2491,6 @@ class _AdminTopBar extends StatelessWidget {
                 ],
               ),
             ),
-    );
-  }
-}
-
-class _AdminLocationTitle extends StatelessWidget {
-  const _AdminLocationTitle({
-    required this.restaurantName,
-    this.compact = false,
-  });
-
-  final String restaurantName;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final logoSize = compact ? 30.0 : 36.0;
-    final textStyle = TextStyle(
-      color: Colors.white,
-      fontFamily: 'Poppins',
-      fontSize: compact ? 16 : 18,
-      fontWeight: FontWeight.w400,
-      letterSpacing: 0,
-    );
-
-    return Container(
-      constraints: BoxConstraints(maxWidth: compact ? double.infinity : 560),
-      padding: const EdgeInsets.all(1),
-      decoration: BoxDecoration(
-        gradient: AppColors.brandGradient,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? 10 : 12,
-          vertical: compact ? 6 : 7,
-        ),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [
-              Colors.white,
-              Color(0xFFF7FDFF),
-              Color(0xFFF6FAFF),
-              Color(0xFFFFF7FF),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(11),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipOval(
-              child: Image.asset(
-                'assets/brand/restaurant_logo.png',
-                width: logoSize,
-                height: logoSize,
-                fit: BoxFit.cover,
-              ),
-            ),
-            SizedBox(width: compact ? 8 : 12),
-            Flexible(
-              child: ShaderMask(
-                blendMode: BlendMode.srcIn,
-                shaderCallback: (bounds) {
-                  return const LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      AppColors.deepTeal,
-                      AppColors.primaryTeal,
-                      Color(0xFF176DE8),
-                      Color(0xFF7A2FD8),
-                    ],
-                  ).createShader(bounds);
-                },
-                child: Text(
-                  restaurantName,
-                  overflow: TextOverflow.ellipsis,
-                  style: textStyle,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

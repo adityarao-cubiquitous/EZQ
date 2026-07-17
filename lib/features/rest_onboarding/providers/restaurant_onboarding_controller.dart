@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -307,6 +309,24 @@ class RestaurantOnboardingState {
     );
   }
 
+  RestaurantOnboardingDraft toDraft() {
+    assert(debugAssertTableConfigurationInvariant());
+    return RestaurantOnboardingDraft(
+      restaurantBranchId: restaurantBranchId,
+      currentStepIndex: currentStepIndex,
+      completedStepIndexes: Set<int>.unmodifiable(completedStepIndexes),
+      restaurantName: restaurantName,
+      branchName: branchName,
+      area: area,
+      address: address,
+      floorCount: floorCount,
+      selectedTableCapacities: List<int>.unmodifiable(selectedTableCapacities),
+      tableCountsByFloor: List<List<int>>.unmodifiable(
+        tableCountsByFloor.map((counts) => List<int>.unmodifiable(counts)),
+      ),
+    );
+  }
+
   String setupSummaryText(RestaurantOnboardingResult result) {
     return [
       'EZQ Restaurant Onboarding Setup Summary',
@@ -455,7 +475,7 @@ class RestaurantOnboardingController
       }
 
       debugPrint('[ONBOARDING_STATE] Loading=false reason=success');
-      state = state.copyWith(
+      var nextState = state.copyWith(
         restaurantBranchId: context.restaurantBranchId,
         adminName: context.name,
         adminEmail: context.email,
@@ -467,6 +487,25 @@ class RestaurantOnboardingController
         isLoadingAdminContext: false,
         clearAdminContextError: true,
       );
+      final draft = context.onboardingDraft;
+      if (draft != null &&
+          draft.restaurantBranchId == context.restaurantBranchId &&
+          !context.isProvisioningCompleted) {
+        nextState = _withSynchronizedTableConfiguration(
+          nextState.copyWith(
+            currentStepIndex: draft.currentStepIndex,
+            completedStepIndexes: draft.completedStepIndexes,
+            restaurantName: draft.restaurantName,
+            branchName: draft.branchName,
+            area: draft.area,
+            address: draft.address,
+            floorCount: draft.floorCount,
+            selectedTableCapacities: draft.selectedTableCapacities,
+            tableCountsByFloor: draft.tableCountsByFloor,
+          ),
+        );
+      }
+      state = nextState;
       debugPrint('[ONBOARDING_CONTROLLER] EXIT loadAdminContext success');
     } catch (error, stackTrace) {
       debugPrint(
@@ -487,6 +526,7 @@ class RestaurantOnboardingController
       restaurantName: value,
       showRestaurantError: state.showRestaurantError || value.isNotEmpty,
     );
+    _queueDraftSave();
   }
 
   void updateBranchName(String value) {
@@ -494,10 +534,12 @@ class RestaurantOnboardingController
       branchName: value,
       showBranchError: state.showBranchError || value.isNotEmpty,
     );
+    _queueDraftSave();
   }
 
   void updateArea(String value) {
     state = state.copyWith(area: value);
+    _queueDraftSave();
   }
 
   void selectStep(int index) {
@@ -513,6 +555,7 @@ class RestaurantOnboardingController
       currentStepIndex: index,
       completedStepIndexes: completed,
     );
+    _queueDraftSave();
   }
 
   void continueFromStep1() {
@@ -523,6 +566,7 @@ class RestaurantOnboardingController
 
   void backFromStep2() {
     state = state.copyWith(currentStepIndex: 0);
+    _queueDraftSave();
   }
 
   void continueFromStep2() {
@@ -533,16 +577,19 @@ class RestaurantOnboardingController
 
   void backFromStep3() {
     state = state.copyWith(currentStepIndex: 1);
+    _queueDraftSave();
   }
 
   void backFromStep4() {
     if (state.isProvisioning) return;
     state = state.copyWith(currentStepIndex: 2);
+    _queueDraftSave();
   }
 
   void backToReviewFromFailure() {
     if (state.isProvisioning) return;
     state = state.copyWith(currentStepIndex: 2);
+    _queueDraftSave();
   }
 
   void updateFloorCount(int value) {
@@ -550,6 +597,7 @@ class RestaurantOnboardingController
     state = _withSynchronizedTableConfiguration(
       state.copyWith(floorCount: nextFloorCount),
     );
+    _queueDraftSave();
   }
 
   void addTableCapacity(int capacity) {
@@ -575,6 +623,7 @@ class RestaurantOnboardingController
         tableCountsByFloor: nextRows,
       ),
     );
+    _queueDraftSave();
   }
 
   void removeTableCapacity(int capacity) {
@@ -598,6 +647,7 @@ class RestaurantOnboardingController
             : state.showStep2ValidationError,
       ),
     );
+    _queueDraftSave();
   }
 
   void updateTableCount(int floorIndex, int tableTypeIndex, int value) {
@@ -638,6 +688,7 @@ class RestaurantOnboardingController
           : synchronized.showStep2ValidationError,
     );
     assert(state.debugAssertTableConfigurationInvariant());
+    _queueDraftSave();
   }
 
   Future<void> startProvisioning() async {
@@ -689,6 +740,10 @@ class RestaurantOnboardingController
     }
   }
 
+  Future<void> saveDraft() {
+    return _saveDraftState(state);
+  }
+
   void _markProvisioningStepRunning(OnboardingProvisioningStep step) {
     state = state.copyWith(
       provisioningProgress: updateProvisioningProgress(
@@ -735,6 +790,28 @@ class RestaurantOnboardingController
       normalizedRow.removeLast();
     }
     return normalizedRow;
+  }
+
+  void _queueDraftSave() {
+    final snapshot = state;
+    unawaited(
+      _saveDraftState(snapshot).catchError((
+        Object error,
+        StackTrace stackTrace,
+      ) {
+        debugPrint(
+          '[ONBOARDING_CONTROLLER] save draft failed: $error\n$stackTrace',
+        );
+      }),
+    );
+  }
+
+  Future<void> _saveDraftState(RestaurantOnboardingState snapshot) async {
+    if (snapshot.restaurantBranchId.trim().isEmpty) return;
+    if (snapshot.isProvisioning || snapshot.provisioningResult != null) return;
+    await ref
+        .read(restaurantOnboardingRepositoryProvider)
+        .saveOnboardingDraft(snapshot.toDraft());
   }
 }
 

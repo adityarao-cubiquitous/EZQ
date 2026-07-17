@@ -13,6 +13,8 @@ abstract class RestaurantOnboardingRepository {
 
   Future<CompletedRestaurantOnboarding?> completedOnboardingForCurrentAdmin();
 
+  Future<void> saveOnboardingDraft(RestaurantOnboardingDraft draft);
+
   Future<RestaurantOnboardingResult> provisionRestaurant({
     required RestaurantOnboardingRequest request,
     required ProvisioningStepCallback onStepStarted,
@@ -105,6 +107,7 @@ class FirebaseRestaurantOnboardingRepository
         area: '',
         address: '',
         slug: restaurantBranchId,
+        onboardingDraft: null,
       );
       _debugLog(
         '[ONBOARDING_REPO] EXIT loadAdminContext missing branch default',
@@ -140,6 +143,9 @@ class FirebaseRestaurantOnboardingRepository
       slug: (branchData['slug'] as String? ?? restaurantBranchId).trim().isEmpty
           ? restaurantBranchId
           : (branchData['slug'] as String? ?? restaurantBranchId).trim(),
+      onboardingDraft: RestaurantOnboardingDraft.fromFirestore(
+        branchData['onboardingDraft'],
+      ),
     );
     _debugLog('[ONBOARDING_REPO] EXIT loadAdminContext success');
     return context;
@@ -186,6 +192,51 @@ class FirebaseRestaurantOnboardingRepository
     return CompletedRestaurantOnboarding(
       restaurantBranchId: context.restaurantBranchId,
     );
+  }
+
+  @override
+  Future<void> saveOnboardingDraft(RestaurantOnboardingDraft draft) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw const AdminContextLoadException(
+        'Admin authentication is required to save onboarding progress.',
+      );
+    }
+    final restaurantBranchId = draft.restaurantBranchId.trim();
+    if (restaurantBranchId.isEmpty) return;
+
+    final branchRef = _firestore.doc(
+      FirestorePaths.restaurantBranch(restaurantBranchId),
+    );
+    try {
+      await _writeOnboardingDraft(branchRef, draft);
+    } on FirebaseException catch (error) {
+      if (error.code != 'permission-denied') rethrow;
+      await _replaceOnboardingDraft(branchRef, draft);
+    }
+  }
+
+  Future<void> _writeOnboardingDraft(
+    DocumentReference<Map<String, dynamic>> branchRef,
+    RestaurantOnboardingDraft draft,
+  ) {
+    return branchRef.update(<String, dynamic>{
+      'onboardingDraft': draft.toFirestore(),
+      'onboardingDraftUpdatedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> _replaceOnboardingDraft(
+    DocumentReference<Map<String, dynamic>> branchRef,
+    RestaurantOnboardingDraft draft,
+  ) async {
+    await branchRef.update(<String, dynamic>{
+      'onboardingDraft': FieldValue.delete(),
+      'onboardingDraftUpdatedAt': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await _writeOnboardingDraft(branchRef, draft);
   }
 
   @override
@@ -277,6 +328,8 @@ class FirebaseRestaurantOnboardingRepository
       'totalTables': request.totalTables,
       'totalSeats': request.totalSeats,
       'capacityTypes': request.selectedTableCapacities,
+      'onboardingDraft': FieldValue.delete(),
+      'onboardingDraftUpdatedAt': FieldValue.delete(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
 

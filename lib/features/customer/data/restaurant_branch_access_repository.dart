@@ -5,12 +5,28 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../domain/restaurant_branch_readiness.dart';
 
 enum CustomerRouteBlockReason {
   restaurantUnavailable,
   branchUnavailable,
   setupIncomplete,
   qrDisabled,
+}
+
+CustomerRouteBlockReason _customerBlockReasonFromReadiness(
+  RestaurantBranchReadinessBlockReason reason,
+) {
+  return switch (reason) {
+    RestaurantBranchReadinessBlockReason.restaurantUnavailable =>
+      CustomerRouteBlockReason.restaurantUnavailable,
+    RestaurantBranchReadinessBlockReason.branchUnavailable =>
+      CustomerRouteBlockReason.branchUnavailable,
+    RestaurantBranchReadinessBlockReason.setupIncomplete =>
+      CustomerRouteBlockReason.setupIncomplete,
+    RestaurantBranchReadinessBlockReason.qrDisabled =>
+      CustomerRouteBlockReason.qrDisabled,
+  };
 }
 
 class CustomerRouteAccess {
@@ -43,46 +59,30 @@ class FirebaseRestaurantBranchAccessRepository
         .get()
         .timeout(const Duration(seconds: 8));
     final branchData = branchSnapshot.data();
-    if (!branchSnapshot.exists || branchData == null) {
-      return const CustomerRouteAccess.blocked(
-        CustomerRouteBlockReason.setupIncomplete,
-      );
-    }
-
-    final restaurantId = (branchData['restaurantId'] as String? ?? '').trim();
+    final restaurantId = (branchData?['restaurantId'] as String? ?? '').trim();
+    var restaurantExists = false;
+    Map<String, dynamic>? restaurantData;
     if (restaurantId.isNotEmpty) {
       final restaurantSnapshot = await _firestore
           .doc('restaurants/$restaurantId')
           .get()
           .timeout(const Duration(seconds: 8));
       if (restaurantSnapshot.exists) {
-        final restaurantData = restaurantSnapshot.data();
-        if (restaurantData?['isActive'] != true) {
-          return const CustomerRouteAccess.blocked(
-            CustomerRouteBlockReason.restaurantUnavailable,
-          );
-        }
+        restaurantExists = true;
+        restaurantData = restaurantSnapshot.data();
       }
-    } else if (branchData['restaurantIsActive'] == false) {
-      return const CustomerRouteAccess.blocked(
-        CustomerRouteBlockReason.restaurantUnavailable,
-      );
     }
 
-    if (branchData['isActive'] != true) {
-      return const CustomerRouteAccess.blocked(
-        CustomerRouteBlockReason.branchUnavailable,
-      );
-    }
-    if (branchData['onboardingCompleted'] != true ||
-        branchData['provisioningStatus'] != 'completed') {
-      return const CustomerRouteAccess.blocked(
-        CustomerRouteBlockReason.setupIncomplete,
-      );
-    }
-    if (branchData['qrEnabled'] != true) {
-      return const CustomerRouteAccess.blocked(
-        CustomerRouteBlockReason.qrDisabled,
+    final readiness = evaluateRestaurantBranchReadiness(
+      branchExists: branchSnapshot.exists,
+      branchData: branchData,
+      restaurantExists: restaurantExists,
+      restaurantData: restaurantData,
+    );
+    final blockReason = readiness.blockReason;
+    if (blockReason != null) {
+      return CustomerRouteAccess.blocked(
+        _customerBlockReasonFromReadiness(blockReason),
       );
     }
     return const CustomerRouteAccess.allowed();

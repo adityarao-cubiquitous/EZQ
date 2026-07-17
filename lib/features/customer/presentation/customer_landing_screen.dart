@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
 
 class CustomerLandingScreen extends StatelessWidget {
@@ -71,7 +72,6 @@ class _EzqLogo extends StatelessWidget {
     return Container(
       width: 84,
       height: 84,
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
@@ -88,7 +88,7 @@ class _EzqLogo extends StatelessWidget {
           ),
         ],
       ),
-      child: Image.asset('assets/brand/cubiquitous.png', fit: BoxFit.contain),
+      child: const BrandMark(size: 84),
     );
   }
 }
