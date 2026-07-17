@@ -309,8 +309,14 @@ class FirebaseTableRepository implements TableRepository {
     await _firestore.runTransaction<void>((transaction) async {
       final tableSnapshot = await transaction.get(tableRef);
       final entrySnapshot = await transaction.get(entryRef);
-      if (!tableSnapshot.exists || !entrySnapshot.exists) {
-        throw StateError('Table or queue entry not found.');
+      if (!tableSnapshot.exists) {
+        throw StateError('Table not found.');
+      }
+      if (!entrySnapshot.exists) {
+        debugPrint(
+          '[TABLE_REPO] Completing meal for tableId=$tableId with missing '
+          'queueEntryId=$queueEntryId. Freeing table and skipping queue update.',
+        );
       }
       final tableData = tableSnapshot.data();
       final entryData = entrySnapshot.data();
@@ -337,14 +343,16 @@ class FirebaseTableRepository implements TableRepository {
         'currentCycleSource': null,
         'updatedAt': completionTimestamp,
       });
-      transaction.update(entryRef, {
-        'status': QueueStatus.completed.wireName,
-        'completedAt': completionTimestamp,
-        'completedPartySize': completedPartySize,
-        'tableCycleStartAt': cycleStartAt,
-        'tableCycleEndAt': completionTimestamp,
-        'updatedAt': completionTimestamp,
-      });
+      if (entrySnapshot.exists) {
+        transaction.update(entryRef, {
+          'status': QueueStatus.completed.wireName,
+          'completedAt': completionTimestamp,
+          'completedPartySize': completedPartySize,
+          'tableCycleStartAt': cycleStartAt,
+          'tableCycleEndAt': completionTimestamp,
+          'updatedAt': completionTimestamp,
+        });
+      }
       transaction.set(counterRef, {
         'totalCompleted': FieldValue.increment(1),
         'totalGuestsCompleted': FieldValue.increment(completedPartySize),
