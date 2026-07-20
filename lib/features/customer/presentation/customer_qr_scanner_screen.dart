@@ -1,5 +1,4 @@
 import 'package:app_settings/app_settings.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -32,13 +31,11 @@ class _CustomerQrScannerScreenState
   @override
   void initState() {
     super.initState();
-    if (!kIsWeb) {
-      _scannerController = MobileScannerController(
-        detectionSpeed: DetectionSpeed.noDuplicates,
-        facing: CameraFacing.back,
-        formats: const [BarcodeFormat.qrCode],
-      );
-    }
+    _scannerController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+      formats: const [BarcodeFormat.qrCode],
+    );
   }
 
   @override
@@ -385,7 +382,7 @@ class _CameraFallback extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Camera scan is mobile-only',
+                'Camera scan is unavailable',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppColors.navyText,
@@ -395,7 +392,7 @@ class _CameraFallback extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Paste an EZQ link or QR code below to open the queue.',
+                'Allow camera access or paste an EZQ link below to open the queue.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppColors.mutedText,
