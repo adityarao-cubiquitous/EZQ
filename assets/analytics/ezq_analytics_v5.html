@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EZQ Analytics — The Spice House</title>
+<title>Analytics</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
 :root {
@@ -18,18 +18,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
 /* PAGE HEADER */
 .page-header {
   background: linear-gradient(135deg, #6A40D7 0%, #9060E0 45%, #12A9DC 100%);
-  padding: 18px 24px 16px;
-  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 24px;
+  display: flex; align-items: center; justify-content: flex-end;
   flex-wrap: wrap; gap: 10px; margin-bottom: 20px;
 }
-.header-left { display: flex; align-items: center; gap: 13px; }
-.logo-mark {
-  width: 40px; height: 40px; background: rgba(255,255,255,0.18);
-  border-radius: 10px; display: flex; align-items: center; justify-content: center;
-  font-size: 15px; font-weight: 900; color: #fff; letter-spacing: -1px; flex-shrink: 0;
-}
-.header-brand { font-size: 19px; font-weight: 800; color: #fff; letter-spacing: -.3px; line-height: 1.2; }
-.header-loc { font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 1px; }
 .header-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .hbadge {
   font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.9);
@@ -153,13 +145,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
 <body>
 
 <div class="page-header">
-  <div class="header-left">
-    <div class="logo-mark">EZQ</div>
-    <div>
-      <div class="header-brand">EZQ Analytics</div>
-      <div class="header-loc">The Spice House · Indiranagar, Bengaluru</div>
-    </div>
-  </div>
   <div class="header-right">
     <span class="hbadge" id="hdr-range">Jun 1 – Jun 29</span>
     <span class="hbadge" id="hdr-view">All days</span>

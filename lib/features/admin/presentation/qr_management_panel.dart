@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/qr_generation.dart';
 import '../../../core/utils/web_file_actions.dart' as file_actions;
 import '../data/qr_management_repository.dart';
 
@@ -17,7 +19,7 @@ final branchQrInfoProvider = StreamProvider.family<BranchQrInfo, BranchQrArgs>((
       .watch(qrManagementRepositoryProvider)
       .watchBranchQrInfo(
         restaurantId: args.restaurantId,
-        branchSlug: args.branchId,
+        branchId: args.branchId,
       );
 });
 
@@ -64,33 +66,56 @@ class _QrManagementPanelState extends ConsumerState<QrManagementPanel> {
         ),
       ),
       data: (info) => _QrPanelFrame(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _QrPreview(info: info),
-                const SizedBox(width: 16),
-                Expanded(child: _QrDetails(info: info)),
-              ],
-            ),
-            const SizedBox(height: 14),
-            _QrActions(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final stackContent = constraints.maxWidth < 560;
+            final previewSize = constraints.constrainWidth(220);
+            final actions = _QrActions(
               onCopy: () => _copyQueueUrl(context, info),
-              onDownloadPng: () => file_actions.downloadWebFile(
-                url: info.pngAssetPath,
+              onDownloadPng: () async => file_actions.downloadWebBytes(
+                bytes: await generateQrPng(info.queueUrl),
+                mimeType: 'image/png',
                 fileName: info.pngFileName,
               ),
-              onDownloadSvg: () => file_actions.downloadWebFile(
-                url: info.svgAssetPath,
+              onDownloadSvg: () => file_actions.downloadWebText(
+                content: generateQrSvg(info.queueUrl),
+                mimeType: 'image/svg+xml;charset=utf-8',
                 fileName: info.svgFileName,
               ),
               onShare: () => _share(context, info),
-              onPrint: () => file_actions.printWebFile(url: info.pngAssetPath),
-            ),
-          ],
+              onPrint: () => file_actions.printQrSheet(
+                qrSvg: generateQrSvg(info.queueUrl),
+                customerUrl: info.queueUrl,
+                restaurantName: info.restaurantName,
+                branchName: info.branchName,
+                restaurantLogoUrl: info.restaurantLogoUrl,
+              ),
+            );
+            final details = _QrDetails(info: info);
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (stackContent) ...[
+                  Center(
+                    child: _QrPreview(info: info, size: previewSize),
+                  ),
+                  const SizedBox(height: 16),
+                  details,
+                ] else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _QrPreview(info: info, size: previewSize),
+                      const SizedBox(width: 20),
+                      Expanded(child: details),
+                    ],
+                  ),
+                const SizedBox(height: 14),
+                actions,
+              ],
+            );
+          },
         ),
       ),
     );
@@ -106,8 +131,8 @@ class _QrManagementPanelState extends ConsumerState<QrManagementPanel> {
 
   Future<void> _share(BuildContext context, BranchQrInfo info) async {
     final shared = await file_actions.shareWebFile(
-      title: '${info.branchName} EZQ QR',
-      text: 'Open this EZQ queue link for ${info.branchName}.',
+      title: '${info.restaurantName} · ${info.branchName}',
+      text: 'Join the queue at ${info.restaurantName}, ${info.branchName}.',
       url: info.queueUrl,
     );
     if (!shared && context.mounted) {
@@ -143,42 +168,29 @@ class _QrPanelFrame extends StatelessWidget {
 }
 
 class _QrPreview extends StatelessWidget {
-  const _QrPreview({required this.info});
+  const _QrPreview({required this.info, required this.size});
 
   final BranchQrInfo info;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
-    final uri = Uri.tryParse(info.pngAssetPath);
-    final isNetworkImage = uri != null && uri.hasScheme;
     return Container(
-      width: 112,
-      height: 112,
-      padding: const EdgeInsets.all(8),
+      width: size,
+      height: size,
+      padding: EdgeInsets.all(size < 180 ? 6 : 10),
       decoration: BoxDecoration(
         color: AppColors.softerSurface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0x1ABDC8D0)),
       ),
-      child: isNetworkImage
-          ? Image.network(
-              info.pngAssetPath,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) => const Icon(
-                Icons.qr_code_2,
-                color: AppColors.deepTeal,
-                size: 52,
-              ),
-            )
-          : Image.asset(
-              info.pngAssetPath,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) => const Icon(
-                Icons.qr_code_2,
-                color: AppColors.deepTeal,
-                size: 52,
-              ),
-            ),
+      child: QrImageView(
+        data: info.queueUrl,
+        version: QrVersions.auto,
+        errorCorrectionLevel: QrErrorCorrectLevel.M,
+        padding: EdgeInsets.zero,
+        backgroundColor: Colors.white,
+      ),
     );
   }
 }
@@ -223,15 +235,14 @@ class _QrDetails extends StatelessWidget {
             height: 1.35,
           ),
         ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _QrBadge(label: 'v${info.qrVersion}'),
-            if (generatedAt != null) _QrBadge(label: generatedAt),
-          ],
-        ),
+        if (generatedAt != null) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [_QrBadge(label: generatedAt)],
+          ),
+        ],
       ],
     );
   }

@@ -651,13 +651,13 @@ class _TableCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: isHighlighted
             ? Color.alphaBlend(
-                highlightColor.withValues(alpha: 0.08),
-                color.withValues(alpha: 0.08),
+                highlightColor.withValues(alpha: 0.12),
+                color.withValues(alpha: 0.11),
               )
-            : color.withValues(alpha: 0.08),
+            : color.withValues(alpha: 0.11),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: highlightColor ?? color.withValues(alpha: 0.35),
+          color: highlightColor ?? color.withValues(alpha: 0.62),
           width: isHighlighted ? 2.5 : 1,
         ),
         boxShadow: isHighlighted
@@ -673,7 +673,13 @@ class _TableCard extends StatelessWidget {
                   spreadRadius: 4,
                 ),
               ]
-            : null,
+            : [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.10),
+                  blurRadius: 11,
+                  offset: const Offset(0, 7),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -377,6 +377,10 @@ Recommendation behavior:
 
 - Table-side clicks highlight the best queue parties for that table and scroll the live queue to the best-fit party.
 - Queue-side clicks highlight only the smallest fitting table set first.
+- Multi-table recommendations are used only when the party is larger than every currently available single table.
+- Multi-table best fit highlights every exact-capacity two-table combination available on each floor.
+- Multi-table next best fit highlights every higher-capacity two-table combination available on each floor.
+- Multi-table combinations use only completely available tables; partially occupied tables are excluded.
 - Parties that accept shared seating may be recommended to compatible partially occupied tables or empty tables.
 - Parties that do not accept shared seating should be recommended only to empty tables.
 - Queue cards show a compact `Share` tag when a party accepts shared seating.
@@ -605,7 +609,7 @@ Manager:
 - Tables are sorted and grouped by capacity.
 - Finishing a meal captures completed party size and records table cycle timestamps.
 - Queue cards show how long the party has waited and what time they joined.
-- Queue recommendations should prefer the smallest fitting table and use green for best fit, yellow for next best fit.
+- Queue recommendations should prefer the smallest fitting table and use green for best fit, yellow for next best fit. Oversized parties expose all same-floor, two-table exact and higher-capacity combinations using only fully available tables.
 - Recent seating assignments should be undoable for a short recovery window.
 - Admin toasts are popup-style feedback, not bottom snackbars.
 - Walk-in queue entries support seating preference and live ETA context.
@@ -659,6 +663,7 @@ Manager features:
 - Queue cards showing token, customer, party size, wait duration, joined time, and actions.
 - Queue cards showing compact share preference tag for parties open to shared seating.
 - Optimized queue recommendations with best-fit and next-best-fit table suggestions.
+- Same-floor multi-table recommendations for parties larger than the maximum available single-table capacity.
 - Reserve action that opens a fitting table picker with color-coded best and next-best options.
 - Actionable recommendation buttons on queue cards for direct table assignment.
 - Queue-card click highlights fitting tables and scrolls to the relevant table group.
@@ -725,6 +730,9 @@ Manager flow:
 - The system shall show live table availability for the selected branch.
 - The system shall group tables by capacity and sort them for fast scanning.
 - The system shall recommend best-fit and next-best-fit tables for each waiting party.
+- The system shall recommend multiple tables only when the waiting party exceeds the maximum capacity of every available single table.
+- The system shall keep every recommended table combination on one floor, restrict combinations to exactly two tables, show all exact pairs as best fit, and show all higher-capacity pairs as next best fit.
+- The system shall exclude partially occupied tables from multi-table combination recommendations.
 - The system shall recommend partially occupied tables only when the waiting party accepts shared seating and the table has enough spare seats.
 - The system shall allow a manager to reserve a waiting party by selecting a fitting table from recommendations or the table picker.
 - The system shall avoid free-text table assignment in the reserve flow.
@@ -780,6 +788,7 @@ Manager user stories:
 - As a manager, I want to see all waiting parties live so I can decide who to seat next.
 - As a manager, I want to see tables grouped by capacity so I can quickly find a good fit.
 - As a manager, I want best-fit and next-best-fit suggestions so I can seat parties quickly without wasting capacity.
+- As a manager, I want oversized parties matched to the fewest same-floor tables so large groups can be planned without splitting across floors.
 - As a manager, I want shared-seating parties matched to compatible partial tables so I can improve table utilization.
 - As a manager, I want non-sharing parties matched only to empty tables so I respect customer preference.
 - As a manager, I want to assign a party from a list of fitting tables so I avoid table-number mistakes.

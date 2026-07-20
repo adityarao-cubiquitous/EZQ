@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/utils/responsive.dart';
@@ -17,6 +16,7 @@ import '../../queue/data/queue_repository.dart';
 import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
 import '../../recommendation/domain/customer_preferences.dart';
+import '../../recommendation/domain/multi_table_recommendation.dart';
 import '../../recommendation/domain/recommendation_types.dart';
 import '../../tables/data/table_repository.dart';
 import '../../tables/domain/floor_table_map.dart';
@@ -26,6 +26,7 @@ import '../../tables/presentation/table_grid.dart';
 import '../../queue/presentation/queue_panel.dart';
 import '../../customer/domain/seating_preference_service.dart';
 import 'qr_management_panel.dart';
+import 'admin_restaurant_display_name.dart';
 import 'widgets/admin_branch_identity_pill.dart';
 
 final Set<String> _warnedDashboardDisplayNameFallbacks = <String>{};
@@ -449,11 +450,20 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     return showDialog<void>(
       context: context,
       builder: (context) {
+        final compact = Responsive.isCompact(context);
+        final horizontalInset = compact ? 12.0 : 40.0;
+        final availableContentWidth =
+            MediaQuery.sizeOf(context).width - (horizontalInset * 2) - 32;
         return AlertDialog(
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: horizontalInset,
+            vertical: 24,
+          ),
+          scrollable: true,
           title: const Text('QR Management'),
           contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           content: SizedBox(
-            width: math.min(MediaQuery.sizeOf(context).width - 48, 560.0),
+            width: math.min(availableContentWidth, 760.0),
             child: QrManagementPanel(
               restaurantId: widget.restaurantId,
               branchId: widget.branchId,
@@ -550,7 +560,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     _AdminTopBar(
                       restaurantId: widget.restaurantId,
                       branchId: widget.branchId,
-                      restaurantName: _restaurantDisplayName(
+                      restaurantName: adminRestaurantDisplayName(
                         widget.restaurantId,
                       ),
                       freeTables: free,
@@ -567,7 +577,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, constraints) {
-                          final compact = constraints.maxWidth < 960;
+                          final compact = constraints.maxWidth < 1100;
                           final phone = Responsive.isCompact(context);
                           final pagePadding = phone ? 12.0 : 24.0;
                           final gap = phone ? 12.0 : 16.0;
@@ -629,6 +639,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   onReserve: (entry) => _reserveQueueEntry(
                                     context: context,
                                     entry: entry,
+                                    tables: tables,
                                     availableTables: availableTables,
                                     occupiedCountFor: occupiedFor,
                                   ),
@@ -669,7 +680,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
-                                  flex: 7,
+                                  flex: 13,
                                   child: SingleChildScrollView(
                                     child: TableGrid(
                                       floorTableMap: floorTableMap,
@@ -715,8 +726,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   ),
                                 ),
                                 SizedBox(width: pagePadding),
-                                SizedBox(
-                                  width: 390,
+                                Expanded(
+                                  flex: 7,
                                   child: SingleChildScrollView(
                                     child: QueuePanel(
                                       queue: queuePresentation.queue,
@@ -735,6 +746,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       onReserve: (entry) => _reserveQueueEntry(
                                         context: context,
                                         entry: entry,
+                                        tables: tables,
                                         availableTables: availableTables,
                                         occupiedCountFor: occupiedFor,
                                       ),
@@ -796,18 +808,36 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   Future<void> _reserveQueueEntry({
     required BuildContext context,
     required QueueEntry entry,
+    required List<RestaurantTable> tables,
     required List<RestaurantTable> availableTables,
     required int Function(RestaurantTable) occupiedCountFor,
   }) async {
-    final selectedTable = await showDialog<RestaurantTable>(
+    final recommendations = _tableRecommendationsForQueueEntry(
+      entry: entry,
+      tables: tables,
+      occupiedCountFor: occupiedCountFor,
+    );
+    final selection = await showDialog<Object>(
       context: context,
       builder: (context) => _ReserveTableDialog(
         entry: entry,
         availableTables: availableTables,
         occupiedCountFor: occupiedCountFor,
+        recommendations: recommendations,
       ),
     );
-    if (selectedTable == null || !context.mounted) return;
+    if (selection == null || !context.mounted) return;
+
+    if (selection case final QueueTableRecommendation recommendation) {
+      await _assignRecommendedTable(
+        context: context,
+        entry: entry,
+        recommendation: recommendation,
+        tables: tables,
+      );
+      return;
+    }
+    final selectedTable = selection as RestaurantTable;
 
     await _seatQueueEntryAtTable(
       context: context,
@@ -822,6 +852,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required QueueTableRecommendation recommendation,
     required List<RestaurantTable> tables,
   }) async {
+    if (recommendation.isMultiTable) {
+      _showAdminPopup(
+        context,
+        message:
+            '${recommendation.tableNumber} is the recommended same-floor table combination for ${entry.tokenCode}.',
+      );
+      return;
+    }
     final table = _tableById(tables, recommendation.tableId);
     if (table == null) {
       _showAdminPopup(
@@ -1285,6 +1323,27 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required List<RestaurantTable> tables,
     required int Function(RestaurantTable) occupiedCountFor,
   }) {
+    final multiTableRecommendations = recommendMultiTableCombination(
+      partySize: entry.partySize,
+      tables: tables,
+      openSeatsFor: (table) =>
+          _openSeatsForTable(table, occupiedCountFor(table)),
+    );
+    if (!multiTableRecommendations.isEmpty) {
+      return [
+        for (final bestFit in multiTableRecommendations.bestFits)
+          _queueCombinationRecommendation(
+            combination: bestFit,
+            tone: QueueTableRecommendationTone.best,
+          ),
+        for (final nextBestFit in multiTableRecommendations.nextBestFits)
+          _queueCombinationRecommendation(
+            combination: nextBestFit,
+            tone: QueueTableRecommendationTone.nextBest,
+          ),
+      ];
+    }
+
     final candidates = _tableFitCandidatesForQueueEntry(
       entry: entry,
       tables: tables,
@@ -1293,11 +1352,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     if (candidates.isEmpty) return const [];
     return [
       QueueTableRecommendation(
-        tableId: candidates.first.table.id,
-        tableNumber: _dashboardTableDisplayName(
-          candidates.first.table,
-          surface: 'queue_recommendation',
-        ),
+        tableIds: [candidates.first.table.id],
+        tableNumbers: [
+          _dashboardTableDisplayName(
+            candidates.first.table,
+            surface: 'queue_recommendation',
+          ),
+        ],
         openSeats: candidates.first.openSeats,
         capacity: candidates.first.table.capacity,
         isShared: candidates.first.isShared,
@@ -1305,17 +1366,36 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       ),
       if (candidates.length > 1)
         QueueTableRecommendation(
-          tableId: candidates[1].table.id,
-          tableNumber: _dashboardTableDisplayName(
-            candidates[1].table,
-            surface: 'queue_recommendation',
-          ),
+          tableIds: [candidates[1].table.id],
+          tableNumbers: [
+            _dashboardTableDisplayName(
+              candidates[1].table,
+              surface: 'queue_recommendation',
+            ),
+          ],
           openSeats: candidates[1].openSeats,
           capacity: candidates[1].table.capacity,
           isShared: candidates[1].isShared,
           tone: QueueTableRecommendationTone.nextBest,
         ),
     ];
+  }
+
+  QueueTableRecommendation _queueCombinationRecommendation({
+    required TableCombinationRecommendation combination,
+    required QueueTableRecommendationTone tone,
+  }) {
+    return QueueTableRecommendation(
+      tableIds: [for (final table in combination.tables) table.id],
+      tableNumbers: [
+        for (final table in combination.tables)
+          _dashboardTableDisplayName(table, surface: 'queue_recommendation'),
+      ],
+      openSeats: combination.totalCapacity,
+      capacity: combination.totalCapacity,
+      isShared: combination.includesPartiallyOccupiedTable,
+      tone: tone,
+    );
   }
 
   List<_TableFitCandidate> _tableFitCandidatesForQueueEntry({
@@ -1958,11 +2038,13 @@ class _ReserveTableDialog extends StatefulWidget {
     required this.entry,
     required this.availableTables,
     required this.occupiedCountFor,
+    required this.recommendations,
   });
 
   final QueueEntry entry;
   final List<RestaurantTable> availableTables;
   final int Function(RestaurantTable) occupiedCountFor;
+  final List<QueueTableRecommendation> recommendations;
 
   @override
   State<_ReserveTableDialog> createState() => _ReserveTableDialogState();
@@ -1973,7 +2055,16 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
       _sortedTablesForParty();
   late final Map<String, QueueTableRecommendationTone> _recommendationTones =
       _recommendationTonesForTables();
-  late RestaurantTable? _selectedTable = _bestInitialTable();
+  late final List<Object> _options = _buildOptions();
+  late Object? _selectedOption = _options.isEmpty ? null : _options.first;
+
+  List<Object> _buildOptions() {
+    final combinations = widget.recommendations
+        .where((recommendation) => recommendation.isMultiTable)
+        .toList();
+    if (combinations.isNotEmpty) return combinations;
+    return _sortedAvailableTables;
+  }
 
   List<RestaurantTable> _sortedTablesForParty() {
     return _tablesForParty(
@@ -1981,11 +2072,6 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
       partySize: widget.entry.partySize,
       occupiedCountFor: widget.occupiedCountFor,
     );
-  }
-
-  RestaurantTable? _bestInitialTable() {
-    if (_sortedAvailableTables.isEmpty) return null;
-    return _sortedAvailableTables.first;
   }
 
   Map<String, QueueTableRecommendationTone> _recommendationTonesForTables() {
@@ -2017,9 +2103,9 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
   }
 
   void _submit() {
-    final selectedTable = _selectedTable;
-    if (selectedTable == null) return;
-    Navigator.of(context).pop(selectedTable);
+    final selectedOption = _selectedOption;
+    if (selectedOption == null) return;
+    Navigator.of(context).pop(selectedOption);
   }
 
   @override
@@ -2043,16 +2129,18 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
-            if (_sortedAvailableTables.isEmpty)
+            if (_options.isEmpty)
               _NoAvailableTablesNotice(partySize: widget.entry.partySize)
             else
-              DropdownButtonFormField<RestaurantTable>(
-                initialValue: _selectedTable,
+              DropdownButtonFormField<Object>(
+                initialValue: _selectedOption,
                 isExpanded: true,
                 icon: const Icon(Icons.keyboard_arrow_down_rounded),
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.event_seat),
-                  helperText: 'Only available tables that fit are shown.',
+                  helperText: _hasCombinationOptions
+                      ? 'Best and next-best same-floor combinations are shown.'
+                      : 'Only available tables that fit are shown.',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -2066,25 +2154,25 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
                   ),
                 ),
                 items: [
-                  for (final table in _sortedAvailableTables)
-                    DropdownMenuItem<RestaurantTable>(
-                      value: table,
+                  for (final option in _options)
+                    DropdownMenuItem<Object>(
+                      value: option,
                       child: _ReserveTableOption(
-                        label: _tableOptionLabel(table),
-                        tone: _recommendationTones[table.id],
+                        label: _optionLabel(option),
+                        tone: _optionTone(option),
                       ),
                     ),
                 ],
                 selectedItemBuilder: (context) => [
-                  for (final table in _sortedAvailableTables)
+                  for (final option in _options)
                     _ReserveTableOption(
-                      label: _tableOptionLabel(table),
-                      tone: _recommendationTones[table.id],
+                      label: _optionLabel(option),
+                      tone: _optionTone(option),
                       compact: true,
                     ),
                 ],
-                onChanged: (table) {
-                  if (table != null) setState(() => _selectedTable = table);
+                onChanged: (option) {
+                  if (option != null) setState(() => _selectedOption = option);
                 },
               ),
             const SizedBox(height: 12),
@@ -2101,7 +2189,7 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton.icon(
-          onPressed: _selectedTable == null ? null : _submit,
+          onPressed: _selectedOption == null ? null : _submit,
           icon: const Icon(Icons.event_seat),
           label: const Text('Seat now'),
         ),
@@ -2115,6 +2203,26 @@ class _ReserveTableDialogState extends State<_ReserveTableDialog> {
         ? 'exact fit'
         : 'fits';
     return '${_dashboardTableDisplayName(table, surface: 'reserve_dropdown')} · $openSeats seats · $fitLabel';
+  }
+
+  bool get _hasCombinationOptions =>
+      _options.any((option) => option is QueueTableRecommendation);
+
+  String _optionLabel(Object option) {
+    if (option case final QueueTableRecommendation recommendation) {
+      final fitLabel = recommendation.openSeats == widget.entry.partySize
+          ? 'exact fit'
+          : '${recommendation.openSeats - widget.entry.partySize} spare';
+      return '${recommendation.tableNumber} · ${recommendation.openSeats} seats · $fitLabel';
+    }
+    return _tableOptionLabel(option as RestaurantTable);
+  }
+
+  QueueTableRecommendationTone? _optionTone(Object option) {
+    if (option case final QueueTableRecommendation recommendation) {
+      return recommendation.tone;
+    }
+    return _recommendationTones[(option as RestaurantTable).id];
   }
 }
 
@@ -2510,15 +2618,6 @@ class _AdminTopBar extends StatelessWidget {
             ),
     );
   }
-}
-
-String _restaurantDisplayName(String restaurantId) {
-  if (restaurantId == AppConstants.demoRestaurantId) return 'The Spice House';
-  return restaurantId
-      .split('-')
-      .where((part) => part.isNotEmpty)
-      .map((part) => part[0].toUpperCase() + part.substring(1))
-      .join(' ');
 }
 
 class _WalkInDialog extends ConsumerStatefulWidget {
@@ -3141,6 +3240,28 @@ Map<String, TableHighlightTone> _tableHighlightsForQueueEntry({
   required QueueEntry entry,
   required int Function(RestaurantTable) occupiedCountFor,
 }) {
+  final multiTableRecommendations = recommendMultiTableCombination(
+    partySize: entry.partySize,
+    tables: tables,
+    openSeatsFor: (table) => table.status == TableStatus.available
+        ? table.capacity
+        : math.max(0, table.capacity - occupiedCountFor(table)),
+  );
+  if (!multiTableRecommendations.isEmpty) {
+    final highlights = <String, TableHighlightTone>{};
+    for (final combination in multiTableRecommendations.bestFits) {
+      for (final table in combination.tables) {
+        highlights[table.id] = TableHighlightTone.best;
+      }
+    }
+    for (final combination in multiTableRecommendations.nextBestFits) {
+      for (final table in combination.tables) {
+        highlights.putIfAbsent(table.id, () => TableHighlightTone.nextBest);
+      }
+    }
+    return highlights;
+  }
+
   final candidates = <_TableFitCandidate>[];
   for (final table in tables) {
     if (table.status != TableStatus.available) continue;

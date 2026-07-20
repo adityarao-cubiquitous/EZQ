@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/phone_utils.dart';
-import '../../../core/utils/validators.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../rest_onboarding/providers/restaurant_onboarding_controller.dart';
@@ -277,7 +277,11 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
             controller: _phoneController,
             keyboardType: TextInputType.phone,
             textInputAction: TextInputAction.done,
-            validator: Validators.indianMobile,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(10),
+            ],
+            validator: _phoneValidator,
             onSubmitted: (_) => _sendCode(),
           ),
           _errorMessage(context),
@@ -368,6 +372,15 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
   String? _otpValidator(String? value) {
     final code = (value ?? '').trim();
     if (code.length < 6) return 'Enter the 6 digit OTP';
+    return null;
+  }
+
+  String? _phoneValidator(String? value) {
+    final phone = value ?? '';
+    if (phone.isEmpty) return 'Phone number is required.';
+    if (phone.length < 10) {
+      return 'Please enter a valid 10-digit phone number.';
+    }
     return null;
   }
 }
@@ -602,6 +615,7 @@ class _AdminLoginField extends StatelessWidget {
     required this.controller,
     this.keyboardType,
     this.textInputAction,
+    this.inputFormatters,
     this.validator,
     this.onSubmitted,
   });
@@ -611,6 +625,7 @@ class _AdminLoginField extends StatelessWidget {
   final TextEditingController controller;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
+  final List<TextInputFormatter>? inputFormatters;
   final FormFieldValidator<String>? validator;
   final ValueChanged<String>? onSubmitted;
 
@@ -635,6 +650,7 @@ class _AdminLoginField extends StatelessWidget {
           controller: controller,
           keyboardType: keyboardType,
           textInputAction: textInputAction,
+          inputFormatters: inputFormatters,
           validator: validator,
           onFieldSubmitted: onSubmitted,
           style: const TextStyle(color: AppColors.navyText, fontSize: 16),
