@@ -1071,15 +1071,32 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
     if (completedPartySize == null || !context.mounted) return;
 
-    await ref
-        .read(tableRepositoryProvider)
-        .completeMeal(
-          restaurantId: widget.restaurantId,
-          branchId: widget.branchId,
-          tableId: table.id,
-          queueEntryId: queueEntryId,
-          completedPartySize: completedPartySize,
-        );
+    try {
+      await ref
+          .read(tableRepositoryProvider)
+          .completeMeal(
+            restaurantId: widget.restaurantId,
+            branchId: widget.branchId,
+            tableId: table.id,
+            queueEntryId: queueEntryId,
+            completedPartySize: completedPartySize,
+          );
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[ADMIN_DASHBOARD] completeMeal failed '
+        'restaurantId=${widget.restaurantId} branchId=${widget.branchId} '
+        'tableId=${table.id} queueEntryId=$queueEntryId error=$error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+      if (!context.mounted) return;
+      _showAdminPopup(
+        context,
+        message:
+            'Could not mark ${_dashboardTableDisplayName(table, surface: 'finish_meal_error')} available. Please try again.',
+        tone: _AdminPopupTone.error,
+      );
+      return;
+    }
     if (!context.mounted) return;
     _showAdminPopup(
       context,

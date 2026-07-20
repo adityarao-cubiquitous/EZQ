@@ -108,12 +108,21 @@ class _TableGridState extends State<TableGrid> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Tables',
-              style: TextStyle(
-                fontSize: compact ? 20 : 24,
-                fontWeight: FontWeight.w800,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Tables',
+                    style: TextStyle(
+                      fontSize: compact ? 20 : 24,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const _StatusLegend(),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -144,7 +153,6 @@ class _TableGridState extends State<TableGrid> {
                     now: _now,
                     tableKeyFor: _keyForTable,
                     completedPartySizeFor: widget.completedPartySizeFor,
-                    occupiedSinceFor: widget.occupiedSinceFor,
                     onTableRecommendationTap: widget.onTableRecommendationTap,
                     onMealFinished: widget.onMealFinished,
                     onUndoReservation: widget.onUndoReservation,
@@ -222,7 +230,6 @@ class _FloorTablesContainer extends StatelessWidget {
     required this.now,
     required this.tableKeyFor,
     required this.completedPartySizeFor,
-    required this.occupiedSinceFor,
     required this.onTableRecommendationTap,
     required this.onMealFinished,
     required this.onUndoReservation,
@@ -236,7 +243,6 @@ class _FloorTablesContainer extends StatelessWidget {
   final DateTime now;
   final GlobalKey Function(String tableId) tableKeyFor;
   final int Function(RestaurantTable table)? completedPartySizeFor;
-  final DateTime? Function(RestaurantTable table)? occupiedSinceFor;
   final void Function(RestaurantTable table)? onTableRecommendationTap;
   final void Function(RestaurantTable table, int initialPartySize)?
   onMealFinished;
@@ -271,7 +277,6 @@ class _FloorTablesContainer extends StatelessWidget {
         table: table,
         now: now,
         initialPartySize: completedPartySizeFor?.call(table),
-        occupiedSince: occupiedSinceFor?.call(table),
         onTableRecommendationTap: onTableRecommendationTap == null
             ? null
             : () => onTableRecommendationTap!(table),
@@ -318,7 +323,6 @@ class FloorContainer extends StatelessWidget {
       ),
       child: Container(
         width: double.infinity,
-        constraints: BoxConstraints(minHeight: compact ? 216 : 242),
         padding: padding,
         decoration: BoxDecoration(
           color: AppColors.softerSurface.withValues(alpha: 0.42),
@@ -396,14 +400,14 @@ class _FloorTableWrap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tileWidth = compact ? 160.0 : 196.0;
-    final aspectRatio = compact ? 0.9 : 1.0;
-    final gap = compact ? 8.0 : 12.0;
+    final tileWidth = compact ? 112.0 : 120.0;
+    final tileHeight = compact ? 92.0 : 96.0;
+    final spacing = compact ? 8.0 : 10.0;
+    final runSpacing = compact ? 10.0 : 12.0;
 
-    final tileHeight = tileWidth / aspectRatio;
     return Wrap(
-      spacing: gap,
-      runSpacing: gap,
+      spacing: spacing,
+      runSpacing: runSpacing,
       children: [
         for (final table in tables)
           SizedBox(
@@ -452,11 +456,9 @@ class _EmptyFloorPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tileWidth = compact ? 160.0 : 196.0;
-    final aspectRatio = compact ? 0.9 : 1.0;
     return SizedBox(
       width: double.infinity,
-      height: tileWidth / aspectRatio,
+      height: compact ? 92.0 : 96.0,
       child: const Center(
         child: Text(
           'No tables on this floor.',
@@ -546,12 +548,56 @@ class _CapacityHeader extends StatelessWidget {
   }
 }
 
+class _StatusLegend extends StatelessWidget {
+  const _StatusLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: const [
+        _TableStatusBadge(label: 'Full', color: AppColors.errorRed),
+        _TableStatusBadge(label: 'Partial', color: AppColors.partialLavender),
+        _TableStatusBadge(label: 'Available', color: AppColors.primaryTeal),
+      ],
+    );
+  }
+}
+
+class _TableStatusBadge extends StatelessWidget {
+  const _TableStatusBadge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = Responsive.isCompact(context);
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 9, vertical: compact ? 3 : 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: compact ? 11 : 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
 class _TableCard extends StatelessWidget {
   const _TableCard({
     required this.table,
     required this.now,
     required this.initialPartySize,
-    required this.occupiedSince,
     required this.onTableRecommendationTap,
     required this.onMealFinished,
     required this.onUndoReservation,
@@ -563,7 +609,6 @@ class _TableCard extends StatelessWidget {
   final RestaurantTable table;
   final DateTime now;
   final int? initialPartySize;
-  final DateTime? occupiedSince;
   final VoidCallback? onTableRecommendationTap;
   final VoidCallback? onMealFinished;
   final VoidCallback? onUndoReservation;
@@ -577,10 +622,7 @@ class _TableCard extends StatelessWidget {
         : table.currentPartySize ?? initialPartySize ?? table.capacity;
     final color = _tableColor(occupiedCount);
     final highlightColor = _highlightColor();
-    final highlightLabel = _highlightLabel();
     final isHighlighted = highlightColor != null;
-    final statusLabel = _statusLabel(occupiedCount);
-    final minutesSpent = _minutesSpent();
     final canFinishMeal =
         table.status == TableStatus.occupied &&
         table.currentQueueEntryId != null &&
@@ -591,17 +633,21 @@ class _TableCard extends StatelessWidget {
         table.currentQueueEntryId != null &&
         onUndoReservation != null &&
         undoMinutesLeft != null;
+    final hasOccupiedParty =
+        table.status == TableStatus.occupied &&
+        table.currentQueueEntryId != null;
     final remainingSeats = table.capacity - occupiedCount;
     final canSuggestParty =
         onTableRecommendationTap != null &&
         remainingSeats > 0 &&
         (table.status == TableStatus.available ||
             table.status == TableStatus.occupied);
+    final tokenCode = table.currentTokenCode?.trim();
 
     final card = AnimatedContainer(
       duration: const Duration(milliseconds: 360),
       curve: Curves.easeOutCubic,
-      padding: EdgeInsets.all(compact ? 8 : 10),
+      padding: EdgeInsets.fromLTRB(compact ? 10 : 12, 8, 10, 8),
       decoration: BoxDecoration(
         color: isHighlighted
             ? Color.alphaBlend(
@@ -631,100 +677,46 @@ class _TableCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  _displayTableName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: compact ? 22 : 24,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              SizedBox(width: compact ? 6 : 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (highlightLabel != null) ...[
-                    _TableHighlightPill(
-                      label: highlightLabel,
-                      color: highlightColor!,
-                    ),
-                    SizedBox(height: compact ? 3 : 4),
-                  ],
-                  _TableMetricPill(
-                    label: 'Cap',
-                    value: table.capacity,
-                    color: color,
-                  ),
-                  SizedBox(height: compact ? 3 : 4),
-                  _TableMetricPill(
-                    label: 'Occ',
-                    value: occupiedCount,
-                    color: color,
-                  ),
-                  if (minutesSpent != null) ...[
-                    SizedBox(height: compact ? 3 : 4),
-                    _TableMetricPill(
-                      label: 'Time',
-                      value: minutesSpent,
-                      suffix: 'm',
-                      color: color,
-                    ),
-                  ],
-                ],
-              ),
-            ],
+          Text(
+            _displayTableName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.navyText,
+              fontSize: compact ? 18 : 19,
+              fontWeight: FontWeight.w900,
+              height: 1.0,
+            ),
           ),
-          Row(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: compact ? 3 : 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        statusLabel,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: compact ? 11 : 12,
-                          fontWeight: FontWeight.w800,
-                        ),
+          SizedBox(height: compact ? 4 : 5),
+          SizedBox(
+            height: 14,
+            child: tokenCode == null || tokenCode.isEmpty
+                ? null
+                : Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      tokenCode,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.navyText,
+                        fontFamily: 'JetBrains Mono',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        height: 1.0,
                       ),
                     ),
-                    if (table.currentTokenCode != null) ...[
-                      const SizedBox(width: 7),
-                      Flexible(
-                        child: Text(
-                          table.currentTokenCode!,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.navyText,
-                            fontFamily: 'JetBrains Mono',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              if (canFinishMeal) ...[
-                const SizedBox(width: 8),
+                  ),
+          ),
+          const Spacer(),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _RemainingSeatsPill(value: remainingSeats),
+              const Spacer(),
+              if (hasOccupiedParty) ...[
                 if (canUndoReservation) ...[
                   _TableTileIconButton(
                     message: 'Undo seating (${undoMinutesLeft}m left)',
@@ -736,16 +728,19 @@ class _TableCard extends StatelessWidget {
                     ),
                     onPressed: onUndoReservation,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 5),
                 ],
-                _TableTileIconButton(
-                  message: 'Finish meal',
-                  icon: Icons.done_all,
-                  backgroundColor: AppColors.deepTeal,
-                  foregroundColor: Colors.white,
-                  borderColor: AppColors.deepTeal,
-                  onPressed: onMealFinished,
-                ),
+                if (canFinishMeal)
+                  _TableTileIconButton(
+                    message: 'Finish meal',
+                    icon: Icons.done_all,
+                    backgroundColor: AppColors.deepTeal,
+                    foregroundColor: Colors.white,
+                    borderColor: AppColors.deepTeal,
+                    onPressed: onMealFinished,
+                  )
+                else
+                  const _TableReadyIndicator(),
               ],
             ],
           ),
@@ -815,38 +810,6 @@ class _TableCard extends StatelessWidget {
     };
   }
 
-  String? _highlightLabel() {
-    return switch (highlightTone) {
-      TableHighlightTone.best => 'Best',
-      TableHighlightTone.nextBest => 'Next',
-      TableHighlightTone.free => 'Free',
-      TableHighlightTone.occupied => 'Occupied',
-      null => null,
-    };
-  }
-
-  String _statusLabel(int occupiedCount) {
-    return switch (table.status) {
-      TableStatus.available => 'Available',
-      TableStatus.reserved => 'Reserved',
-      TableStatus.occupied =>
-        occupiedCount >= table.capacity ? 'Full' : 'Partial',
-      TableStatus.blocked => 'Blocked',
-    };
-  }
-
-  int? _minutesSpent() {
-    if (table.status != TableStatus.occupied) return null;
-    final startedAt =
-        table.currentCycleStartAt ??
-        table.occupiedAt ??
-        table.reservedAt ??
-        occupiedSince;
-    if (startedAt == null) return null;
-    final minutes = now.difference(startedAt).inMinutes;
-    return minutes < 0 ? 0 : minutes;
-  }
-
   int? _undoMinutesLeft() {
     final startedAt = _undoWindowStartedAt();
     if (startedAt == null) return null;
@@ -904,71 +867,48 @@ class _TableTileIconButton extends StatelessWidget {
   }
 }
 
-class _TableHighlightPill extends StatelessWidget {
-  const _TableHighlightPill({required this.label, required this.color});
+class _RemainingSeatsPill extends StatelessWidget {
+  const _RemainingSeatsPill({required this.value});
 
-  final String label;
-  final Color color;
+  final int value;
 
   @override
   Widget build(BuildContext context) {
-    final foreground = color.computeLuminance() > 0.56
-        ? AppColors.navyText
-        : Colors.white;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
       decoration: BoxDecoration(
-        color: color,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.36),
-            blurRadius: 12,
-            spreadRadius: 2,
-          ),
-        ],
+        border: Border.all(color: const Color(0xFFB8C6CF), width: 0.8),
       ),
       child: Text(
-        label,
-        style: TextStyle(
-          color: foreground,
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
+        'Rem $value',
+        style: const TextStyle(
+          color: AppColors.navyText,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          height: 1.0,
         ),
       ),
     );
   }
 }
 
-class _TableMetricPill extends StatelessWidget {
-  const _TableMetricPill({
-    required this.label,
-    required this.value,
-    this.suffix = '',
-    required this.color,
-  });
-
-  final String label;
-  final int value;
-  final String suffix;
-  final Color color;
+class _TableReadyIndicator extends StatelessWidget {
+  const _TableReadyIndicator();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Text(
-        '$label $value$suffix',
-        style: const TextStyle(
-          color: AppColors.navyText,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
+    return const Tooltip(
+      message: 'Ready',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.deepTeal,
+          shape: BoxShape.circle,
+        ),
+        child: SizedBox.square(
+          dimension: 32,
+          child: Icon(Icons.done_all, size: 16, color: Colors.white),
         ),
       ),
     );

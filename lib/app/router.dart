@@ -219,7 +219,24 @@ Future<String?> _redirectAdminBranchRoute(
   GoRouterState state,
   String restaurantBranchId,
 ) async {
-  final destination = await _adminBranchDestination(restaurantBranchId);
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return '/admin/login';
+
+  final adminSnapshot = await FirebaseFirestore.instance
+      .doc(FirestorePaths.rootAdmin(user.uid))
+      .get();
+  final adminData = adminSnapshot.data();
+  final mappedRestaurantBranchId =
+      (adminData?['restaurantBranchId'] as String? ?? '').trim();
+  final isActive = adminData?['isActive'] as bool? ?? false;
+  if (!isActive || mappedRestaurantBranchId.isEmpty) {
+    return '/admin/login';
+  }
+  if (mappedRestaurantBranchId != restaurantBranchId) {
+    return _adminBranchDestination(mappedRestaurantBranchId);
+  }
+
+  final destination = await _adminBranchDestination(mappedRestaurantBranchId);
   if (state.uri.path == destination) return null;
   return destination;
 }
