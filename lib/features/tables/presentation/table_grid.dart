@@ -684,16 +684,34 @@ class _TableCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            _displayTableName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: AppColors.navyText,
-              fontSize: compact ? 18 : 19,
-              fontWeight: FontWeight.w900,
-              height: 1.0,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  _displayTableName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppColors.navyText,
+                    fontSize: compact ? 18 : 19,
+                    fontWeight: FontWeight.w900,
+                    height: 1.0,
+                  ),
+                ),
+              ),
+              if (canUndoReservation) ...[
+                const SizedBox(width: 4),
+                _TableTileIconButton(
+                  message: 'Undo seating (${undoMinutesLeft}m left)',
+                  icon: Icons.undo_rounded,
+                  backgroundColor: const Color(0xFFFFF7E8),
+                  foregroundColor: AppColors.warningOrange,
+                  borderColor: AppColors.warningOrange.withValues(alpha: 0.32),
+                  onPressed: onUndoReservation,
+                ),
+              ],
+            ],
           ),
           SizedBox(height: compact ? 4 : 5),
           SizedBox(
@@ -723,19 +741,6 @@ class _TableCard extends StatelessWidget {
               _RemainingSeatsPill(value: remainingSeats),
               const Spacer(),
               if (hasOccupiedParty) ...[
-                if (canUndoReservation) ...[
-                  _TableTileIconButton(
-                    message: 'Undo seating (${undoMinutesLeft}m left)',
-                    icon: Icons.undo_rounded,
-                    backgroundColor: const Color(0xFFFFF7E8),
-                    foregroundColor: AppColors.warningOrange,
-                    borderColor: AppColors.warningOrange.withValues(
-                      alpha: 0.32,
-                    ),
-                    onPressed: onUndoReservation,
-                  ),
-                  const SizedBox(width: 5),
-                ],
                 if (canFinishMeal)
                   _TableTileIconButton(
                     message: 'Finish meal',

@@ -25,7 +25,7 @@ The customer entry screen is phone-first, QR-friendly, and optimized for fast qu
 
 ![Customer queue status screen](screenshots/customer_status.png)
 
-The status screen shows token, party details, the live count of waiting parties ahead, remaining wait, menu access, cancellation, powered-by branding, sponsored ad space, and the waiting puzzle module.
+The status screen shows token, party details, a reload-stable live count of waiting parties ahead, remaining wait, menu access, cancellation, powered-by branding, sponsored ad space, and the waiting puzzle module. Firestore updates remain live and the screen also refreshes its queue subscriptions every 15 seconds.
 
 ### Customer Menu
 
@@ -659,6 +659,7 @@ Manager features:
 - Branch dashboard route for a selected `restaurantBranchId`.
 - Live table grid backed by Firestore streams.
 - Tables grouped and sorted by capacity.
+- Multiple floors within one capacity stay side by side, with a visible horizontal scrollbar on narrow mobile and tablet layouts.
 - Table tiles showing table number, status, capacity, occupied count, and token when linked.
 - Live queue panel backed by Firestore streams.
 - Current-business-date queue cards with unique daily tokens, customer, party size, wait duration, joined time, and actions.
@@ -666,11 +667,11 @@ Manager features:
 - Optimized queue recommendations with best-fit and next-best-fit table suggestions.
 - Same-floor multi-table recommendations for parties larger than the maximum available single-table capacity.
 - Reserve action that opens a fitting table picker with color-coded best and next-best options.
-- Actionable recommendation buttons on queue cards for direct table assignment.
+- Recommendation buttons focus and scroll to the highlighted best-fit or next-best table result; seating remains behind Reserve confirmation.
 - Queue-card click highlights fitting tables and scrolls to the relevant table group.
 - Table-tile click highlights recommended queue parties and scrolls to the best-fit queue card.
 - Direct seating flow that sets queue entry to seated and table to occupied.
-- Undo seating action from popup feedback and recently seated table tiles.
+- Undo seating action from popup feedback and the top-right of recently seated table tiles.
 - Skip action for waiting queue entries.
 - Finish meal action on occupied tables.
 - Completed party size capture when finishing a meal.
@@ -716,7 +717,7 @@ Customer flow:
 - The system shall prevent a signed-in mobile customer from joining another restaurant queue while they have an active queue or seated visit.
 - The system shall restore a signed-in customer's current visit on app home after the app is closed and reopened.
 - The system shall update the app-home visit card live from waiting through seating and allow cancellation before seating.
-- The system shall show the customer a live FIFO count of waiting parties ahead and the estimated remaining wait.
+- The system shall show the customer a reload-stable live FIFO count of waiting parties ahead, refresh queue subscriptions every 15 seconds, and show the estimated remaining wait.
 - The system shall keep the active queue entry available across status, menu, and support navigation.
 - The system shall allow a waiting customer to cancel their queue entry.
 - The system shall show the assigned table once the manager seats the party.
@@ -793,7 +794,7 @@ Manager user stories:
 - As a manager, I want shared-seating parties matched to compatible partial tables so I can improve table utilization.
 - As a manager, I want non-sharing parties matched only to empty tables so I respect customer preference.
 - As a manager, I want to assign a party from a list of fitting tables so I avoid table-number mistakes.
-- As a manager, I want recommendation buttons to assign the suggested table directly so queue work is faster.
+- As a manager, I want recommendation buttons to focus and scroll to the suggested table before I confirm seating so I can verify the choice quickly.
 - As a manager, I want table and queue clicks to scroll to the highlighted recommendation so I do not lose context.
 - As a manager, I want the reserve action to seat the party immediately so I do not need a second mark-seated step.
 - As a manager, I want to undo a recent reservation if I make a mistake so I can recover without manual data fixes.
