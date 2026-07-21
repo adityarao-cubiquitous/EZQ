@@ -116,6 +116,12 @@ abstract class CustomerQueueRepository {
     required String queueEntryId,
   });
 
+  Stream<int> watchQueueAheadCount({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+  });
+
   Future<void> markOnTheWay({
     required String restaurantId,
     required String branchId,
@@ -295,6 +301,39 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
             throw StateError('Queue entry not found');
           }
           return QueueEntry.fromMap(snapshot.id, data);
+        });
+  }
+
+  @override
+  Stream<int> watchQueueAheadCount({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+  }) {
+    return Stream.fromFuture(
+          _resolveBranchSlug(restaurantId: restaurantId, branchSlug: branchId),
+        )
+        .asyncExpand((resolvedBranchSlug) {
+          return _firestore
+              .collection(
+                FirestorePaths.queueEntries(restaurantId, resolvedBranchSlug),
+              )
+              .snapshots();
+        })
+        .map((snapshot) {
+          final businessDate = DateTimeUtils.businessDate();
+          final liveQueue = snapshot.docs
+              .map((doc) => QueueEntry.fromMap(doc.id, doc.data()))
+              .where(
+                (entry) =>
+                    entry.businessDate == businessDate &&
+                    entry.status.isLiveQueueVisible,
+              )
+              .toList();
+          return countQueueEntriesAhead(
+            liveQueue,
+            currentEntryId: queueEntryId,
+          );
         });
   }
 
@@ -583,6 +622,15 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
   }
 
   @override
+  Stream<int> watchQueueAheadCount({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+  }) async* {
+    yield (_entry.queuePosition - 1).clamp(0, 999999);
+  }
+
+  @override
   Future<void> markOnTheWay({
     required String restaurantId,
     required String branchId,
@@ -654,6 +702,18 @@ final queueEntryProvider =
         queueEntryId: args.queueEntryId,
       );
     });
+
+final queueAheadCountProvider = StreamProvider.family<int, QueueEntryWatchArgs>(
+  (ref, args) {
+    return ref
+        .watch(customerQueueRepositoryProvider)
+        .watchQueueAheadCount(
+          restaurantId: args.restaurantId,
+          branchId: args.branchId,
+          queueEntryId: args.queueEntryId,
+        );
+  },
+);
 
 typedef CurrentVisitLookupArgs = ({String phone, String? customerId});
 

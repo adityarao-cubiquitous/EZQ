@@ -66,6 +66,40 @@ void main() {
       expect(entry.waitingMinutesSince(DateTime(2026, 6, 25, 18)), 15);
     });
   });
+
+  test('countQueueEntriesAhead follows the live FIFO queue', () {
+    final joinedAt = DateTime(2026, 6, 25, 18);
+    final queue = [
+      _entry(
+        id: 'q4',
+        tokenNumber: 4,
+        tokenCode: 'Q04',
+        joinedAt: joinedAt.add(const Duration(minutes: 3)),
+      ),
+      _entry(id: 'q1', tokenNumber: 1, tokenCode: 'Q01', joinedAt: joinedAt),
+      _entry(
+        id: 'q3',
+        tokenNumber: 3,
+        tokenCode: 'Q03',
+        joinedAt: joinedAt.add(const Duration(minutes: 2)),
+      ),
+      _entry(
+        id: 'q2',
+        tokenNumber: 2,
+        tokenCode: 'Q02',
+        joinedAt: joinedAt.add(const Duration(minutes: 1)),
+      ),
+    ];
+
+    expect(countQueueEntriesAhead(queue, currentEntryId: 'q4'), 3);
+    expect(
+      countQueueEntriesAhead(
+        queue.where((entry) => entry.id != 'q2').toList(),
+        currentEntryId: 'q4',
+      ),
+      2,
+    );
+  });
 }
 
 QueueEntry _entry({

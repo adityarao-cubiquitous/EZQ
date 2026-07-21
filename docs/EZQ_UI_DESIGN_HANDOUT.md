@@ -25,7 +25,7 @@ The customer entry screen is phone-first, QR-friendly, and optimized for fast qu
 
 ![Customer queue status screen](screenshots/customer_status.png)
 
-The status screen shows token, party details, queue position, remaining wait, menu access, cancellation, powered-by branding, sponsored ad space, and the waiting puzzle module.
+The status screen shows token, party details, the live count of waiting parties ahead, remaining wait, menu access, cancellation, powered-by branding, sponsored ad space, and the waiting puzzle module.
 
 ### Customer Menu
 
@@ -426,6 +426,7 @@ Entry point:
 Current capabilities:
 
 - Shows branch QR code preview.
+- Keeps the QR preview within the available desktop and landscape viewport.
 - Shows queue URL for the selected branch.
 - Copies the queue URL.
 - Downloads PNG and SVG QR assets.
@@ -640,7 +641,7 @@ Customer features:
 - Exact party size selection from 1 to 20.
 - Seating preference selection for shared seating versus empty-table-only waiting.
 - Live shared and non-shared wait estimates in the mobile customer join flow.
-- Live customer status screen with token, party size, queue position, and remaining wait.
+- Live customer status screen with token, party size, waiting parties ahead, and remaining wait.
 - Customer seated/table-assigned state after manager seating.
 - Customer cancellation action while waiting.
 - Single-active-queue protection for signed-in mobile customers until the user cancels or the visit is completed.
@@ -660,7 +661,7 @@ Manager features:
 - Tables grouped and sorted by capacity.
 - Table tiles showing table number, status, capacity, occupied count, and token when linked.
 - Live queue panel backed by Firestore streams.
-- Queue cards showing token, customer, party size, wait duration, joined time, and actions.
+- Current-business-date queue cards with unique daily tokens, customer, party size, wait duration, joined time, and actions.
 - Queue cards showing compact share preference tag for parties open to shared seating.
 - Optimized queue recommendations with best-fit and next-best-fit table suggestions.
 - Same-floor multi-table recommendations for parties larger than the maximum available single-table capacity.
@@ -715,7 +716,7 @@ Customer flow:
 - The system shall prevent a signed-in mobile customer from joining another restaurant queue while they have an active queue or seated visit.
 - The system shall restore a signed-in customer's current visit on app home after the app is closed and reopened.
 - The system shall update the app-home visit card live from waiting through seating and allow cancellation before seating.
-- The system shall show the customer their queue position and estimated remaining wait.
+- The system shall show the customer a live FIFO count of waiting parties ahead and the estimated remaining wait.
 - The system shall keep the active queue entry available across status, menu, and support navigation.
 - The system shall allow a waiting customer to cancel their queue entry.
 - The system shall show the assigned table once the manager seats the party.

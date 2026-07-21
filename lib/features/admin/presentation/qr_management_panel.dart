@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,19 @@ import '../../../core/utils/web_file_actions.dart' as file_actions;
 import '../data/qr_management_repository.dart';
 
 typedef BranchQrArgs = ({String restaurantId, String branchId});
+
+double qrPreviewSizeFor({required double maxWidth, required Size viewport}) {
+  final resizeForLandscape =
+      viewport.width >= 700 && viewport.width > viewport.height;
+  final heightAwareSize = !resizeForLandscape
+      ? 220.0
+      : viewport.height < 600
+      ? 132.0
+      : viewport.height < 760
+      ? 168.0
+      : 220.0;
+  return math.min(maxWidth, heightAwareSize);
+}
 
 final branchQrInfoProvider = StreamProvider.family<BranchQrInfo, BranchQrArgs>((
   ref,
@@ -69,7 +84,11 @@ class _QrManagementPanelState extends ConsumerState<QrManagementPanel> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final stackContent = constraints.maxWidth < 560;
-            final previewSize = constraints.constrainWidth(220);
+            final viewport = MediaQuery.sizeOf(context);
+            final previewSize = qrPreviewSizeFor(
+              maxWidth: constraints.maxWidth,
+              viewport: viewport,
+            );
             final actions = _QrActions(
               onCopy: () => _copyQueueUrl(context, info),
               onDownloadPng: () async => file_actions.downloadWebBytes(

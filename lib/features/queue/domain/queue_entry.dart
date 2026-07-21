@@ -217,3 +217,14 @@ int compareQueueEntriesByFifo(QueueEntry a, QueueEntry b) {
 
   return a.id.compareTo(b.id);
 }
+
+int countQueueEntriesAhead(
+  List<QueueEntry> liveQueue, {
+  required String currentEntryId,
+}) {
+  final orderedQueue = [...liveQueue]..sort(compareQueueEntriesByFifo);
+  final currentIndex = orderedQueue.indexWhere(
+    (entry) => entry.id == currentEntryId,
+  );
+  return currentIndex < 0 ? 0 : currentIndex;
+}
