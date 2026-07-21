@@ -325,7 +325,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   String? _secondarySpotlightQueueEntryId;
   String? _secondarySpotlightLabel;
   int _spotlightGeneration = 0;
+  int _tableFocusGeneration = 0;
   QueueEntry? _selectedQueueEntry;
+  Map<String, TableHighlightTone> _focusedRecommendationHighlights = const {};
   _TopMetricFilter? _selectedMetricFilter;
   Object? _lastLoggedFloorTableMapError;
 
@@ -338,6 +340,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
     setState(() {
       _selectedQueueEntry = isDeselecting ? null : entry;
+      _focusedRecommendationHighlights = const {};
+      _tableFocusGeneration++;
       _spotlightQueueEntryId = null;
       _spotlightLabel = null;
       _secondarySpotlightQueueEntryId = null;
@@ -378,11 +382,48 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   ) {
     final selected = _selectedQueueEntry;
     if (selected == null) return const {};
+    if (_focusedRecommendationHighlights.isNotEmpty) {
+      return _focusedRecommendationHighlights;
+    }
     return _tableHighlightsForQueueEntry(
       tables: tables,
       entry: selected,
       occupiedCountFor: occupiedCountFor,
     );
+  }
+
+  void _focusQueueRecommendation({
+    required QueueEntry entry,
+    required QueueTableRecommendation recommendation,
+  }) {
+    final tone = switch (recommendation.tone) {
+      QueueTableRecommendationTone.best => TableHighlightTone.best,
+      QueueTableRecommendationTone.nextBest => TableHighlightTone.nextBest,
+    };
+    setState(() {
+      _selectedQueueEntry = entry;
+      _selectedMetricFilter = null;
+      _focusedRecommendationHighlights = {
+        for (final tableId in recommendation.tableIds) tableId: tone,
+      };
+      _tableFocusGeneration++;
+      _spotlightQueueEntryId = null;
+      _spotlightLabel = null;
+      _secondarySpotlightQueueEntryId = null;
+      _secondarySpotlightLabel = null;
+    });
+    ScaffoldMessenger.of(context).clearSnackBars();
+    _showAdminPopup(
+      context,
+      message:
+          '${recommendation.tone == QueueTableRecommendationTone.best ? 'Best fit' : 'Next best'} for ${entry.tokenCode}: ${recommendation.tableNumber}',
+    );
+  }
+
+  Object? get _tableHighlightScrollKey {
+    final selectedId = _selectedQueueEntry?.id;
+    if (selectedId != null) return '$selectedId:$_tableFocusGeneration';
+    return _selectedMetricFilter;
   }
 
   Map<String, TableHighlightTone> _metricTableHighlights({
@@ -594,9 +635,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 TableGrid(
                                   floorTableMap: floorTableMap,
                                   tableHighlightTones: tableHighlights,
-                                  highlightScrollKey:
-                                      _selectedQueueEntry?.id ??
-                                      _selectedMetricFilter,
+                                  highlightScrollKey: _tableHighlightScrollKey,
                                   completedPartySizeFor: (table) =>
                                       table.currentPartySize ??
                                       queueById[table.currentQueueEntryId]
@@ -670,11 +709,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       ),
                                   onRecommendationSelected:
                                       (entry, recommendation) =>
-                                          _assignRecommendedTable(
-                                            context: context,
+                                          _focusQueueRecommendation(
                                             entry: entry,
                                             recommendation: recommendation,
-                                            tables: tables,
                                           ),
                                 ),
                               ],
@@ -692,8 +729,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                       floorTableMap: floorTableMap,
                                       tableHighlightTones: tableHighlights,
                                       highlightScrollKey:
-                                          _selectedQueueEntry?.id ??
-                                          _selectedMetricFilter,
+                                          _tableHighlightScrollKey,
                                       completedPartySizeFor: (table) =>
                                           table.currentPartySize ??
                                           queueById[table.currentQueueEntryId]
@@ -778,11 +814,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                           ),
                                       onRecommendationSelected:
                                           (entry, recommendation) =>
-                                              _assignRecommendedTable(
-                                                context: context,
+                                              _focusQueueRecommendation(
                                                 entry: entry,
                                                 recommendation: recommendation,
-                                                tables: tables,
                                               ),
                                     ),
                                   ),
@@ -1178,6 +1212,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
     setState(() {
       _selectedQueueEntry = null;
+      _focusedRecommendationHighlights = const {};
       _selectedMetricFilter = null;
       _spotlightQueueEntryId = null;
       _spotlightLabel = null;

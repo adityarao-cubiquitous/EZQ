@@ -19,9 +19,62 @@ import '../data/customer_queue_repository.dart';
 import 'customer_shell.dart';
 import 'restaurant_logo.dart';
 
-class CustomerQueueStatusScreen extends ConsumerWidget {
+const customerStatusRefreshInterval = Duration(seconds: 15);
+
+class CustomerQueueStatusScreen extends ConsumerStatefulWidget {
   const CustomerQueueStatusScreen({
     super.key,
+    required this.restaurantId,
+    required this.branchId,
+    required this.queueEntryId,
+  });
+
+  final String restaurantId;
+  final String branchId;
+  final String queueEntryId;
+
+  @override
+  ConsumerState<CustomerQueueStatusScreen> createState() =>
+      _CustomerQueueStatusScreenState();
+}
+
+class _CustomerQueueStatusScreenState
+    extends ConsumerState<CustomerQueueStatusScreen> {
+  Timer? _refreshTimer;
+
+  QueueEntryWatchArgs get _watchArgs => (
+    restaurantId: widget.restaurantId,
+    branchId: widget.branchId,
+    queueEntryId: widget.queueEntryId,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshTimer = Timer.periodic(customerStatusRefreshInterval, (_) {
+      ref.invalidate(queueEntryProvider(_watchArgs));
+      ref.invalidate(queueAheadCountProvider(_watchArgs));
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _CustomerQueueStatusBody(
+      restaurantId: widget.restaurantId,
+      branchId: widget.branchId,
+      queueEntryId: widget.queueEntryId,
+    );
+  }
+}
+
+class _CustomerQueueStatusBody extends ConsumerWidget {
+  const _CustomerQueueStatusBody({
     required this.restaurantId,
     required this.branchId,
     required this.queueEntryId,
@@ -93,16 +146,17 @@ class CustomerQueueStatusScreen extends ConsumerWidget {
                 seated: true,
               );
             }
-            return _StatusContent(
-              restaurantId: restaurantId,
-              branchId: branchId,
-              queueEntryId: queueEntryId,
-              branchLink: branchLink,
-              entry: entry,
-              aheadCount: queueAheadCount.maybeWhen(
-                data: (ahead) => ahead,
-                orElse: () => (entry.queuePosition - 1).clamp(0, 999999),
+            return queueAheadCount.when(
+              data: (ahead) => _StatusContent(
+                restaurantId: restaurantId,
+                branchId: branchId,
+                queueEntryId: queueEntryId,
+                branchLink: branchLink,
+                entry: entry,
+                aheadCount: ahead,
               ),
+              error: (error, _) => ErrorView(message: error.toString()),
+              loading: () => const SizedBox(height: 700, child: LoadingView()),
             );
           },
           error: (error, _) => ErrorView(message: error.toString()),

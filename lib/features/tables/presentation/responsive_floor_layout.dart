@@ -1,4 +1,6 @@
-import 'package:flutter/widgets.dart';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
 
 typedef ResponsiveFloorItemBuilder =
     Widget Function(BuildContext context, int index, double width);
@@ -39,7 +41,7 @@ class ResponsiveCapacitySection extends StatelessWidget {
   }
 }
 
-class ResponsiveFloorGrid extends StatelessWidget {
+class ResponsiveFloorGrid extends StatefulWidget {
   const ResponsiveFloorGrid({
     super.key,
     required this.itemCount,
@@ -54,58 +56,72 @@ class ResponsiveFloorGrid extends StatelessWidget {
   final double itemGap;
 
   @override
+  State<ResponsiveFloorGrid> createState() => _ResponsiveFloorGridState();
+}
+
+class _ResponsiveFloorGridState extends State<ResponsiveFloorGrid> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (itemCount == 0) return const SizedBox.shrink();
+    if (widget.itemCount == 0) return const SizedBox.shrink();
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableWidth = constraints.maxWidth;
         if (!availableWidth.isFinite) {
           return _FloorGridRows(
-            itemCount: itemCount,
-            itemBuilder: itemBuilder,
-            itemWidth: minItemWidth,
-            itemGap: itemGap,
-            columns: itemCount,
+            itemCount: widget.itemCount,
+            itemBuilder: widget.itemBuilder,
+            itemWidth: widget.minItemWidth,
+            itemGap: widget.itemGap,
+            columns: widget.itemCount,
           );
         }
 
-        final columns = _columnCountFor(availableWidth);
-        final itemWidth =
-            (availableWidth - (itemGap * (columns - 1))) / columns;
-        if (itemWidth >= minItemWidth) {
+        final totalGaps = widget.itemGap * (widget.itemCount - 1);
+        final fittedItemWidth = (availableWidth - totalGaps) / widget.itemCount;
+        final itemWidth = math.max(widget.minItemWidth, fittedItemWidth);
+        final contentWidth = (itemWidth * widget.itemCount) + totalGaps;
+        final rows = _FloorGridRows(
+          itemCount: widget.itemCount,
+          itemBuilder: widget.itemBuilder,
+          itemWidth: itemWidth,
+          itemGap: widget.itemGap,
+          columns: widget.itemCount,
+        );
+
+        if (contentWidth <= availableWidth) {
           return _FloorGridRows(
-            itemCount: itemCount,
-            itemBuilder: itemBuilder,
+            itemCount: widget.itemCount,
+            itemBuilder: widget.itemBuilder,
             itemWidth: itemWidth,
-            itemGap: itemGap,
-            columns: columns,
+            itemGap: widget.itemGap,
+            columns: widget.itemCount,
           );
         }
 
-        final scrollWidth =
-            (minItemWidth * itemCount) + (itemGap * (itemCount - 1));
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: scrollWidth,
-            child: _FloorGridRows(
-              itemCount: itemCount,
-              itemBuilder: itemBuilder,
-              itemWidth: minItemWidth,
-              itemGap: itemGap,
-              columns: itemCount,
+        return Scrollbar(
+          controller: _scrollController,
+          thumbVisibility: true,
+          scrollbarOrientation: ScrollbarOrientation.bottom,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(width: contentWidth, child: rows),
             ),
           ),
         );
       },
     );
-  }
-
-  int _columnCountFor(double availableWidth) {
-    final rawColumns = ((availableWidth + itemGap) / (minItemWidth + itemGap))
-        .floor();
-    return rawColumns.clamp(1, itemCount);
   }
 }
 
