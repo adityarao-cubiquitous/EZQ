@@ -37,7 +37,7 @@ The menu screen is a PDF viewer surface backed by the restaurant-uploaded menu d
 
 ![Manager dashboard screen](screenshots/admin_dashboard.png)
 
-The manager dashboard uses a capacity-first table grid and a live queue panel. Queue cards show wait duration and joined time so managers understand how long each party has been waiting.
+The manager dashboard uses a capacity-first table grid and a collapsible live queue panel. Queue cards show wait duration and joined time so managers understand how long each party has been waiting. The queue is an adaptive right-side split panel on usable desktop and landscape widths and a slide-over drawer on portrait and narrower screens.
 
 ## 3. Brand Direction
 
@@ -286,17 +286,20 @@ Future behavior:
 
 Primary job: help manager seat parties quickly and understand capacity.
 
-Desktop/tablet layout:
+Wide desktop and usable landscape layout:
 
 - Top bar.
 - Left panel: Tables by Capacity.
-- Right panel: Live Queue.
+- Adaptive right panel: collapsible Live Queue.
+- Closing the Live Queue immediately expands Tables by Capacity across all available dashboard space.
 
-Compact layout:
+Portrait and narrow layout:
 
 - Top bar wraps into two rows.
 - Metrics and walk-in action remain visible.
-- Tables and queue stack vertically.
+- Tables remain full width.
+- Live Queue opens as a full-height right-side drawer with backdrop and internal scrolling.
+- A 44 x 44 edge handle opens or closes the queue; drawer mode also supports Escape and backdrop dismissal.
 - Queue actions become full-width where needed.
 
 Top bar:
@@ -350,6 +353,16 @@ Table color rules:
 ### Live Queue
 
 Purpose: manager should understand who is waiting, how long they have waited, and which party to reserve next.
+
+Responsive behavior:
+
+- The Live Queue is collapsible at every supported size and orientation.
+- Landscape widths of at least 900 px use the split-panel presentation; widths of at least 1200 px use it regardless of orientation.
+- Narrower mobile and tablet views use the slide-over drawer so table cards are never compressed into an unusable desktop-style column.
+- Closing either presentation removes its reserved layout space so the tables reflow across the complete dashboard.
+- The open/closed preference is stored per restaurant branch.
+- The same queue widget stays mounted while closing or rotating, preserving search input, expanded-card state, selections, recommendations, and scroll position without creating another queue subscription.
+- Motion follows the device reduced-motion preference.
 
 Queue card content:
 
@@ -662,6 +675,9 @@ Manager features:
 - Multiple floors within one capacity stay side by side, with a visible horizontal scrollbar on narrow mobile and tablet layouts.
 - Table tiles showing table number, status, capacity, occupied count, and token when linked.
 - Live queue panel backed by Firestore streams.
+- Collapsible Live Queue with adaptive desktop/tablet landscape split-panel and mobile/tablet drawer presentations.
+- Full-width table expansion while the Live Queue is closed, with per-branch open/closed preference persistence.
+- Queue search, selection, recommendation, and scroll state preservation across collapse and orientation changes.
 - Current-business-date queue cards with unique daily tokens, customer, party size, wait duration, joined time, and actions.
 - Queue cards showing compact share preference tag for parties open to shared seating.
 - Optimized queue recommendations with best-fit and next-best-fit table suggestions.
@@ -729,6 +745,10 @@ Manager flow:
 
 - The system shall require manager login before accessing the admin dashboard.
 - The system shall show live waiting queue entries for the selected branch.
+- The system shall allow the Live Queue to be collapsed and reopened by touch, mouse, or keyboard on desktop, tablet, and mobile layouts.
+- The system shall expand the table dashboard into all released space when the Live Queue is closed.
+- The system shall use an adaptive split panel at usable wide widths and a right-side drawer on portrait or narrow viewports without device-name detection.
+- The system shall preserve Live Queue state and its per-branch open/closed preference across layout and orientation changes.
 - The system shall show live table availability for the selected branch.
 - The system shall group tables by capacity and sort them for fast scanning.
 - The system shall recommend best-fit and next-best-fit tables for each waiting party.
@@ -790,6 +810,7 @@ Manager user stories:
 - As a manager, I want to see all waiting parties live so I can decide who to seat next.
 - As a manager, I want to see tables grouped by capacity so I can quickly find a good fit.
 - As a manager, I want best-fit and next-best-fit suggestions so I can seat parties quickly without wasting capacity.
+- As a manager, I want to tuck away and reopen the Live Queue so I can use the complete dashboard for tables without losing my queue context.
 - As a manager, I want oversized parties matched to the fewest same-floor tables so large groups can be planned without splitting across floors.
 - As a manager, I want shared-seating parties matched to compatible partial tables so I can improve table utilization.
 - As a manager, I want non-sharing parties matched only to empty tables so I respect customer preference.

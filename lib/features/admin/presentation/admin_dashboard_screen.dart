@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/firestore_paths.dart';
@@ -28,6 +29,7 @@ import '../../customer/domain/seating_preference_service.dart';
 import 'qr_management_panel.dart';
 import 'admin_restaurant_display_name.dart';
 import 'widgets/admin_branch_identity_pill.dart';
+import 'widgets/collapsible_live_queue_layout.dart';
 
 final Set<String> _warnedDashboardDisplayNameFallbacks = <String>{};
 
@@ -320,6 +322,9 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
+  late final SharedPreferencesAsync _uiPreferences;
+  bool _isLiveQueueOpen = true;
+  bool _liveQueuePreferenceChanged = false;
   String? _spotlightQueueEntryId;
   String? _spotlightLabel;
   String? _secondarySpotlightQueueEntryId;
@@ -330,6 +335,43 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   Map<String, TableHighlightTone> _focusedRecommendationHighlights = const {};
   _TopMetricFilter? _selectedMetricFilter;
   Object? _lastLoggedFloorTableMapError;
+
+  String get _liveQueuePreferenceKey =>
+      'ezq.admin.liveQueueOpen.${widget.restaurantId}.${widget.branchId}';
+
+  @override
+  void initState() {
+    super.initState();
+    _uiPreferences = SharedPreferencesAsync();
+    unawaited(_restoreLiveQueuePreference());
+  }
+
+  Future<void> _restoreLiveQueuePreference() async {
+    try {
+      final savedValue = await _uiPreferences.getBool(_liveQueuePreferenceKey);
+      if (!mounted || savedValue == null || _liveQueuePreferenceChanged) return;
+      setState(() => _isLiveQueueOpen = savedValue);
+    } catch (error) {
+      debugPrint('[ADMIN_DASHBOARD] Live Queue preference load failed: $error');
+    }
+  }
+
+  void _setLiveQueueOpen(bool isOpen) {
+    if (_isLiveQueueOpen == isOpen) return;
+    setState(() {
+      _isLiveQueueOpen = isOpen;
+      _liveQueuePreferenceChanged = true;
+    });
+    unawaited(_saveLiveQueuePreference(isOpen));
+  }
+
+  Future<void> _saveLiveQueuePreference(bool isOpen) async {
+    try {
+      await _uiPreferences.setBool(_liveQueuePreferenceKey, isOpen);
+    } catch (error) {
+      debugPrint('[ADMIN_DASHBOARD] Live Queue preference save failed: $error');
+    }
+  }
 
   void _handleQueueEntryTap(
     QueueEntry entry,
@@ -618,213 +660,78 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       ),
                     ),
                     Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final viewport = MediaQuery.sizeOf(context);
-                          final useSideBySideLayout =
-                              constraints.maxWidth >= 700 ||
-                              viewport.width > viewport.height;
-                          final balancedColumns = constraints.maxWidth < 1100;
-                          final phone = Responsive.isCompact(context);
-                          final pagePadding = phone ? 12.0 : 24.0;
-                          final gap = phone ? 12.0 : 16.0;
-                          if (!useSideBySideLayout) {
-                            return ListView(
-                              padding: EdgeInsets.all(pagePadding),
-                              children: [
-                                TableGrid(
-                                  floorTableMap: floorTableMap,
-                                  tableHighlightTones: tableHighlights,
-                                  highlightScrollKey: _tableHighlightScrollKey,
-                                  completedPartySizeFor: (table) =>
-                                      table.currentPartySize ??
-                                      queueById[table.currentQueueEntryId]
-                                          ?.partySize ??
-                                      table.capacity,
-                                  occupiedSinceFor: (table) =>
-                                      _occupiedSinceForTable(table, queueById),
-                                  onEmptySpaceTap: _clearTableGridSelection,
-                                  onTableRecommendationTap: (table) =>
-                                      _spotlightBestPartyForTable(
-                                        context: context,
-                                        table: table,
-                                        occupiedCount: occupiedFor(table),
-                                        liveQueue: liveQueue,
-                                      ),
-                                  onMealFinished: (table, initialPartySize) =>
-                                      _completeMeal(
-                                        context: context,
-                                        table: table,
-                                        queueEntry:
-                                            queueById[table
-                                                .currentQueueEntryId],
-                                        initialPartySize: initialPartySize,
-                                      ),
-                                  onUndoReservation: (table) =>
-                                      _undoSeatFromTableTile(
-                                        context: context,
-                                        table: table,
-                                      ),
-                                ),
-                                SizedBox(height: gap),
-                                QueuePanel(
-                                  queue: queuePresentation.queue,
-                                  tableRecommendations:
-                                      queueTableRecommendations,
-                                  initialVisibleCount:
-                                      queuePresentation.initialVisibleCount,
-                                  spotlightEntryId: _spotlightQueueEntryId,
-                                  spotlightLabel: _spotlightLabel,
-                                  secondarySpotlightEntryId:
-                                      _secondarySpotlightQueueEntryId,
-                                  secondarySpotlightLabel:
-                                      _secondarySpotlightLabel,
-                                  autoScrollSpotlight: true,
-                                  availableTables: availableTables,
-                                  onReserve: (entry) => _reserveQueueEntry(
-                                    context: context,
-                                    entry: entry,
-                                    tables: tables,
-                                    availableTables: availableTables,
-                                    occupiedCountFor: occupiedFor,
-                                  ),
-                                  onNoAvailableTables: () => _showAdminPopup(
-                                    context,
-                                    message: 'No available tables right now.',
-                                    tone: _AdminPopupTone.warning,
-                                  ),
-                                  onSkip: (entry) => _skipQueueEntry(
-                                    context: context,
-                                    entry: entry,
-                                    nextEntry: _nextQueueEntry(
-                                      liveQueue,
-                                      entry,
-                                    ),
-                                  ),
-                                  onEntryTapped: (entry) =>
-                                      _handleQueueEntryTap(
-                                        entry,
-                                        tables,
-                                        occupiedFor,
-                                      ),
-                                  onRecommendationSelected:
-                                      (entry, recommendation) =>
-                                          _focusQueueRecommendation(
-                                            entry: entry,
-                                            recommendation: recommendation,
-                                          ),
-                                ),
-                              ],
-                            );
-                          }
-                          return Padding(
-                            padding: EdgeInsets.all(pagePadding),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  flex: balancedColumns ? 1 : 13,
-                                  child: SingleChildScrollView(
-                                    child: TableGrid(
-                                      floorTableMap: floorTableMap,
-                                      tableHighlightTones: tableHighlights,
-                                      highlightScrollKey:
-                                          _tableHighlightScrollKey,
-                                      completedPartySizeFor: (table) =>
-                                          table.currentPartySize ??
-                                          queueById[table.currentQueueEntryId]
-                                              ?.partySize ??
-                                          table.capacity,
-                                      occupiedSinceFor: (table) =>
-                                          _occupiedSinceForTable(
-                                            table,
-                                            queueById,
-                                          ),
-                                      onEmptySpaceTap: _clearTableGridSelection,
-                                      onTableRecommendationTap: (table) =>
-                                          _spotlightBestPartyForTable(
-                                            context: context,
-                                            table: table,
-                                            occupiedCount: occupiedFor(table),
-                                            liveQueue: liveQueue,
-                                          ),
-                                      onMealFinished:
-                                          (table, initialPartySize) =>
-                                              _completeMeal(
-                                                context: context,
-                                                table: table,
-                                                queueEntry:
-                                                    queueById[table
-                                                        .currentQueueEntryId],
-                                                initialPartySize:
-                                                    initialPartySize,
-                                              ),
-                                      onUndoReservation: (table) =>
-                                          _undoSeatFromTableTile(
-                                            context: context,
-                                            table: table,
-                                          ),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: gap),
-                                Expanded(
-                                  flex: balancedColumns ? 1 : 7,
-                                  child: SingleChildScrollView(
-                                    child: QueuePanel(
-                                      queue: queuePresentation.queue,
-                                      tableRecommendations:
-                                          queueTableRecommendations,
-                                      initialVisibleCount:
-                                          queuePresentation.initialVisibleCount,
-                                      spotlightEntryId: _spotlightQueueEntryId,
-                                      spotlightLabel: _spotlightLabel,
-                                      secondarySpotlightEntryId:
-                                          _secondarySpotlightQueueEntryId,
-                                      secondarySpotlightLabel:
-                                          _secondarySpotlightLabel,
-                                      autoScrollSpotlight: true,
-                                      availableTables: availableTables,
-                                      onReserve: (entry) => _reserveQueueEntry(
-                                        context: context,
-                                        entry: entry,
-                                        tables: tables,
-                                        availableTables: availableTables,
-                                        occupiedCountFor: occupiedFor,
-                                      ),
-                                      onNoAvailableTables: () => _showAdminPopup(
-                                        context,
-                                        message:
-                                            'No available tables right now.',
-                                        tone: _AdminPopupTone.warning,
-                                      ),
-                                      onSkip: (entry) => _skipQueueEntry(
-                                        context: context,
-                                        entry: entry,
-                                        nextEntry: _nextQueueEntry(
-                                          liveQueue,
-                                          entry,
-                                        ),
-                                      ),
-                                      onEntryTapped: (entry) =>
-                                          _handleQueueEntryTap(
-                                            entry,
-                                            tables,
-                                            occupiedFor,
-                                          ),
-                                      onRecommendationSelected:
-                                          (entry, recommendation) =>
-                                              _focusQueueRecommendation(
-                                                entry: entry,
-                                                recommendation: recommendation,
-                                              ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                      child: CollapsibleLiveQueueLayout(
+                        isLiveQueueOpen: _isLiveQueueOpen,
+                        onLiveQueueOpenChanged: _setLiveQueueOpen,
+                        compact: Responsive.isCompact(context),
+                        tables: TableGrid(
+                          floorTableMap: floorTableMap,
+                          tableHighlightTones: tableHighlights,
+                          highlightScrollKey: _tableHighlightScrollKey,
+                          completedPartySizeFor: (table) =>
+                              table.currentPartySize ??
+                              queueById[table.currentQueueEntryId]?.partySize ??
+                              table.capacity,
+                          occupiedSinceFor: (table) =>
+                              _occupiedSinceForTable(table, queueById),
+                          onEmptySpaceTap: _clearTableGridSelection,
+                          onTableRecommendationTap: (table) =>
+                              _spotlightBestPartyForTable(
+                                context: context,
+                                table: table,
+                                occupiedCount: occupiedFor(table),
+                                liveQueue: liveQueue,
+                              ),
+                          onMealFinished: (table, initialPartySize) =>
+                              _completeMeal(
+                                context: context,
+                                table: table,
+                                queueEntry:
+                                    queueById[table.currentQueueEntryId],
+                                initialPartySize: initialPartySize,
+                              ),
+                          onUndoReservation: (table) => _undoSeatFromTableTile(
+                            context: context,
+                            table: table,
+                          ),
+                        ),
+                        liveQueue: QueuePanel(
+                          queue: queuePresentation.queue,
+                          tableRecommendations: queueTableRecommendations,
+                          initialVisibleCount:
+                              queuePresentation.initialVisibleCount,
+                          spotlightEntryId: _spotlightQueueEntryId,
+                          spotlightLabel: _spotlightLabel,
+                          secondarySpotlightEntryId:
+                              _secondarySpotlightQueueEntryId,
+                          secondarySpotlightLabel: _secondarySpotlightLabel,
+                          autoScrollSpotlight: true,
+                          availableTables: availableTables,
+                          onReserve: (entry) => _reserveQueueEntry(
+                            context: context,
+                            entry: entry,
+                            tables: tables,
+                            availableTables: availableTables,
+                            occupiedCountFor: occupiedFor,
+                          ),
+                          onNoAvailableTables: () => _showAdminPopup(
+                            context,
+                            message: 'No available tables right now.',
+                            tone: _AdminPopupTone.warning,
+                          ),
+                          onSkip: (entry) => _skipQueueEntry(
+                            context: context,
+                            entry: entry,
+                            nextEntry: _nextQueueEntry(liveQueue, entry),
+                          ),
+                          onEntryTapped: (entry) =>
+                              _handleQueueEntryTap(entry, tables, occupiedFor),
+                          onRecommendationSelected: (entry, recommendation) =>
+                              _focusQueueRecommendation(
+                                entry: entry,
+                                recommendation: recommendation,
+                              ),
+                        ),
                       ),
                     ),
                   ],
