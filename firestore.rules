@@ -30,8 +30,12 @@ service cloud.firestore {
     }
 
     function isCustomerJoinCounterIncrement(businessDate) {
-      return request.resource.data.keys().hasOnly([
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'businessDate',
+          'lastTokenNumber',
+          'updatedAt'
+        ])
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
           'lastTokenNumber',
           'updatedAt'
         ])
