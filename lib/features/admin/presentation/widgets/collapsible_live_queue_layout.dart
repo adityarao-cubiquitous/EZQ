@@ -173,23 +173,81 @@ class _LiveQueueHandle extends StatelessWidget {
       button: true,
       expanded: isOpen,
       label: label,
-      child: Material(
-        color: AppColors.deepTeal,
-        elevation: 6,
-        shape: const StadiumBorder(),
-        child: IconButton(
-          key: const ValueKey('live-queue-toggle'),
-          tooltip: label,
-          onPressed: onPressed,
-          icon: Icon(
-            isOpen ? Icons.chevron_right_rounded : Icons.chevron_left_rounded,
-          ),
-          color: Colors.white,
-          iconSize: 26,
-          constraints: const BoxConstraints.tightFor(width: 44, height: 44),
-          style: IconButton.styleFrom(
-            focusColor: AppColors.tracuraCyan.withValues(alpha: 0.34),
-            hoverColor: AppColors.primaryTeal.withValues(alpha: 0.2),
+      child: Tooltip(
+        message: label,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: Ink(
+            key: const ValueKey('live-queue-toggle'),
+            width: 42,
+            height: 120,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [AppColors.deepTeal, AppColors.inkBlue],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33153647),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: InkWell(
+              onTap: onPressed,
+              focusColor: AppColors.tracuraCyan.withValues(alpha: 0.34),
+              hoverColor: AppColors.primaryTeal.withValues(alpha: 0.2),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: Icon(
+                        isOpen
+                            ? Icons.close_fullscreen_rounded
+                            : Icons.view_sidebar_rounded,
+                        key: ValueKey(isOpen),
+                        color: Colors.white,
+                        size: 19,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: RotatedBox(
+                        quarterTurns: 3,
+                        child: Text(
+                          isOpen ? 'HIDE QUEUE' : 'LIVE QUEUE',
+                          maxLines: 1,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      width: 18,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.58),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),

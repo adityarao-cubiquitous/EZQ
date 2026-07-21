@@ -29,6 +29,12 @@ void main() {
       );
       final expandedTablesWidth = tester.getSize(tablesFinder).width;
       expect(find.text('Queue content'), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const ValueKey('live-queue-toggle'))),
+        const Size(42, 120),
+      );
+      expect(find.byIcon(Icons.chevron_right_rounded), findsNothing);
+      expect(find.byIcon(Icons.close_fullscreen_rounded), findsOneWidget);
 
       await tester.enterText(
         find.byKey(const ValueKey('queue-search-probe')),
