@@ -332,7 +332,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   int _spotlightGeneration = 0;
   int _tableFocusGeneration = 0;
   QueueEntry? _selectedQueueEntry;
-  Map<String, TableHighlightTone> _focusedRecommendationHighlights = const {};
   _TopMetricFilter? _selectedMetricFilter;
   Object? _lastLoggedFloorTableMapError;
 
@@ -382,7 +381,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
     setState(() {
       _selectedQueueEntry = isDeselecting ? null : entry;
-      _focusedRecommendationHighlights = const {};
       _tableFocusGeneration++;
       _spotlightQueueEntryId = null;
       _spotlightLabel = null;
@@ -424,41 +422,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   ) {
     final selected = _selectedQueueEntry;
     if (selected == null) return const {};
-    if (_focusedRecommendationHighlights.isNotEmpty) {
-      return _focusedRecommendationHighlights;
-    }
     return _tableHighlightsForQueueEntry(
       tables: tables,
       entry: selected,
       occupiedCountFor: occupiedCountFor,
-    );
-  }
-
-  void _focusQueueRecommendation({
-    required QueueEntry entry,
-    required QueueTableRecommendation recommendation,
-  }) {
-    final tone = switch (recommendation.tone) {
-      QueueTableRecommendationTone.best => TableHighlightTone.best,
-      QueueTableRecommendationTone.nextBest => TableHighlightTone.nextBest,
-    };
-    setState(() {
-      _selectedQueueEntry = entry;
-      _selectedMetricFilter = null;
-      _focusedRecommendationHighlights = {
-        for (final tableId in recommendation.tableIds) tableId: tone,
-      };
-      _tableFocusGeneration++;
-      _spotlightQueueEntryId = null;
-      _spotlightLabel = null;
-      _secondarySpotlightQueueEntryId = null;
-      _secondarySpotlightLabel = null;
-    });
-    ScaffoldMessenger.of(context).clearSnackBars();
-    _showAdminPopup(
-      context,
-      message:
-          '${recommendation.tone == QueueTableRecommendationTone.best ? 'Best fit' : 'Next best'} for ${entry.tokenCode}: ${recommendation.tableNumber}',
     );
   }
 
@@ -669,8 +636,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                           tableHighlightTones: tableHighlights,
                           highlightScrollKey: _tableHighlightScrollKey,
                           completedPartySizeFor: (table) =>
-                              table.currentPartySize ??
                               queueById[table.currentQueueEntryId]?.partySize ??
+                              table.currentPartySize ??
                               table.capacity,
                           occupiedSinceFor: (table) =>
                               _occupiedSinceForTable(table, queueById),
@@ -727,9 +694,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                           onEntryTapped: (entry) =>
                               _handleQueueEntryTap(entry, tables, occupiedFor),
                           onRecommendationSelected: (entry, recommendation) =>
-                              _focusQueueRecommendation(
-                                entry: entry,
-                                recommendation: recommendation,
+                              unawaited(
+                                _assignRecommendedTable(
+                                  context: context,
+                                  entry: entry,
+                                  recommendation: recommendation,
+                                  tables: tables,
+                                ),
                               ),
                         ),
                       ),
@@ -800,10 +771,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required List<RestaurantTable> tables,
   }) async {
     if (recommendation.isMultiTable) {
-      _showAdminPopup(
-        context,
-        message:
-            '${recommendation.tableNumber} is the recommended same-floor table combination for ${entry.tokenCode}.',
+      await _seatQueueEntryAtTables(
+        context: context,
+        entry: entry,
+        recommendation: recommendation,
+        tables: tables,
       );
       return;
     }
@@ -830,6 +802,63 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }
 
     await _seatQueueEntryAtTable(context: context, entry: entry, table: table);
+  }
+
+  Future<void> _seatQueueEntryAtTables({
+    required BuildContext context,
+    required QueueEntry entry,
+    required QueueTableRecommendation recommendation,
+    required List<RestaurantTable> tables,
+  }) async {
+    final selectedTables = [
+      for (final tableId in recommendation.tableIds)
+        ?_tableById(tables, tableId),
+    ];
+    if (selectedTables.length != recommendation.tableIds.length) {
+      _showAdminPopup(
+        context,
+        message: '${recommendation.tableNumber} is no longer available.',
+        tone: _AdminPopupTone.warning,
+      );
+      return;
+    }
+
+    try {
+      await ref
+          .read(tableRepositoryProvider)
+          .reserveTables(
+            restaurantId: widget.restaurantId,
+            branchId: widget.branchId,
+            queueEntryId: entry.id,
+            tableIds: recommendation.tableIds,
+          );
+      if (!context.mounted) return;
+      _clearTableGridSelection();
+      _showAdminPopup(
+        context,
+        message:
+            '${entry.tokenCode} seated at ${recommendation.tableNumber}. Both tables are now occupied.',
+        tone: _AdminPopupTone.success,
+        actionLabel: 'Undo',
+        duration: const Duration(seconds: 7),
+        onAction: () {
+          unawaited(
+            _undoSeatQueueEntryAtTable(
+              context: context,
+              entry: entry,
+              table: selectedTables.first,
+            ),
+          );
+        },
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      _showAdminPopup(
+        context,
+        message: 'Could not seat party at the table combination: $error',
+        tone: _AdminPopupTone.error,
+      );
+    }
   }
 
   RestaurantTable? _tableById(List<RestaurantTable> tables, String tableId) {
@@ -1119,7 +1148,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
     setState(() {
       _selectedQueueEntry = null;
-      _focusedRecommendationHighlights = const {};
       _selectedMetricFilter = null;
       _spotlightQueueEntryId = null;
       _spotlightLabel = null;

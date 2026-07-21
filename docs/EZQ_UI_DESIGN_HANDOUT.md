@@ -394,6 +394,7 @@ Recommendation behavior:
 - Multi-table best fit highlights every exact-capacity two-table combination available on each floor.
 - Multi-table next best fit highlights every higher-capacity two-table combination available on each floor.
 - Multi-table combinations use only completely available tables; partially occupied tables are excluded.
+- Selecting a multi-table recommendation atomically assigns and occupies every table in the combination, while undo and finish-meal actions release the full combination together.
 - Parties that accept shared seating may be recommended to compatible partially occupied tables or empty tables.
 - Parties that do not accept shared seating should be recommended only to empty tables.
 - Queue cards show a compact `Share` tag when a party accepts shared seating.
@@ -624,6 +625,7 @@ Manager:
 - Finishing a meal captures completed party size and records table cycle timestamps.
 - Queue cards show how long the party has waited and what time they joined.
 - Queue recommendations should prefer the smallest fitting table and use green for best fit, yellow for next best fit. Oversized parties expose all same-floor, two-table exact and higher-capacity combinations using only fully available tables.
+- Multi-table recommendation actions assign the full combination and store both the combined display label and individual table identifiers on the queue entry.
 - Recent seating assignments should be undoable for a short recovery window.
 - Admin toasts are popup-style feedback, not bottom snackbars.
 - Walk-in queue entries support seating preference and live ETA context.
@@ -755,6 +757,7 @@ Manager flow:
 - The system shall recommend multiple tables only when the waiting party exceeds the maximum capacity of every available single table.
 - The system shall keep every recommended table combination on one floor, restrict combinations to exactly two tables, show all exact pairs as best fit, and show all higher-capacity pairs as next best fit.
 - The system shall exclude partially occupied tables from multi-table combination recommendations.
+- The system shall atomically occupy every table selected in a multi-table recommendation and release the full combination on undo or meal completion.
 - The system shall recommend partially occupied tables only when the waiting party accepts shared seating and the table has enough spare seats.
 - The system shall allow a manager to reserve a waiting party by selecting a fitting table from recommendations or the table picker.
 - The system shall avoid free-text table assignment in the reserve flow.

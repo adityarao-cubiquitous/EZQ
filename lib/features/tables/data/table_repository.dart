@@ -30,6 +30,13 @@ abstract class TableRepository {
     required String tableId,
   });
 
+  Future<void> reserveTables({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+    required List<String> tableIds,
+  });
+
   Future<void> undoReservation({
     required String restaurantId,
     required String branchId,
@@ -130,9 +137,29 @@ class FirebaseTableRepository implements TableRepository {
     required String queueEntryId,
     required String tableId,
   }) async {
-    final tableRef = _firestore.doc(
-      FirestorePaths.table(restaurantId, branchId, tableId),
+    await reserveTables(
+      restaurantId: restaurantId,
+      branchId: branchId,
+      queueEntryId: queueEntryId,
+      tableIds: [tableId],
     );
+  }
+
+  @override
+  Future<void> reserveTables({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+    required List<String> tableIds,
+  }) async {
+    final uniqueTableIds = tableIds.toSet().toList(growable: false);
+    if (uniqueTableIds.isEmpty) {
+      throw ArgumentError.value(tableIds, 'tableIds', 'Cannot be empty.');
+    }
+    final tableRefs = [
+      for (final tableId in uniqueTableIds)
+        _firestore.doc(FirestorePaths.table(restaurantId, branchId, tableId)),
+    ];
     final entryRef = _firestore.doc(
       FirestorePaths.queueEntry(restaurantId, branchId, queueEntryId),
     );
@@ -145,49 +172,78 @@ class FirebaseTableRepository implements TableRepository {
     );
 
     await _firestore.runTransaction<void>((transaction) async {
-      final tableSnapshot = await transaction.get(tableRef);
       final entrySnapshot = await transaction.get(entryRef);
-      if (!tableSnapshot.exists || !entrySnapshot.exists) {
-        throw StateError('Table or queue entry not found.');
+      final tableSnapshots = <DocumentSnapshot<Map<String, dynamic>>>[];
+      for (final tableRef in tableRefs) {
+        tableSnapshots.add(await transaction.get(tableRef));
       }
-      final status = TableStatus.fromWireName(
-        tableSnapshot.data()?['status'] as String?,
-      );
-      if (status != TableStatus.available) {
-        throw StateError('Selected table is no longer available.');
+      if (!entrySnapshot.exists || tableSnapshots.any((item) => !item.exists)) {
+        throw StateError('A selected table or queue entry was not found.');
       }
-      final tableData = tableSnapshot.data();
-      final previousCycleEndAt =
-          tableData?['lastCycleEndAt'] ?? tableData?['lastCompletedAt'];
-      final cycleStartAt = previousCycleEndAt ?? FieldValue.serverTimestamp();
-      final cycleSource = previousCycleEndAt == null
-          ? 'first_reservation'
-          : 'previous_completion';
-      final assignedTableNumber =
-          (tableData?['displayTableName'] as String?) ??
-          (tableData?['tableNumber'] as String? ?? '');
+      for (final tableSnapshot in tableSnapshots) {
+        final status = TableStatus.fromWireName(
+          tableSnapshot.data()?['status'] as String?,
+        );
+        if (status != TableStatus.available) {
+          throw StateError('A selected table is no longer available.');
+        }
+      }
+
       final tokenCode = entrySnapshot.data()?['tokenCode'] as String? ?? '';
       final partySize = entrySnapshot.data()?['partySize'] as int? ?? 0;
       final assignedAt = FieldValue.serverTimestamp();
-      transaction.update(tableRef, {
-        'status': TableStatus.occupied.wireName,
-        'currentQueueEntryId': queueEntryId,
-        'currentTokenCode': tokenCode,
-        'currentPartySize': partySize,
-        'reservedAt': assignedAt,
-        'occupiedAt': assignedAt,
-        'currentCycleStartAt': cycleStartAt,
-        'currentCycleSource': cycleSource,
-        'updatedAt': assignedAt,
-      });
+      final tableNumbers = <String>[];
+      final cycleStarts = <Object>[];
+      var remainingPartySize = partySize;
+
+      for (var index = 0; index < tableSnapshots.length; index++) {
+        final tableSnapshot = tableSnapshots[index];
+        final tableData = tableSnapshot.data();
+        final previousCycleEndAt =
+            tableData?['lastCycleEndAt'] ?? tableData?['lastCompletedAt'];
+        final cycleStartAt = previousCycleEndAt ?? assignedAt;
+        final cycleSource = previousCycleEndAt == null
+            ? 'first_reservation'
+            : 'previous_completion';
+        final capacity = tableData?['capacity'] as int? ?? 0;
+        final allocatedPartySize = remainingPartySize
+            .clamp(0, capacity)
+            .toInt();
+        remainingPartySize -= allocatedPartySize;
+        tableNumbers.add(
+          (tableData?['displayTableName'] as String?) ??
+              (tableData?['tableNumber'] as String? ?? ''),
+        );
+        cycleStarts.add(cycleStartAt);
+
+        transaction.update(tableRefs[index], {
+          'status': TableStatus.occupied.wireName,
+          'currentQueueEntryId': queueEntryId,
+          'currentTokenCode': tokenCode,
+          'currentPartySize': allocatedPartySize,
+          'reservedAt': assignedAt,
+          'occupiedAt': assignedAt,
+          'currentCycleStartAt': cycleStartAt,
+          'currentCycleSource': cycleSource,
+          'updatedAt': assignedAt,
+        });
+      }
+
       transaction.update(entryRef, {
         'status': QueueStatus.seated.wireName,
-        'assignedTableId': tableId,
-        'assignedTableNumber': assignedTableNumber,
+        'assignedTableId': uniqueTableIds.first,
+        'assignedTableNumber': tableNumbers.join(' + '),
+        'assignedTableIds': uniqueTableIds,
+        'assignedTableNumbers': tableNumbers,
         'reservedAt': assignedAt,
         'seatedAt': assignedAt,
-        'tableCycleStartAt': cycleStartAt,
-        'tableCycleSource': cycleSource,
+        'tableCycleStartAt': cycleStarts.first,
+        'tableCycleSource': uniqueTableIds.length == 1
+            ? (tableSnapshots.first.data()?['lastCycleEndAt'] == null &&
+                      tableSnapshots.first.data()?['lastCompletedAt'] == null
+                  ? 'first_reservation'
+                  : 'previous_completion')
+            : 'combined_tables',
         'updatedAt': assignedAt,
       });
       transaction.set(counterRef, {
@@ -204,9 +260,6 @@ class FirebaseTableRepository implements TableRepository {
     required String queueEntryId,
     required String tableId,
   }) async {
-    final tableRef = _firestore.doc(
-      FirestorePaths.table(restaurantId, branchId, tableId),
-    );
     final entryRef = _firestore.doc(
       FirestorePaths.queueEntry(restaurantId, branchId, queueEntryId),
     );
@@ -219,42 +272,58 @@ class FirebaseTableRepository implements TableRepository {
     );
 
     await _firestore.runTransaction<void>((transaction) async {
-      final tableSnapshot = await transaction.get(tableRef);
       final entrySnapshot = await transaction.get(entryRef);
-      if (!tableSnapshot.exists || !entrySnapshot.exists) {
-        throw StateError('Table or queue entry not found.');
+      if (!entrySnapshot.exists) {
+        throw StateError('Queue entry not found.');
       }
-
-      final tableData = tableSnapshot.data();
       final entryData = entrySnapshot.data();
-      final tableQueueEntryId = tableData?['currentQueueEntryId'] as String?;
-      final assignedTableId = entryData?['assignedTableId'] as String?;
+      final assignedTableIds = _assignedTableIds(entryData, fallback: tableId);
+      if (!assignedTableIds.contains(tableId)) {
+        throw StateError('This table is not part of the reservation.');
+      }
+      final tableRefs = [
+        for (final assignedTableId in assignedTableIds)
+          _firestore.doc(
+            FirestorePaths.table(restaurantId, branchId, assignedTableId),
+          ),
+      ];
+      final tableSnapshots = <DocumentSnapshot<Map<String, dynamic>>>[];
+      for (final tableRef in tableRefs) {
+        tableSnapshots.add(await transaction.get(tableRef));
+      }
       final entryStatus = QueueStatus.fromWireName(
         entryData?['status'] as String?,
       );
 
-      if (tableQueueEntryId != queueEntryId ||
-          assignedTableId != tableId ||
+      if (tableSnapshots.any(
+            (table) =>
+                !table.exists ||
+                table.data()?['currentQueueEntryId'] != queueEntryId,
+          ) ||
           entryStatus != QueueStatus.seated) {
         throw StateError('This reservation can no longer be undone.');
       }
 
       final undoneAt = FieldValue.serverTimestamp();
-      transaction.update(tableRef, {
-        'status': TableStatus.available.wireName,
-        'currentQueueEntryId': null,
-        'currentTokenCode': null,
-        'currentPartySize': null,
-        'reservedAt': null,
-        'occupiedAt': null,
-        'currentCycleStartAt': null,
-        'currentCycleSource': null,
-        'updatedAt': undoneAt,
-      });
+      for (final tableRef in tableRefs) {
+        transaction.update(tableRef, {
+          'status': TableStatus.available.wireName,
+          'currentQueueEntryId': null,
+          'currentTokenCode': null,
+          'currentPartySize': null,
+          'reservedAt': null,
+          'occupiedAt': null,
+          'currentCycleStartAt': null,
+          'currentCycleSource': null,
+          'updatedAt': undoneAt,
+        });
+      }
       transaction.update(entryRef, {
         'status': QueueStatus.waiting.wireName,
         'assignedTableId': null,
         'assignedTableNumber': null,
+        'assignedTableIds': const <String>[],
+        'assignedTableNumbers': const <String>[],
         'reservedAt': null,
         'seatedAt': null,
         'tableCycleStartAt': null,
@@ -292,9 +361,6 @@ class FirebaseTableRepository implements TableRepository {
     required String queueEntryId,
     required int completedPartySize,
   }) async {
-    final tableRef = _firestore.doc(
-      FirestorePaths.table(restaurantId, branchId, tableId),
-    );
     final entryRef = _firestore.doc(
       FirestorePaths.queueEntry(restaurantId, branchId, queueEntryId),
     );
@@ -307,10 +373,21 @@ class FirebaseTableRepository implements TableRepository {
     );
 
     await _firestore.runTransaction<void>((transaction) async {
-      final tableSnapshot = await transaction.get(tableRef);
       final entrySnapshot = await transaction.get(entryRef);
-      if (!tableSnapshot.exists) {
-        throw StateError('Table not found.');
+      final entryData = entrySnapshot.data();
+      final assignedTableIds = _assignedTableIds(entryData, fallback: tableId);
+      final tableRefs = [
+        for (final assignedTableId in assignedTableIds)
+          _firestore.doc(
+            FirestorePaths.table(restaurantId, branchId, assignedTableId),
+          ),
+      ];
+      final tableSnapshots = <DocumentSnapshot<Map<String, dynamic>>>[];
+      for (final tableRef in tableRefs) {
+        tableSnapshots.add(await transaction.get(tableRef));
+      }
+      if (tableSnapshots.any((table) => !table.exists)) {
+        throw StateError('An assigned table was not found.');
       }
       if (!entrySnapshot.exists) {
         debugPrint(
@@ -318,31 +395,41 @@ class FirebaseTableRepository implements TableRepository {
           'queueEntryId=$queueEntryId. Freeing table and skipping queue update.',
         );
       }
-      final tableData = tableSnapshot.data();
-      final entryData = entrySnapshot.data();
+      final selectedIndex = assignedTableIds.indexOf(tableId);
+      final selectedTable =
+          tableSnapshots[selectedIndex < 0 ? 0 : selectedIndex];
+      final tableData = selectedTable.data();
       final cycleStartAt =
           tableData?['currentCycleStartAt'] ??
           entryData?['tableCycleStartAt'] ??
           tableData?['reservedAt'] ??
           tableData?['occupiedAt'];
       final completionTimestamp = FieldValue.serverTimestamp();
-      transaction.update(tableRef, {
-        'status': TableStatus.available.wireName,
-        'currentQueueEntryId': null,
-        'currentTokenCode': null,
-        'currentPartySize': null,
-        'reservedAt': null,
-        'occupiedAt': null,
-        'cleaningStartedAt': null,
-        'lastCompletedQueueEntryId': queueEntryId,
-        'lastCompletedPartySize': completedPartySize,
-        'lastCompletedAt': completionTimestamp,
-        'lastCycleStartAt': cycleStartAt,
-        'lastCycleEndAt': completionTimestamp,
-        'currentCycleStartAt': null,
-        'currentCycleSource': null,
-        'updatedAt': completionTimestamp,
-      });
+      for (var index = 0; index < tableRefs.length; index++) {
+        final assignedTableData = tableSnapshots[index].data();
+        final assignedCycleStartAt =
+            assignedTableData?['currentCycleStartAt'] ??
+            entryData?['tableCycleStartAt'] ??
+            assignedTableData?['reservedAt'] ??
+            assignedTableData?['occupiedAt'];
+        transaction.update(tableRefs[index], {
+          'status': TableStatus.available.wireName,
+          'currentQueueEntryId': null,
+          'currentTokenCode': null,
+          'currentPartySize': null,
+          'reservedAt': null,
+          'occupiedAt': null,
+          'cleaningStartedAt': null,
+          'lastCompletedQueueEntryId': queueEntryId,
+          'lastCompletedPartySize': completedPartySize,
+          'lastCompletedAt': completionTimestamp,
+          'lastCycleStartAt': assignedCycleStartAt,
+          'lastCycleEndAt': completionTimestamp,
+          'currentCycleStartAt': null,
+          'currentCycleSource': null,
+          'updatedAt': completionTimestamp,
+        });
+      }
       if (entrySnapshot.exists) {
         transaction.update(entryRef, {
           'status': QueueStatus.completed.wireName,
@@ -360,6 +447,19 @@ class FirebaseTableRepository implements TableRepository {
       }, SetOptions(merge: true));
     });
   }
+}
+
+List<String> _assignedTableIds(
+  Map<String, dynamic>? entryData, {
+  required String fallback,
+}) {
+  final storedIds = entryData?['assignedTableIds'];
+  if (storedIds is List) {
+    final ids = storedIds.whereType<String>().toSet().toList(growable: false);
+    if (ids.isNotEmpty) return ids;
+  }
+  final singleId = entryData?['assignedTableId'] as String?;
+  return [if (singleId != null && singleId.isNotEmpty) singleId else fallback];
 }
 
 RestaurantFloorTableMap _buildFloorTableMap({
@@ -503,6 +603,14 @@ class MockTableRepository implements TableRepository {
     required String branchId,
     required String queueEntryId,
     required String tableId,
+  }) async {}
+
+  @override
+  Future<void> reserveTables({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+    required List<String> tableIds,
   }) async {}
 
   @override
