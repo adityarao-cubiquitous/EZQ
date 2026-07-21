@@ -512,8 +512,23 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             vertical: landscape ? 12 : 24,
           ),
           scrollable: true,
-          title: const Text('QR Management'),
-          contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          titlePadding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
+          title: Row(
+            children: [
+              const Expanded(child: Text('QR Management')),
+              IconButton(
+                key: const ValueKey('qr-management-close'),
+                tooltip: 'Close QR Management',
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close_rounded),
+                style: IconButton.styleFrom(
+                  foregroundColor: AppColors.mutedText,
+                  backgroundColor: AppColors.softSurface,
+                ),
+              ),
+            ],
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
           content: SizedBox(
             width: math.min(availableContentWidth, 760.0),
             child: QrManagementPanel(
@@ -521,12 +536,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               branchId: widget.branchId,
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
         );
       },
     );
