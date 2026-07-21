@@ -450,14 +450,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     return showDialog<void>(
       context: context,
       builder: (context) {
+        final viewport = MediaQuery.sizeOf(context);
         final compact = Responsive.isCompact(context);
+        final landscape = viewport.width > viewport.height;
         final horizontalInset = compact ? 12.0 : 40.0;
         final availableContentWidth =
-            MediaQuery.sizeOf(context).width - (horizontalInset * 2) - 32;
+            viewport.width - (horizontalInset * 2) - 32;
         return AlertDialog(
           insetPadding: EdgeInsets.symmetric(
             horizontal: horizontalInset,
-            vertical: 24,
+            vertical: landscape ? 12 : 24,
           ),
           scrollable: true,
           title: const Text('QR Management'),
@@ -577,11 +579,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, constraints) {
-                          final compact = constraints.maxWidth < 1100;
+                          final viewport = MediaQuery.sizeOf(context);
+                          final useSideBySideLayout =
+                              constraints.maxWidth >= 700 ||
+                              viewport.width > viewport.height;
+                          final balancedColumns = constraints.maxWidth < 1100;
                           final phone = Responsive.isCompact(context);
                           final pagePadding = phone ? 12.0 : 24.0;
                           final gap = phone ? 12.0 : 16.0;
-                          if (compact) {
+                          if (!useSideBySideLayout) {
                             return ListView(
                               padding: EdgeInsets.all(pagePadding),
                               children: [
@@ -680,7 +686,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
-                                  flex: 13,
+                                  flex: balancedColumns ? 1 : 13,
                                   child: SingleChildScrollView(
                                     child: TableGrid(
                                       floorTableMap: floorTableMap,
@@ -725,9 +731,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                     ),
                                   ),
                                 ),
-                                SizedBox(width: pagePadding),
+                                SizedBox(width: gap),
                                 Expanded(
-                                  flex: 7,
+                                  flex: balancedColumns ? 1 : 7,
                                   child: SingleChildScrollView(
                                     child: QueuePanel(
                                       queue: queuePresentation.queue,

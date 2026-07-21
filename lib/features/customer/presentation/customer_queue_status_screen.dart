@@ -33,6 +33,13 @@ class CustomerQueueStatusScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final queueAheadCount = ref.watch(
+      queueAheadCountProvider((
+        restaurantId: restaurantId,
+        branchId: branchId,
+        queueEntryId: queueEntryId,
+      )),
+    );
     final queueEntry = ref.watch(
       queueEntryProvider((
         restaurantId: restaurantId,
@@ -92,6 +99,10 @@ class CustomerQueueStatusScreen extends ConsumerWidget {
               queueEntryId: queueEntryId,
               branchLink: branchLink,
               entry: entry,
+              aheadCount: queueAheadCount.maybeWhen(
+                data: (ahead) => ahead,
+                orElse: () => (entry.queuePosition - 1).clamp(0, 999999),
+              ),
             );
           },
           error: (error, _) => ErrorView(message: error.toString()),
@@ -126,6 +137,7 @@ class _StatusContent extends ConsumerWidget {
     required this.queueEntryId,
     required this.branchLink,
     required this.entry,
+    this.aheadCount = 0,
     this.ready = false,
     this.seated = false,
     this.expired = false,
@@ -136,6 +148,7 @@ class _StatusContent extends ConsumerWidget {
   final String queueEntryId;
   final CustomerBranchLink branchLink;
   final QueueEntry entry;
+  final int aheadCount;
   final bool ready;
   final bool seated;
   final bool expired;
@@ -157,7 +170,11 @@ class _StatusContent extends ConsumerWidget {
           else if (expired)
             _AutoExpiredCard(entry: entry)
           else
-            _QueueStatusCard(entry: entry, branchLink: branchLink),
+            _QueueStatusCard(
+              entry: entry,
+              branchLink: branchLink,
+              aheadCount: aheadCount,
+            ),
           if (!expired) ...[
             const SizedBox(height: 14),
             _StatusActions(
@@ -1066,10 +1083,15 @@ const _sceneItems = [
 ];
 
 class _QueueStatusCard extends StatelessWidget {
-  const _QueueStatusCard({required this.entry, required this.branchLink});
+  const _QueueStatusCard({
+    required this.entry,
+    required this.branchLink,
+    required this.aheadCount,
+  });
 
   final QueueEntry entry;
   final CustomerBranchLink branchLink;
+  final int aheadCount;
 
   @override
   Widget build(BuildContext context) {
@@ -1141,8 +1163,8 @@ class _QueueStatusCard extends StatelessWidget {
                 Expanded(
                   child: _MetricBlock(
                     label: 'Ahead',
-                    value: '${entry.queuePosition}',
-                    suffix: entry.queuePosition == 1 ? 'person' : 'people',
+                    value: '$aheadCount',
+                    suffix: aheadCount == 1 ? 'person' : 'people',
                   ),
                 ),
                 Container(width: 1, height: 46, color: const Color(0x1A006687)),
@@ -1151,7 +1173,7 @@ class _QueueStatusCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _GradientProgressBar(value: _progressValue(entry)),
+          _GradientProgressBar(value: _progressValue(aheadCount)),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(15),
@@ -1187,8 +1209,8 @@ class _QueueStatusCard extends StatelessWidget {
     );
   }
 
-  double _progressValue(QueueEntry entry) {
-    final position = entry.queuePosition.clamp(0, 12);
+  double _progressValue(int aheadCount) {
+    final position = aheadCount.clamp(0, 12);
     return (1 - (position / 12)).clamp(0.08, 0.92);
   }
 }

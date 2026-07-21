@@ -155,8 +155,10 @@ class FirebaseQueueRepository implements QueueRepository {
         .orderBy('joinedAt')
         .snapshots()
         .map((snapshot) {
+          final businessDate = DateTimeUtils.businessDate();
           final entries = snapshot.docs
               .map((doc) => QueueEntry.fromMap(doc.id, doc.data()))
+              .where((entry) => entry.businessDate == businessDate)
               .toList();
           entries.sort(compareQueueEntriesByFifo);
           return entries;
