@@ -428,16 +428,9 @@ class _QueueEntryCard extends StatelessWidget {
             ),
             SizedBox(width: compact ? 8 : 12),
             Expanded(
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      entry.customerName,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _PartyNameChip(entry: entry),
               ),
             ),
             Text(
@@ -565,6 +558,35 @@ class _QueueEntryCard extends StatelessWidget {
       _QueueSpotlightTone.nextBest => AppColors.recommendationYellow,
       null => AppColors.accentPurple,
     };
+  }
+}
+
+class _PartyNameChip extends StatelessWidget {
+  const _PartyNameChip({required this.entry});
+
+  final QueueEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: ValueKey('queue-party-name-chip-${entry.id}'),
+      constraints: const BoxConstraints(maxWidth: double.infinity),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.primaryTeal.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.deepTeal.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        entry.customerName,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.deepTeal,
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
   }
 }
 
