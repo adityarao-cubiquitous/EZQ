@@ -67,37 +67,47 @@ void main() {
     });
   });
 
-  test('countQueueEntriesAhead follows the live FIFO queue', () {
+  test('countQueueEntriesAhead follows the active same-size FIFO queue', () {
     final joinedAt = DateTime(2026, 6, 25, 18);
     final queue = [
       _entry(
         id: 'q4',
         tokenNumber: 4,
         tokenCode: 'Q04',
+        partySize: 2,
         joinedAt: joinedAt.add(const Duration(minutes: 3)),
       ),
-      _entry(id: 'q1', tokenNumber: 1, tokenCode: 'Q01', joinedAt: joinedAt),
+      _entry(
+        id: 'q1',
+        tokenNumber: 1,
+        tokenCode: 'Q01',
+        partySize: 4,
+        joinedAt: joinedAt,
+      ),
       _entry(
         id: 'q3',
         tokenNumber: 3,
         tokenCode: 'Q03',
+        partySize: 2,
+        status: QueueStatus.seated,
         joinedAt: joinedAt.add(const Duration(minutes: 2)),
       ),
       _entry(
         id: 'q2',
         tokenNumber: 2,
         tokenCode: 'Q02',
+        partySize: 2,
         joinedAt: joinedAt.add(const Duration(minutes: 1)),
       ),
     ];
 
-    expect(countQueueEntriesAhead(queue, currentEntryId: 'q4'), 3);
+    expect(countQueueEntriesAhead(queue, currentEntryId: 'q4'), 1);
     expect(
       countQueueEntriesAhead(
         queue.where((entry) => entry.id != 'q2').toList(),
         currentEntryId: 'q4',
       ),
-      2,
+      0,
     );
   });
 }
@@ -107,6 +117,7 @@ QueueEntry _entry({
   int tokenNumber = 1,
   String tokenCode = 'Q01',
   QueueStatus status = QueueStatus.waiting,
+  int partySize = 2,
   DateTime? joinedAt,
 }) {
   return QueueEntry(
@@ -116,8 +127,8 @@ QueueEntry _entry({
     businessDate: '2026-06-25',
     customerName: 'Guest',
     phone: '+919876543210',
-    partySize: 2,
-    partySizeBand: '1-2',
+    partySize: partySize,
+    partySizeBand: partySize <= 2 ? '1-2' : '3-4',
     status: status,
     estimatedWaitMinutes: 10,
     queuePosition: tokenNumber,

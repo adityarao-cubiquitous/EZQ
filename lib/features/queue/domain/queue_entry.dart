@@ -222,7 +222,25 @@ int countQueueEntriesAhead(
   List<QueueEntry> liveQueue, {
   required String currentEntryId,
 }) {
-  final orderedQueue = [...liveQueue]..sort(compareQueueEntriesByFifo);
+  QueueEntry? currentEntry;
+  for (final entry in liveQueue) {
+    if (entry.id == currentEntryId) {
+      currentEntry = entry;
+      break;
+    }
+  }
+  if (currentEntry == null || !currentEntry.status.isLiveQueueVisible) return 0;
+  final currentPartySize = currentEntry.partySize;
+
+  final orderedQueue =
+      liveQueue
+          .where(
+            (entry) =>
+                entry.status.isLiveQueueVisible &&
+                entry.partySize == currentPartySize,
+          )
+          .toList()
+        ..sort(compareQueueEntriesByFifo);
   final currentIndex = orderedQueue.indexWhere(
     (entry) => entry.id == currentEntryId,
   );

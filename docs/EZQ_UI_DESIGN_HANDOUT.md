@@ -25,7 +25,7 @@ The customer entry screen is phone-first, QR-friendly, and optimized for fast qu
 
 ![Customer queue status screen](screenshots/customer_status.png)
 
-The status screen shows token, party details, a reload-stable live count of waiting parties ahead, remaining wait, menu access, cancellation, powered-by branding, sponsored ad space, and the waiting puzzle module. Firestore updates remain live and the screen also refreshes its queue subscriptions every 15 seconds.
+The status screen shows token, party details, a reload-stable live count of active waiting parties with the same exact party size ahead in FIFO order, remaining wait, menu access, cancellation, powered-by branding, sponsored ad space, and the waiting puzzle module. Firestore updates remain live and the screen also refreshes its queue subscriptions every 15 seconds.
 
 ### Customer Menu
 
@@ -37,7 +37,7 @@ The menu screen is a PDF viewer surface backed by the restaurant-uploaded menu d
 
 ![Manager dashboard screen](screenshots/admin_dashboard.png)
 
-The manager dashboard uses a capacity-first table grid and a live queue panel. Queue cards show wait duration and joined time so managers understand how long each party has been waiting.
+The manager dashboard uses a capacity-first table grid and a collapsible live queue panel. Queue cards show wait duration and joined time so managers understand how long each party has been waiting. The queue is an adaptive right-side split panel on usable desktop and landscape widths and a slide-over drawer on portrait and narrower screens.
 
 ## 3. Brand Direction
 
@@ -286,17 +286,20 @@ Future behavior:
 
 Primary job: help manager seat parties quickly and understand capacity.
 
-Desktop/tablet layout:
+Wide desktop and usable landscape layout:
 
 - Top bar.
 - Left panel: Tables by Capacity.
-- Right panel: Live Queue.
+- Adaptive right panel: collapsible Live Queue.
+- Closing the Live Queue immediately expands Tables by Capacity across all available dashboard space.
 
-Compact layout:
+Portrait and narrow layout:
 
 - Top bar wraps into two rows.
 - Metrics and walk-in action remain visible.
-- Tables and queue stack vertically.
+- Tables remain full width.
+- Live Queue opens as a full-height right-side drawer with backdrop and internal scrolling.
+- A 44 x 44 edge handle opens or closes the queue; drawer mode also supports Escape and backdrop dismissal.
 - Queue actions become full-width where needed.
 
 Top bar:
@@ -350,6 +353,16 @@ Table color rules:
 ### Live Queue
 
 Purpose: manager should understand who is waiting, how long they have waited, and which party to reserve next.
+
+Responsive behavior:
+
+- The Live Queue is collapsible at every supported size and orientation.
+- Landscape widths of at least 900 px use the split-panel presentation; widths of at least 1200 px use it regardless of orientation.
+- Narrower mobile and tablet views use the slide-over drawer so table cards are never compressed into an unusable desktop-style column.
+- Closing either presentation removes its reserved layout space so the tables reflow across the complete dashboard.
+- The open/closed preference is stored per restaurant branch.
+- The same queue widget stays mounted while closing or rotating, preserving search input, expanded-card state, selections, recommendations, and scroll position without creating another queue subscription.
+- Motion follows the device reduced-motion preference.
 
 Queue card content:
 
@@ -641,7 +654,7 @@ Customer features:
 - Exact party size selection from 1 to 20.
 - Seating preference selection for shared seating versus empty-table-only waiting.
 - Live shared and non-shared wait estimates in the mobile customer join flow.
-- Live customer status screen with token, party size, waiting parties ahead, and remaining wait.
+- Live customer status screen with token, party size, active same-size waiting parties ahead in FIFO order, and remaining wait.
 - Customer seated/table-assigned state after manager seating.
 - Customer cancellation action while waiting.
 - Single-active-queue protection for signed-in mobile customers until the user cancels or the visit is completed.
@@ -662,6 +675,9 @@ Manager features:
 - Multiple floors within one capacity stay side by side, with a visible horizontal scrollbar on narrow mobile and tablet layouts.
 - Table tiles showing table number, status, capacity, occupied count, and token when linked.
 - Live queue panel backed by Firestore streams.
+- Collapsible Live Queue with adaptive desktop/tablet landscape split-panel and mobile/tablet drawer presentations.
+- Full-width table expansion while the Live Queue is closed, with per-branch open/closed preference persistence.
+- Queue search, selection, recommendation, and scroll state preservation across collapse and orientation changes.
 - Current-business-date queue cards with unique daily tokens, customer, party size, wait duration, joined time, and actions.
 - Queue cards showing compact share preference tag for parties open to shared seating.
 - Optimized queue recommendations with best-fit and next-best-fit table suggestions.
@@ -717,7 +733,7 @@ Customer flow:
 - The system shall prevent a signed-in mobile customer from joining another restaurant queue while they have an active queue or seated visit.
 - The system shall restore a signed-in customer's current visit on app home after the app is closed and reopened.
 - The system shall update the app-home visit card live from waiting through seating and allow cancellation before seating.
-- The system shall show the customer a reload-stable live FIFO count of waiting parties ahead, refresh queue subscriptions every 15 seconds, and show the estimated remaining wait.
+- The system shall show the customer a reload-stable live FIFO count of only active waiting parties with the same exact party size ahead, without deriving it from token number or global queue position; refresh queue subscriptions every 15 seconds; and show the estimated remaining wait.
 - The system shall keep the active queue entry available across status, menu, and support navigation.
 - The system shall allow a waiting customer to cancel their queue entry.
 - The system shall show the assigned table once the manager seats the party.
@@ -729,6 +745,10 @@ Manager flow:
 
 - The system shall require manager login before accessing the admin dashboard.
 - The system shall show live waiting queue entries for the selected branch.
+- The system shall allow the Live Queue to be collapsed and reopened by touch, mouse, or keyboard on desktop, tablet, and mobile layouts.
+- The system shall expand the table dashboard into all released space when the Live Queue is closed.
+- The system shall use an adaptive split panel at usable wide widths and a right-side drawer on portrait or narrow viewports without device-name detection.
+- The system shall preserve Live Queue state and its per-branch open/closed preference across layout and orientation changes.
 - The system shall show live table availability for the selected branch.
 - The system shall group tables by capacity and sort them for fast scanning.
 - The system shall recommend best-fit and next-best-fit tables for each waiting party.
@@ -776,7 +796,7 @@ Customer user stories:
 - As a customer, I want to enter my party size exactly so the restaurant can assign a suitable table.
 - As a customer, I want to choose whether I am willing to share a table so my wait estimate and table assignment match my preference.
 - As a customer, I want to see shared and non-shared wait estimates so I can make an informed seating choice.
-- As a customer, I want to see my token and queue position so I know my place in line.
+- As a customer, I want to see my token and how many active parties of my exact party size are ahead so I know my place in the relevant queue.
 - As a customer, I want to see my remaining wait time so I can decide whether to stay nearby.
 - As a customer, I want to open the menu while waiting so I can decide what to order before being seated.
 - As a customer, I want to cancel my queue entry if my plans change so the restaurant queue stays accurate.
@@ -790,6 +810,7 @@ Manager user stories:
 - As a manager, I want to see all waiting parties live so I can decide who to seat next.
 - As a manager, I want to see tables grouped by capacity so I can quickly find a good fit.
 - As a manager, I want best-fit and next-best-fit suggestions so I can seat parties quickly without wasting capacity.
+- As a manager, I want to tuck away and reopen the Live Queue so I can use the complete dashboard for tables without losing my queue context.
 - As a manager, I want oversized parties matched to the fewest same-floor tables so large groups can be planned without splitting across floors.
 - As a manager, I want shared-seating parties matched to compatible partial tables so I can improve table utilization.
 - As a manager, I want non-sharing parties matched only to empty tables so I respect customer preference.
