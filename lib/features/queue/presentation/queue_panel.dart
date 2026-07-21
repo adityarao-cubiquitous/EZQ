@@ -138,8 +138,7 @@ class _QueuePanelState extends State<QueuePanel> {
                         spotlightTone == _QueueSpotlightTone.best,
                     child: _QueueEntryCard(
                       entry: entry,
-                      recommendations:
-                          widget.tableRecommendations[entry.id] ?? const [],
+                      recommendations: _queueCardRecommendationsFor(entry.id),
                       spotlightTone: spotlightTone,
                       spotlightLabel: _spotlightLabelFor(entry.id),
                       availableTables: widget.availableTables,
@@ -211,24 +210,46 @@ class _QueuePanelState extends State<QueuePanel> {
       'next:${widget.secondarySpotlightEntryId ?? ''}',
     ].join('|');
   }
+
+  List<QueueTableRecommendation> _queueCardRecommendationsFor(String entryId) {
+    final recommendations = widget.tableRecommendations[entryId] ?? const [];
+    QueueTableRecommendation? bestFit;
+    QueueTableRecommendation? nextBestFit;
+
+    for (final recommendation in recommendations) {
+      switch (recommendation.tone) {
+        case QueueTableRecommendationTone.best:
+          bestFit ??= recommendation;
+        case QueueTableRecommendationTone.nextBest:
+          nextBestFit ??= recommendation;
+      }
+      if (bestFit != null && nextBestFit != null) break;
+    }
+
+    return [?bestFit, ?nextBestFit];
+  }
 }
 
 class QueueTableRecommendation {
   const QueueTableRecommendation({
-    required this.tableId,
-    required this.tableNumber,
+    required this.tableIds,
+    required this.tableNumbers,
     required this.openSeats,
     required this.capacity,
     required this.isShared,
     required this.tone,
   });
 
-  final String tableId;
-  final String tableNumber;
+  final List<String> tableIds;
+  final List<String> tableNumbers;
   final int openSeats;
   final int capacity;
   final bool isShared;
   final QueueTableRecommendationTone tone;
+
+  String get tableId => tableIds.first;
+  String get tableNumber => tableNumbers.join(' + ');
+  bool get isMultiTable => tableIds.length > 1;
 }
 
 enum QueueTableRecommendationTone { best, nextBest }
@@ -612,7 +633,11 @@ class _QueueTableRecommendationStrip extends StatelessWidget {
     final rankLabel = recommendation.tone == QueueTableRecommendationTone.best
         ? 'Best'
         : 'Next';
-    final pathLabel = recommendation.isShared ? 'Share' : 'Empty';
+    final pathLabel = recommendation.isMultiTable
+        ? 'Combine'
+        : recommendation.isShared
+        ? 'Share'
+        : 'Empty';
     final fitLabel = spareSeats == 0
         ? 'exact fit'
         : '$spareSeats spare ${spareSeats == 1 ? 'seat' : 'seats'}';
@@ -638,7 +663,7 @@ class _QueueTableRecommendationStrip extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
             child: Icon(
-              recommendation.isShared
+              recommendation.isShared || recommendation.isMultiTable
                   ? Icons.groups_2_rounded
                   : Icons.event_seat_rounded,
               color: color,
@@ -658,7 +683,9 @@ class _QueueTableRecommendationStrip extends StatelessWidget {
             ),
           ),
           Tooltip(
-            message: 'Seat at ${recommendation.tableNumber}',
+            message: recommendation.isMultiTable
+                ? 'Use ${recommendation.tableNumber}'
+                : 'Seat at ${recommendation.tableNumber}',
             child: Container(
               width: compact ? 28 : 30,
               height: compact ? 28 : 30,
