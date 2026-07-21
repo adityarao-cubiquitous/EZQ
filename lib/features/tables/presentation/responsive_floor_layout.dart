@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 typedef ResponsiveFloorItemBuilder =
@@ -107,22 +108,43 @@ class _ResponsiveFloorGridState extends State<ResponsiveFloorGrid> {
           );
         }
 
-        return Scrollbar(
-          controller: _scrollController,
-          thumbVisibility: true,
-          scrollbarOrientation: ScrollbarOrientation.bottom,
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(width: contentWidth, child: rows),
+        return ScrollConfiguration(
+          behavior: const _FloorRailScrollBehavior(),
+          child: Scrollbar(
+            controller: _scrollController,
+            thumbVisibility: true,
+            trackVisibility: true,
+            interactive: true,
+            thickness: 5,
+            radius: const Radius.circular(999),
+            scrollbarOrientation: ScrollbarOrientation.bottom,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: SingleChildScrollView(
+                key: const ValueKey('floor-horizontal-scroll'),
+                controller: _scrollController,
+                scrollDirection: Axis.horizontal,
+                physics: const ClampingScrollPhysics(),
+                child: SizedBox(width: contentWidth, child: rows),
+              ),
             ),
           ),
         );
       },
     );
   }
+}
+
+class _FloorRailScrollBehavior extends MaterialScrollBehavior {
+  const _FloorRailScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => const {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.trackpad,
+  };
 }
 
 class _FloorGridRows extends StatelessWidget {
