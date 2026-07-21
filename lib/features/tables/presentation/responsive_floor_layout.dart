@@ -1,10 +1,9 @@
-import 'dart:math' as math;
-
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 typedef ResponsiveFloorItemBuilder =
     Widget Function(BuildContext context, int index, double width);
+typedef ResponsiveFloorWidthBuilder = double Function(int index);
 
 class ResponsiveCapacitySection extends StatelessWidget {
   const ResponsiveCapacitySection({
@@ -15,6 +14,7 @@ class ResponsiveCapacitySection extends StatelessWidget {
     required this.minFloorWidth,
     required this.headerToGridGap,
     required this.floorGap,
+    this.floorWidthBuilder,
   });
 
   final Widget header;
@@ -23,6 +23,7 @@ class ResponsiveCapacitySection extends StatelessWidget {
   final double minFloorWidth;
   final double headerToGridGap;
   final double floorGap;
+  final ResponsiveFloorWidthBuilder? floorWidthBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +37,7 @@ class ResponsiveCapacitySection extends StatelessWidget {
           itemBuilder: floorBuilder,
           minItemWidth: minFloorWidth,
           itemGap: floorGap,
+          itemWidthBuilder: floorWidthBuilder,
         ),
       ],
     );
@@ -49,12 +51,14 @@ class ResponsiveFloorGrid extends StatefulWidget {
     required this.itemBuilder,
     required this.minItemWidth,
     required this.itemGap,
+    this.itemWidthBuilder,
   });
 
   final int itemCount;
   final ResponsiveFloorItemBuilder itemBuilder;
   final double minItemWidth;
   final double itemGap;
+  final ResponsiveFloorWidthBuilder? itemWidthBuilder;
 
   @override
   State<ResponsiveFloorGrid> createState() => _ResponsiveFloorGridState();
@@ -76,36 +80,26 @@ class _ResponsiveFloorGridState extends State<ResponsiveFloorGrid> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableWidth = constraints.maxWidth;
-        if (!availableWidth.isFinite) {
-          return _FloorGridRows(
-            itemCount: widget.itemCount,
-            itemBuilder: widget.itemBuilder,
-            itemWidth: widget.minItemWidth,
-            itemGap: widget.itemGap,
-            columns: widget.itemCount,
-          );
-        }
-
+        final itemWidths = [
+          for (var index = 0; index < widget.itemCount; index++)
+            _itemWidthFor(index),
+        ];
         final totalGaps = widget.itemGap * (widget.itemCount - 1);
-        final fittedItemWidth = (availableWidth - totalGaps) / widget.itemCount;
-        final itemWidth = math.max(widget.minItemWidth, fittedItemWidth);
-        final contentWidth = (itemWidth * widget.itemCount) + totalGaps;
+        final contentWidth =
+            itemWidths.fold<double>(0, (sum, width) => sum + width) + totalGaps;
         final rows = _FloorGridRows(
           itemCount: widget.itemCount,
           itemBuilder: widget.itemBuilder,
-          itemWidth: itemWidth,
+          itemWidths: itemWidths,
           itemGap: widget.itemGap,
           columns: widget.itemCount,
         );
+        if (!availableWidth.isFinite) {
+          return rows;
+        }
 
         if (contentWidth <= availableWidth) {
-          return _FloorGridRows(
-            itemCount: widget.itemCount,
-            itemBuilder: widget.itemBuilder,
-            itemWidth: itemWidth,
-            itemGap: widget.itemGap,
-            columns: widget.itemCount,
-          );
+          return rows;
         }
 
         return ScrollConfiguration(
@@ -133,6 +127,14 @@ class _ResponsiveFloorGridState extends State<ResponsiveFloorGrid> {
       },
     );
   }
+
+  double _itemWidthFor(int index) {
+    final preferredWidth = widget.itemWidthBuilder?.call(index);
+    if (preferredWidth == null || preferredWidth < widget.minItemWidth) {
+      return widget.minItemWidth;
+    }
+    return preferredWidth;
+  }
 }
 
 class _FloorRailScrollBehavior extends MaterialScrollBehavior {
@@ -151,14 +153,14 @@ class _FloorGridRows extends StatelessWidget {
   const _FloorGridRows({
     required this.itemCount,
     required this.itemBuilder,
-    required this.itemWidth,
+    required this.itemWidths,
     required this.itemGap,
     required this.columns,
   });
 
   final int itemCount;
   final ResponsiveFloorItemBuilder itemBuilder;
-  final double itemWidth;
+  final List<double> itemWidths;
   final double itemGap;
   final int columns;
 
@@ -178,8 +180,8 @@ class _FloorGridRows extends StatelessWidget {
                   index++
                 ) ...[
                   SizedBox(
-                    width: itemWidth,
-                    child: itemBuilder(context, index, itemWidth),
+                    width: itemWidths[index],
+                    child: itemBuilder(context, index, itemWidths[index]),
                   ),
                   if (index < itemCount - 1 && index < start + columns - 1)
                     SizedBox(width: itemGap),

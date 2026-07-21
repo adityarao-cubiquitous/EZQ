@@ -87,7 +87,7 @@ class _TableGridState extends State<TableGrid> {
     final capacityGap = compact ? 28.0 : 32.0;
     final floorGap = compact ? 14.0 : 18.0;
     final headerToGridGap = compact ? 14.0 : 16.0;
-    final minFloorWidth = compact ? 180.0 : 220.0;
+    final minFloorWidth = compact ? 160.0 : 164.0;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: widget.onEmptySpaceTap,
@@ -144,6 +144,10 @@ class _TableGridState extends State<TableGrid> {
                 minFloorWidth: minFloorWidth,
                 headerToGridGap: headerToGridGap,
                 floorGap: floorGap,
+                floorWidthBuilder: (index) => _preferredFloorWidth(
+                  tableCount: section.floors[index].tables.length,
+                  compact: compact,
+                ),
                 floorBuilder: (context, index, width) {
                   final floorSection = section.floors[index];
                   return _FloorTablesContainer(
@@ -168,6 +172,19 @@ class _TableGridState extends State<TableGrid> {
         ),
       ),
     );
+  }
+
+  double _preferredFloorWidth({
+    required int tableCount,
+    required bool compact,
+  }) {
+    final tileWidth = compact ? 112.0 : 120.0;
+    final spacing = compact ? 8.0 : 10.0;
+    final maxColumns = compact ? 2 : 3;
+    final columns = tableCount.clamp(1, maxColumns);
+    return (columns * tileWidth) +
+        ((columns - 1) * spacing) +
+        (FloorContainer.horizontalPadding(compact) * 2);
   }
 
   GlobalKey _keyForTable(String tableId) {

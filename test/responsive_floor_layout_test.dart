@@ -55,4 +55,41 @@ void main() {
       lessThan(initialSecondFloorX),
     );
   });
+
+  testWidgets('floor cards keep content-sized widths on a wide dashboard', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 1000,
+              child: ResponsiveFloorGrid(
+                itemCount: 2,
+                minItemWidth: 160,
+                itemGap: 18,
+                itemWidthBuilder: (index) => index == 0 ? 160 : 290,
+                itemBuilder: (context, index, width) => SizedBox(
+                  key: ValueKey('compact-floor-$index'),
+                  height: 120,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('compact-floor-0'))).width,
+      160,
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('compact-floor-1'))).width,
+      290,
+    );
+    expect(find.byType(SingleChildScrollView), findsNothing);
+  });
 }
