@@ -25,7 +25,7 @@ The customer entry screen is phone-first, QR-friendly, and optimized for fast qu
 
 ![Customer queue status screen](screenshots/customer_status.png)
 
-The status screen shows token, party details, a reload-stable live count of waiting parties ahead, remaining wait, menu access, cancellation, powered-by branding, sponsored ad space, and the waiting puzzle module. Firestore updates remain live and the screen also refreshes its queue subscriptions every 15 seconds.
+The status screen shows token, party details, a reload-stable live count of waiting parties ahead, remaining wait, menu access, an **Exit Queue** action while waiting, powered-by branding, sponsored ad space, and the waiting puzzle module. Firestore updates remain live and the screen also refreshes its queue subscriptions every 15 seconds.
 
 ### Customer Menu
 
@@ -52,6 +52,7 @@ The manager dashboard uses a capacity-first table grid and a collapsible live qu
 
 - Product mark: compact rounded square with a queue-inspired Q mark.
 - Parent brand: Cubiquitous appears in powered-by placements with the company logo.
+- Restaurant mark: selected from bundled local assets by canonical `restaurantBranchId`; Salad Studio and Pasta Pepper have dedicated marks, and all other branches use the default restaurant mark.
 - Admin header: EZQ product mark, branch name, live metrics, walk-in action, reports icon.
 - Customer header: EZQ product mark, download app shortcut, glass-style top bar.
 
@@ -649,14 +650,16 @@ Customer features:
 - Camera Lens QR scanner at `/app/scan` using device camera.
 - QR scanner fallback for manually entering an EZQ link or QR code.
 - QR route resolver for canonical `/customer/:restaurantBranchId` links, legacy two-segment links, and active branch `qrSlug` values.
+- Structured-first restaurant and branch display-name resolution using `restaurantName`, `branchName`, compatible legacy fields, and a local fallback for migrated branch documents that lack identity fields.
 - Customer join form with name, mobile number, party size, and optional notes.
 - Mobile join form can prepopulate known signed-in customer name and phone number.
 - Exact party size selection from 1 to 20.
 - Seating preference selection for shared seating versus empty-table-only waiting.
 - Live shared and non-shared wait estimates in the mobile customer join flow.
 - Live customer status screen with token, party size, waiting parties ahead, and remaining wait.
+- Local branch-logo selection across customer join, status, menu, and support screens.
 - Customer seated/table-assigned state after manager seating.
-- Customer cancellation action while waiting.
+- Customer **Exit Queue** action while waiting.
 - Single-active-queue protection for signed-in mobile customers until the user cancels or the visit is completed.
 - Live active-visit card on the signed-in app home with restaurant branch, token, queue position, estimated wait, seated table, resume, and cancellation actions.
 - Uploaded menu PDF viewing from branch configuration.
@@ -670,6 +673,7 @@ Manager features:
 
 - Firebase email/password manager login.
 - Branch dashboard route for a selected `restaurantBranchId`.
+- Local branch-logo selection in admin, onboarding, and reporting headers.
 - Live table grid backed by Firestore streams.
 - Tables grouped and sorted by capacity.
 - Multiple floors within one capacity stay side by side, with a visible horizontal scrollbar on narrow mobile and tablet layouts.
@@ -725,6 +729,7 @@ Customer flow:
 - The system shall capture first and last name for first-time mobile app customers.
 - The system shall allow app customers to scan an EZQ QR code using the device camera.
 - The system shall resolve scanned direct links and active branch QR slugs to the correct customer queue route.
+- The system shall display restaurant and branch names separately, prefer structured branch-document identity fields, and never present the combined route slug as the restaurant heading when a fallback identity is available.
 - The system shall collect customer name, phone number, exact party size, and optional notes.
 - The system shall prepopulate known signed-in customer name and phone number where available.
 - The system shall collect seating preference for shared seating or empty-table-only waiting.
@@ -735,7 +740,7 @@ Customer flow:
 - The system shall update the app-home visit card live from waiting through seating and allow cancellation before seating.
 - The system shall show the customer a reload-stable live FIFO count of waiting parties ahead, refresh queue subscriptions every 15 seconds, and show the estimated remaining wait.
 - The system shall keep the active queue entry available across status, menu, and support navigation.
-- The system shall allow a waiting customer to cancel their queue entry.
+- The system shall show an **Exit Queue** action to a waiting customer and cancel their queue entry when selected.
 - The system shall show the assigned table once the manager seats the party.
 - The system shall show the restaurant menu PDF when the branch has a menu URL configured.
 - The system shall show a pending menu state when no menu PDF is configured.
@@ -799,7 +804,7 @@ Customer user stories:
 - As a customer, I want to see my token and queue position so I know my place in line.
 - As a customer, I want to see my remaining wait time so I can decide whether to stay nearby.
 - As a customer, I want to open the menu while waiting so I can decide what to order before being seated.
-- As a customer, I want to cancel my queue entry if my plans change so the restaurant queue stays accurate.
+- As a customer, I want to exit the queue if my plans change so the restaurant queue stays accurate.
 - As a customer, I want to see my assigned table when I am seated so I know where to go.
 - As a customer, I want support access during the wait so I can contact staff if I need help.
 - As a waiting customer, I want light engagement content so the waiting screen feels useful rather than empty.

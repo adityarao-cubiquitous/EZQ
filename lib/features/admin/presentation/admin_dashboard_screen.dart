@@ -2439,6 +2439,11 @@ class _AdminTopBar extends StatelessWidget {
                     Expanded(
                       child: AdminBranchIdentityPill(
                         restaurantName: restaurantName,
+                        restaurantSlug:
+                            FirestorePaths.restaurantBranchIdFromRoute(
+                              restaurantId,
+                              branchId,
+                            ),
                         compact: true,
                       ),
                     ),
@@ -2517,7 +2522,13 @@ class _AdminTopBar extends StatelessWidget {
                 children: [
                   const BrandMark(size: 70),
                   const SizedBox(width: 30),
-                  AdminBranchIdentityPill(restaurantName: restaurantName),
+                  AdminBranchIdentityPill(
+                    restaurantName: restaurantName,
+                    restaurantSlug: FirestorePaths.restaurantBranchIdFromRoute(
+                      restaurantId,
+                      branchId,
+                    ),
+                  ),
                   const Spacer(),
                   _TopMetric(
                     label: 'Free',

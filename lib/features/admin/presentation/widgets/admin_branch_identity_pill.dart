@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/restaurant_logo_asset.dart';
 
 class AdminBranchIdentityPill extends StatelessWidget {
   const AdminBranchIdentityPill({
     super.key,
     required this.restaurantName,
+    required this.restaurantSlug,
     this.compact = false,
   });
 
   final String restaurantName;
+  final String? restaurantSlug;
   final bool compact;
 
   @override
@@ -53,10 +56,10 @@ class AdminBranchIdentityPill extends StatelessWidget {
           children: [
             ClipOval(
               child: Image.asset(
-                'assets/brand/restaurant_logo.png',
+                restaurantLogoAsset(restaurantSlug),
                 width: logoSize,
                 height: logoSize,
-                fit: BoxFit.cover,
+                fit: BoxFit.contain,
               ),
             ),
             SizedBox(width: compact ? 8 : 12),

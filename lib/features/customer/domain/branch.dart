@@ -1,3 +1,5 @@
+import 'restaurant_branch_identity.dart';
+
 class Branch {
   const Branch({
     required this.id,
@@ -52,6 +54,15 @@ class Branch {
   bool get hasLocation => latitude != null && longitude != null;
 
   factory Branch.fromMap(String id, Map<String, dynamic> data) {
+    final identity = resolveRestaurantBranchIdentity(
+      restaurantBranchSlug: id,
+      restaurantName: data['restaurantName'] as String?,
+      branchName: data['branchName'] as String?,
+      legacyBranchName: data['name'] as String?,
+      displayName: data['displayName'] as String?,
+      restaurantSlug: data['restaurantId'] as String?,
+      branchSlug: data['branchSlug'] as String?,
+    );
     final geoPoint = data['geoPoint'] ?? data['geoLocation'];
     double? geoLatitude;
     double? geoLongitude;
@@ -68,11 +79,7 @@ class Branch {
     }
     return Branch(
       id: id,
-      name:
-          data['branchName'] as String? ??
-          data['name'] as String? ??
-          data['displayName'] as String? ??
-          '',
+      name: identity.branchName,
       address: data['address'] as String? ?? '',
       city: data['city'] as String? ?? '',
       state: data['state'] as String? ?? '',
@@ -85,7 +92,7 @@ class Branch {
       holdMinutes: data['holdMinutes'] as int? ?? 5,
       averageTurnoverMinutes: data['averageTurnoverMinutes'] as int?,
       restaurantId: data['restaurantId'] as String?,
-      restaurantName: data['restaurantName'] as String?,
+      restaurantName: identity.restaurantName,
       branchSlug: data['branchSlug'] as String? ?? id,
       queueUrl: data['queueUrl'] as String?,
       qrImageUrl: data['qrImageUrl'] as String?,
@@ -98,6 +105,7 @@ class Branch {
   }
 
   Map<String, dynamic> toMap() => {
+    'branchName': name,
     'name': name,
     'address': address,
     'city': city,
@@ -112,6 +120,7 @@ class Branch {
     'averageTurnoverMinutes': averageTurnoverMinutes,
     'restaurantId': restaurantId,
     'restaurantName': restaurantName,
+    'branchSlug': branchSlug,
     'queueUrl': queueUrl,
     'qrImageUrl': qrImageUrl,
     'qrSvgUrl': qrSvgUrl,

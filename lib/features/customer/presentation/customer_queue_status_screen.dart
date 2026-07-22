@@ -18,6 +18,7 @@ import '../data/branch_identity_repository.dart';
 import '../data/customer_queue_repository.dart';
 import 'customer_shell.dart';
 import 'restaurant_logo.dart';
+import 'seated_greeting.dart';
 
 const customerStatusRefreshInterval = Duration(seconds: 15);
 
@@ -236,6 +237,7 @@ class _StatusContent extends ConsumerWidget {
               branchId: branchId,
               queueEntryId: queueEntryId,
               entry: entry,
+              showExitQueue: entry.status == QueueStatus.waiting,
             ),
           ] else ...[
             const SizedBox(height: 14),
@@ -262,12 +264,14 @@ class _StatusActions extends ConsumerWidget {
     required this.branchId,
     required this.queueEntryId,
     required this.entry,
+    required this.showExitQueue,
   });
 
   final String restaurantId;
   final String branchId;
   final String queueEntryId;
   final QueueEntry entry;
+  final bool showExitQueue;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -284,37 +288,39 @@ class _StatusActions extends ConsumerWidget {
             ).toString(),
           ),
         ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          height: 50,
-          child: OutlinedButton.icon(
-            onPressed: () async {
-              await ref
-                  .read(customerQueueRepositoryProvider)
-                  .cancelQueueEntry(
-                    restaurantId: restaurantId,
-                    branchId: branchId,
-                    queueEntryId: queueEntryId,
-                    phone: entry.phone,
-                  );
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Reservation cancelled')),
-              );
-            },
-            icon: const Icon(Icons.close_rounded, size: 18),
-            label: const Text('Cancel Reservation'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFBA1A1A),
-              side: const BorderSide(color: Color(0x33BA1A1A)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
+        if (showExitQueue) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                await ref
+                    .read(customerQueueRepositoryProvider)
+                    .cancelQueueEntry(
+                      restaurantId: restaurantId,
+                      branchId: branchId,
+                      queueEntryId: queueEntryId,
+                      phone: entry.phone,
+                    );
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('You have exited the queue')),
+                );
+              },
+              icon: const Icon(Icons.exit_to_app_rounded, size: 18),
+              label: const Text('Exit Queue'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFBA1A1A),
+                side: const BorderSide(color: Color(0x33BA1A1A)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                textStyle: const TextStyle(fontWeight: FontWeight.w700),
               ),
-              textStyle: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
-        ),
+        ],
         const SizedBox(height: 14),
         const _InlinePoweredBy(),
         const SizedBox(height: 14),
@@ -1158,7 +1164,7 @@ class _QueueStatusCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const RestaurantLogo(size: 42),
+              RestaurantLogo(restaurantSlug: branchLink.restaurantId, size: 42),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1845,9 +1851,10 @@ class _InlineSeatedCard extends StatelessWidget {
             size: 96,
           ),
           const SizedBox(height: 24),
-          const Text(
-            'Enjoy your meal!',
-            style: TextStyle(
+          Text(
+            seatedGreeting(entry.customerName),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
               color: AppColors.navyText,
               fontSize: 28,
               fontWeight: FontWeight.w800,

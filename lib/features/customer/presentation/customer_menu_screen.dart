@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/firestore_paths.dart';
 import '../data/menu_repository.dart';
 import '../domain/menu_document.dart';
 import 'customer_shell.dart';
@@ -22,6 +23,10 @@ class CustomerMenuScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final restaurantSlug = FirestorePaths.restaurantBranchIdFromRoute(
+      restaurantId,
+      branchId,
+    );
     final menu = ref.watch(
       menuDocumentProvider((restaurantId: restaurantId, branchId: branchId)),
     );
@@ -35,11 +40,13 @@ class CustomerMenuScreen extends ConsumerWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: menu.when(
-          data: (document) => _MenuPdfCard(document: document),
-          loading: () => const _MenuLoadingCard(),
-          error: (_, _) => const _MenuUnavailableCard(
+          data: (document) =>
+              _MenuPdfCard(document: document, restaurantSlug: restaurantSlug),
+          loading: () => _MenuLoadingCard(restaurantSlug: restaurantSlug),
+          error: (_, _) => _MenuUnavailableCard(
             title: 'Menu is unavailable',
             message: 'Please ask the host for the menu while we reconnect.',
+            restaurantSlug: restaurantSlug,
           ),
         ),
       ),
@@ -48,9 +55,10 @@ class CustomerMenuScreen extends ConsumerWidget {
 }
 
 class _MenuPdfCard extends StatelessWidget {
-  const _MenuPdfCard({required this.document});
+  const _MenuPdfCard({required this.document, required this.restaurantSlug});
 
   final MenuDocument document;
+  final String restaurantSlug;
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +75,7 @@ class _MenuPdfCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Center(child: RestaurantLogo()),
+          Center(child: RestaurantLogo(restaurantSlug: restaurantSlug)),
           const SizedBox(height: 18),
           Text(
             '${document.restaurantName} Menu',
@@ -136,7 +144,9 @@ class _MenuPdfCard extends StatelessWidget {
 }
 
 class _MenuLoadingCard extends StatelessWidget {
-  const _MenuLoadingCard();
+  const _MenuLoadingCard({required this.restaurantSlug});
+
+  final String restaurantSlug;
 
   @override
   Widget build(BuildContext context) {
@@ -147,11 +157,11 @@ class _MenuLoadingCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Column(
+      child: Column(
         children: [
-          RestaurantLogo(),
-          SizedBox(height: 24),
-          CircularProgressIndicator(),
+          RestaurantLogo(restaurantSlug: restaurantSlug),
+          const SizedBox(height: 24),
+          const CircularProgressIndicator(),
         ],
       ),
     );
@@ -162,11 +172,13 @@ class _MenuUnavailableCard extends StatelessWidget {
   const _MenuUnavailableCard({
     required this.title,
     required this.message,
+    this.restaurantSlug,
     this.nested = false,
   });
 
   final String title;
   final String message;
+  final String? restaurantSlug;
   final bool nested;
 
   @override
@@ -219,7 +231,11 @@ class _MenuUnavailableCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
-        children: [const RestaurantLogo(), const SizedBox(height: 24), child],
+        children: [
+          RestaurantLogo(restaurantSlug: restaurantSlug),
+          const SizedBox(height: 24),
+          child,
+        ],
       ),
     );
   }

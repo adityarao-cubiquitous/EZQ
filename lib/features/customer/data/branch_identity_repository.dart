@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
 import '../domain/branch.dart';
+import '../domain/restaurant_branch_identity.dart';
 
 enum CustomerDeepLinkFailure {
   restaurantNotFound,
@@ -107,13 +108,11 @@ class FirebaseBranchIdentityRepository implements BranchIdentityRepository {
       );
     }
 
+    final branch = Branch.fromMap(branchSnapshot.id, branchData);
     return CustomerBranchLink(
       restaurantId: restaurantBranchId,
-      restaurantName:
-          branchData['restaurantName'] as String? ??
-          branchData['displayName'] as String? ??
-          restaurantBranchId,
-      branch: Branch.fromMap(branchSnapshot.id, branchData),
+      restaurantName: branch.restaurantName!,
+      branch: branch,
     );
   }
 
@@ -146,13 +145,23 @@ class PassthroughBranchIdentityRepository implements BranchIdentityRepository {
     required String restaurantSlug,
     required String branchSlug,
   }) async {
+    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
+      restaurantSlug,
+      branchSlug,
+    );
+    final identity = resolveRestaurantBranchIdentity(
+      restaurantBranchSlug: restaurantBranchId,
+      restaurantSlug: restaurantSlug,
+      branchSlug: branchSlug,
+    );
     return CustomerBranchLink(
-      restaurantId: restaurantSlug,
-      restaurantName: restaurantSlug,
+      restaurantId: restaurantBranchId,
+      restaurantName: identity.restaurantName,
       branch: Branch(
         id: branchSlug,
         branchSlug: branchSlug,
-        name: branchSlug,
+        name: identity.branchName,
+        restaurantName: identity.restaurantName,
         address: '',
         city: '',
         state: '',
