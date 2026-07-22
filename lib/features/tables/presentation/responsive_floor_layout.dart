@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 typedef ResponsiveFloorItemBuilder =
@@ -75,48 +76,47 @@ class _ResponsiveFloorGridState extends State<ResponsiveFloorGrid> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableWidth = constraints.maxWidth;
-        if (!availableWidth.isFinite) {
-          return _FloorGridRows(
-            itemCount: widget.itemCount,
-            itemBuilder: widget.itemBuilder,
-            itemWidth: widget.minItemWidth,
-            itemGap: widget.itemGap,
-            columns: widget.itemCount,
-          );
-        }
-
         final totalGaps = widget.itemGap * (widget.itemCount - 1);
-        final fittedItemWidth = (availableWidth - totalGaps) / widget.itemCount;
+        final fittedItemWidth = availableWidth.isFinite
+            ? (availableWidth - totalGaps) / widget.itemCount
+            : widget.minItemWidth;
         final itemWidth = math.max(widget.minItemWidth, fittedItemWidth);
+        final itemWidths = List<double>.filled(widget.itemCount, itemWidth);
         final contentWidth = (itemWidth * widget.itemCount) + totalGaps;
         final rows = _FloorGridRows(
           itemCount: widget.itemCount,
           itemBuilder: widget.itemBuilder,
-          itemWidth: itemWidth,
+          itemWidths: itemWidths,
           itemGap: widget.itemGap,
           columns: widget.itemCount,
         );
-
-        if (contentWidth <= availableWidth) {
-          return _FloorGridRows(
-            itemCount: widget.itemCount,
-            itemBuilder: widget.itemBuilder,
-            itemWidth: itemWidth,
-            itemGap: widget.itemGap,
-            columns: widget.itemCount,
-          );
+        if (!availableWidth.isFinite) {
+          return rows;
         }
 
-        return Scrollbar(
-          controller: _scrollController,
-          thumbVisibility: true,
-          scrollbarOrientation: ScrollbarOrientation.bottom,
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(width: contentWidth, child: rows),
+        if (contentWidth <= availableWidth) {
+          return rows;
+        }
+
+        return ScrollConfiguration(
+          behavior: const _FloorRailScrollBehavior(),
+          child: Scrollbar(
+            controller: _scrollController,
+            thumbVisibility: true,
+            trackVisibility: true,
+            interactive: true,
+            thickness: 5,
+            radius: const Radius.circular(999),
+            scrollbarOrientation: ScrollbarOrientation.bottom,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: SingleChildScrollView(
+                key: const ValueKey('floor-horizontal-scroll'),
+                controller: _scrollController,
+                scrollDirection: Axis.horizontal,
+                physics: const ClampingScrollPhysics(),
+                child: SizedBox(width: contentWidth, child: rows),
+              ),
             ),
           ),
         );
@@ -125,18 +125,30 @@ class _ResponsiveFloorGridState extends State<ResponsiveFloorGrid> {
   }
 }
 
+class _FloorRailScrollBehavior extends MaterialScrollBehavior {
+  const _FloorRailScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => const {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.trackpad,
+  };
+}
+
 class _FloorGridRows extends StatelessWidget {
   const _FloorGridRows({
     required this.itemCount,
     required this.itemBuilder,
-    required this.itemWidth,
+    required this.itemWidths,
     required this.itemGap,
     required this.columns,
   });
 
   final int itemCount;
   final ResponsiveFloorItemBuilder itemBuilder;
-  final double itemWidth;
+  final List<double> itemWidths;
   final double itemGap;
   final int columns;
 
@@ -156,8 +168,8 @@ class _FloorGridRows extends StatelessWidget {
                   index++
                 ) ...[
                   SizedBox(
-                    width: itemWidth,
-                    child: itemBuilder(context, index, itemWidth),
+                    width: itemWidths[index],
+                    child: itemBuilder(context, index, itemWidths[index]),
                   ),
                   if (index < itemCount - 1 && index < start + columns - 1)
                     SizedBox(width: itemGap),

@@ -71,109 +71,116 @@ class _QueuePanelState extends State<QueuePanel> {
 
   @override
   Widget build(BuildContext context) {
-    final compact = Responsive.isCompact(context);
-    final visibleCount = _showAll
-        ? widget.queue.length
-        : _boundedVisibleCount();
-    final visibleQueue = widget.queue.take(visibleCount).toList();
-    final hiddenCount = widget.queue.length - visibleQueue.length;
-    return Container(
-      padding: EdgeInsets.all(compact ? 14 : 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x1ABDC8D0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0F006687),
-            blurRadius: 20,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Live Queue',
-            style: TextStyle(
-              fontSize: compact ? 20 : 24,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          SizedBox(height: compact ? 12 : 16),
-          TextField(
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.search),
-              hintText: 'Search token or name',
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 430;
+        final visibleCount = _showAll
+            ? widget.queue.length
+            : _boundedVisibleCount();
+        final visibleQueue = widget.queue.take(visibleCount).toList();
+        final hiddenCount = widget.queue.length - visibleQueue.length;
+        return Container(
+          padding: EdgeInsets.all(compact ? 14 : 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0x1ABDC8D0)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0F006687),
+                blurRadius: 20,
+                offset: Offset(0, 10),
               ),
-            ),
+            ],
           ),
-          SizedBox(height: compact ? 12 : 16),
-          for (final entry in visibleQueue) ...[
-            Builder(
-              builder: (context) {
-                final spotlightTone = _spotlightToneFor(entry.id);
-                return AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 280),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  transitionBuilder: (child, animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: SizeTransition(
-                        sizeFactor: animation,
-                        alignment: Alignment.topCenter,
-                        child: child,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Live Queue',
+                style: TextStyle(
+                  fontSize: compact ? 20 : 24,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              SizedBox(height: compact ? 12 : 16),
+              TextField(
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: 'Search token or name',
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+              SizedBox(height: compact ? 12 : 16),
+              for (final entry in visibleQueue) ...[
+                Builder(
+                  builder: (context) {
+                    final spotlightTone = _spotlightToneFor(entry.id);
+                    return AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 280),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SizeTransition(
+                            sizeFactor: animation,
+                            alignment: Alignment.topCenter,
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: _SpotlightAutoScroller(
+                        key: ValueKey('${entry.id}-${entry.status.wireName}'),
+                        enabled:
+                            widget.autoScrollSpotlight &&
+                            spotlightTone == _QueueSpotlightTone.best,
+                        child: _QueueEntryCard(
+                          entry: entry,
+                          recommendations: _queueCardRecommendationsFor(
+                            entry.id,
+                          ),
+                          spotlightTone: spotlightTone,
+                          spotlightLabel: _spotlightLabelFor(entry.id),
+                          availableTables: widget.availableTables,
+                          onReserve: () => widget.onReserve(entry),
+                          onSkip: () => widget.onSkip(entry),
+                          onNoAvailableTables: widget.onNoAvailableTables,
+                          onTap: widget.onEntryTapped != null
+                              ? () => widget.onEntryTapped!(entry)
+                              : null,
+                          onRecommendationSelected:
+                              widget.onRecommendationSelected == null
+                              ? null
+                              : (recommendation) =>
+                                    widget.onRecommendationSelected!(
+                                      entry,
+                                      recommendation,
+                                    ),
+                        ),
                       ),
                     );
                   },
-                  child: _SpotlightAutoScroller(
-                    key: ValueKey('${entry.id}-${entry.status.wireName}'),
-                    enabled:
-                        widget.autoScrollSpotlight &&
-                        spotlightTone == _QueueSpotlightTone.best,
-                    child: _QueueEntryCard(
-                      entry: entry,
-                      recommendations: _queueCardRecommendationsFor(entry.id),
-                      spotlightTone: spotlightTone,
-                      spotlightLabel: _spotlightLabelFor(entry.id),
-                      availableTables: widget.availableTables,
-                      onReserve: () => widget.onReserve(entry),
-                      onSkip: () => widget.onSkip(entry),
-                      onNoAvailableTables: widget.onNoAvailableTables,
-                      onTap: widget.onEntryTapped != null
-                          ? () => widget.onEntryTapped!(entry)
-                          : null,
-                      onRecommendationSelected:
-                          widget.onRecommendationSelected == null
-                          ? null
-                          : (recommendation) =>
-                                widget.onRecommendationSelected!(
-                                  entry,
-                                  recommendation,
-                                ),
-                    ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (hiddenCount > 0)
-            _LoadMoreQueueButton(
-              hiddenCount: hiddenCount,
-              onPressed: () => setState(() => _showAll = true),
-            )
-          else if (_showAll && widget.queue.length > widget.initialVisibleCount)
-            _ShowLessQueueButton(
-              onPressed: () => setState(() => _showAll = false),
-            ),
-        ],
-      ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (hiddenCount > 0)
+                _LoadMoreQueueButton(
+                  hiddenCount: hiddenCount,
+                  onPressed: () => setState(() => _showAll = true),
+                )
+              else if (_showAll &&
+                  widget.queue.length > widget.initialVisibleCount)
+                _ShowLessQueueButton(
+                  onPressed: () => setState(() => _showAll = false),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -395,167 +402,166 @@ class _QueueEntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compact = Responsive.isCompact(context);
     final canReserve = entry.status == QueueStatus.waiting;
     final spotlight = spotlightTone != null;
     final waitedMinutes = entry.waitingMinutesSince(DateTime.now());
-    final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 260),
-          child: spotlight
-              ? Padding(
-                  key: const ValueKey('spotlight-chip'),
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _RecommendationChip(
-                    label: spotlightLabel ?? '${entry.tokenCode} is next',
-                    tone: spotlightTone!,
-                  ),
-                )
-              : const SizedBox.shrink(key: ValueKey('no-spotlight-chip')),
-        ),
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 390;
+        final veryNarrow = constraints.maxWidth < 310;
+        final content = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              entry.tokenCode,
-              style: TextStyle(
-                color: AppColors.deepTeal,
-                fontFamily: 'JetBrains Mono',
-                fontSize: compact ? 18 : 20,
-                fontWeight: FontWeight.w800,
-              ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 260),
+              child: spotlight
+                  ? Padding(
+                      key: const ValueKey('spotlight-chip'),
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _RecommendationChip(
+                        label: spotlightLabel ?? '${entry.tokenCode} is next',
+                        tone: spotlightTone!,
+                      ),
+                    )
+                  : const SizedBox.shrink(key: ValueKey('no-spotlight-chip')),
             ),
-            SizedBox(width: compact ? 8 : 12),
-            Expanded(
-              child: Row(
+            if (veryNarrow) ...[
+              Row(
                 children: [
-                  Flexible(
-                    child: Text(
-                      entry.customerName,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
+                  _QueueToken(entry: entry, compact: true),
+                  const Spacer(),
+                  _PartySize(entry: entry, compact: true),
                 ],
               ),
-            ),
-            Text(
-              'Party ${entry.partySize}',
-              style: TextStyle(fontSize: compact ? 12 : 14),
-            ),
-          ],
-        ),
-        SizedBox(height: compact ? 6 : 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            _QueueMetaPill(
-              icon: Icons.timer_outlined,
-              label: '$waitedMinutes min',
-            ),
-            if (_prefersSharedSeating(entry)) const _SharedSeatingPill(),
-          ],
-        ),
-        if (recommendations.isNotEmpty) ...[
-          SizedBox(height: compact ? 8 : 10),
-          for (final recommendation in recommendations) ...[
-            _QueueTableRecommendationStrip(
-              recommendation: recommendation,
-              partySize: entry.partySize,
-              onPressed: onRecommendationSelected == null
-                  ? null
-                  : () => onRecommendationSelected!(recommendation),
-            ),
-            if (recommendation != recommendations.last)
-              SizedBox(height: compact ? 6 : 7),
-          ],
-        ],
-        SizedBox(height: compact ? 10 : 12),
-        if (compact)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _ReserveAction(
-                canReserve: canReserve,
-                availableTables: availableTables,
-                statusLabel: entry.status.wireName,
-                onReserve: onReserve,
-                onNoAvailableTables: onNoAvailableTables,
+              const SizedBox(height: 7),
+              _PartyNameChip(entry: entry),
+            ] else
+              Row(
+                children: [
+                  _QueueToken(entry: entry, compact: compact),
+                  SizedBox(width: compact ? 8 : 12),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: _PartyNameChip(entry: entry),
+                    ),
+                  ),
+                  SizedBox(width: compact ? 6 : 10),
+                  _PartySize(entry: entry, compact: compact),
+                ],
               ),
-              const SizedBox(height: 8),
-              _SkipAction(canSkip: canReserve, onSkip: onSkip),
-            ],
-          )
-        else
-          Row(
-            children: [
-              Expanded(
-                child: _ReserveAction(
-                  canReserve: canReserve,
-                  availableTables: availableTables,
-                  statusLabel: entry.status.wireName,
-                  onReserve: onReserve,
-                  onNoAvailableTables: onNoAvailableTables,
+            SizedBox(height: compact ? 6 : 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _QueueMetaPill(
+                  icon: Icons.timer_outlined,
+                  label: '$waitedMinutes min',
                 ),
-              ),
-              const SizedBox(width: 8),
-              _SkipAction(canSkip: canReserve, onSkip: onSkip),
-            ],
-          ),
-      ],
-    );
-    final animatedCard = TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: spotlight ? 1 : 0),
-      duration: const Duration(milliseconds: 520),
-      curve: Curves.easeOutBack,
-      builder: (context, glow, child) {
-        final toneColor = _spotlightColor(spotlightTone);
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 360),
-          curve: Curves.easeOutCubic,
-          padding: EdgeInsets.all(compact ? 12 : 16),
-          decoration: BoxDecoration(
-            color: spotlight
-                ? Color.alphaBlend(
-                    toneColor.withValues(alpha: 0.08),
-                    const Color(0xFFF7F9FF),
-                  )
-                : const Color(0xFFF7F9FF),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: spotlight ? toneColor : const Color(0x1ABDC8D0),
-              width: spotlight ? 2.5 : 1,
+                if (_prefersSharedSeating(entry)) const _SharedSeatingPill(),
+              ],
             ),
-            boxShadow: spotlight
-                ? [
-                    BoxShadow(
-                      color: toneColor.withValues(alpha: 0.34),
-                      blurRadius: 20,
-                      spreadRadius: 1,
+            if (recommendations.isNotEmpty) ...[
+              SizedBox(height: compact ? 8 : 10),
+              for (final recommendation in recommendations) ...[
+                _QueueTableRecommendationStrip(
+                  recommendation: recommendation,
+                  partySize: entry.partySize,
+                  onPressed: onRecommendationSelected == null
+                      ? null
+                      : () => onRecommendationSelected!(recommendation),
+                ),
+                if (recommendation != recommendations.last)
+                  SizedBox(height: compact ? 6 : 7),
+              ],
+            ],
+            SizedBox(height: compact ? 10 : 12),
+            if (compact)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _ReserveAction(
+                    canReserve: canReserve,
+                    availableTables: availableTables,
+                    statusLabel: entry.status.wireName,
+                    onReserve: onReserve,
+                    onNoAvailableTables: onNoAvailableTables,
+                  ),
+                  const SizedBox(height: 8),
+                  _SkipAction(canSkip: canReserve, onSkip: onSkip),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: _ReserveAction(
+                      canReserve: canReserve,
+                      availableTables: availableTables,
+                      statusLabel: entry.status.wireName,
+                      onReserve: onReserve,
+                      onNoAvailableTables: onNoAvailableTables,
                     ),
-                    BoxShadow(
-                      color: toneColor.withValues(alpha: 0.18),
-                      blurRadius: 44,
-                      spreadRadius: 4,
-                    ),
-                  ]
-                : null,
+                  ),
+                  const SizedBox(width: 8),
+                  _SkipAction(canSkip: canReserve, onSkip: onSkip),
+                ],
+              ),
+          ],
+        );
+        final animatedCard = TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0, end: spotlight ? 1 : 0),
+          duration: const Duration(milliseconds: 520),
+          curve: Curves.easeOutBack,
+          builder: (context, glow, child) {
+            final toneColor = _spotlightColor(spotlightTone);
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 360),
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.all(compact ? 12 : 16),
+              decoration: BoxDecoration(
+                color: spotlight
+                    ? Color.alphaBlend(
+                        toneColor.withValues(alpha: 0.08),
+                        const Color(0xFFF7F9FF),
+                      )
+                    : const Color(0xFFF7F9FF),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: spotlight ? toneColor : const Color(0x1ABDC8D0),
+                  width: spotlight ? 2.5 : 1,
+                ),
+                boxShadow: spotlight
+                    ? [
+                        BoxShadow(
+                          color: toneColor.withValues(alpha: 0.34),
+                          blurRadius: 20,
+                          spreadRadius: 1,
+                        ),
+                        BoxShadow(
+                          color: toneColor.withValues(alpha: 0.18),
+                          blurRadius: 44,
+                          spreadRadius: 4,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: content,
+            );
+          },
+        );
+        if (onTap == null) return animatedCard;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(16),
+            child: animatedCard,
           ),
-          child: content,
         );
       },
-    );
-    if (onTap == null) return animatedCard;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: animatedCard,
-      ),
     );
   }
 
@@ -565,6 +571,66 @@ class _QueueEntryCard extends StatelessWidget {
       _QueueSpotlightTone.nextBest => AppColors.recommendationYellow,
       null => AppColors.accentPurple,
     };
+  }
+}
+
+class _QueueToken extends StatelessWidget {
+  const _QueueToken({required this.entry, required this.compact});
+
+  final QueueEntry entry;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    entry.tokenCode,
+    style: TextStyle(
+      color: AppColors.deepTeal,
+      fontFamily: 'JetBrains Mono',
+      fontSize: compact ? 18 : 20,
+      fontWeight: FontWeight.w800,
+    ),
+  );
+}
+
+class _PartySize extends StatelessWidget {
+  const _PartySize({required this.entry, required this.compact});
+
+  final QueueEntry entry;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    'Party ${entry.partySize}',
+    style: TextStyle(fontSize: compact ? 12 : 14),
+  );
+}
+
+class _PartyNameChip extends StatelessWidget {
+  const _PartyNameChip({required this.entry});
+
+  final QueueEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: ValueKey('queue-party-name-chip-${entry.id}'),
+      constraints: const BoxConstraints(maxWidth: double.infinity),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.primaryTeal.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.deepTeal.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        entry.customerName,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.deepTeal,
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
   }
 }
 

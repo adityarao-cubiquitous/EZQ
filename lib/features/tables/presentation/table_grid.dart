@@ -311,77 +311,68 @@ class FloorContainer extends StatelessWidget {
   final bool compact;
   final Widget child;
 
-  static double horizontalPadding(bool compact) => compact ? 10.0 : 12.0;
+  static double horizontalPadding(bool compact) => compact ? 18.0 : 20.0;
 
   @override
   Widget build(BuildContext context) {
-    final padding = EdgeInsets.all(horizontalPadding(compact));
-    return CustomPaint(
-      painter: _DottedBorderPainter(
-        color: const Color(0xFF8A9AA5).withValues(alpha: 0.9),
-        radius: 8,
+    final radius = BorderRadius.circular(compact ? 18 : 20);
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAFCFE),
+        borderRadius: radius,
+        border: Border.all(color: const Color(0xFFD9E2EC)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F0F172A),
+            blurRadius: 20,
+            offset: Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Color(0x08006687),
+            blurRadius: 5,
+            offset: Offset(0, 1),
+          ),
+        ],
       ),
-      child: Container(
-        width: double.infinity,
-        padding: padding,
-        decoration: BoxDecoration(
-          color: AppColors.softerSurface.withValues(alpha: 0.42),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _FloorHeader(label: floorLabel),
-            SizedBox(height: compact ? 12 : 14),
-            child,
-          ],
-        ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: compact ? 18 : 22,
+            right: compact ? 18 : 22,
+            child: Container(
+              key: const ValueKey('floor-card-accent'),
+              height: 3,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryTeal.withValues(alpha: 0.62),
+                    AppColors.accentPurple.withValues(alpha: 0.42),
+                    AppColors.tracuraCyan.withValues(alpha: 0.5),
+                  ],
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(999),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.all(horizontalPadding(compact)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _FloorHeader(label: floorLabel),
+                SizedBox(height: compact ? 12 : 14),
+                child,
+              ],
+            ),
+          ),
+        ],
       ),
     );
-  }
-}
-
-class _DottedBorderPainter extends CustomPainter {
-  const _DottedBorderPainter({required this.color, required this.radius});
-
-  final Color color;
-  final double radius;
-
-  static const _dashLength = 4.0;
-  static const _gapLength = 4.0;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final rect = Offset.zero & size;
-    final path = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(rect.deflate(0.5), Radius.circular(radius)),
-      );
-
-    for (final metric in path.computeMetrics()) {
-      var distance = 0.0;
-      while (distance < metric.length) {
-        final next = distance + _dashLength;
-        canvas.drawPath(
-          metric.extractPath(
-            distance,
-            next > metric.length ? metric.length : next,
-          ),
-          paint,
-        );
-        distance = next + _gapLength;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DottedBorderPainter oldDelegate) {
-    return color != oldDelegate.color || radius != oldDelegate.radius;
   }
 }
 

@@ -29,6 +29,25 @@ class BranchQrInfo {
   final String? restaurantLogoUrl;
   final DateTime? generatedAt;
 
+  factory BranchQrInfo.fallback({
+    required String restaurantId,
+    required String branchId,
+  }) {
+    return BranchQrInfo(
+      restaurantId: restaurantId,
+      restaurantBranchId: FirestorePaths.restaurantBranchIdFromRoute(
+        restaurantId,
+        branchId,
+      ),
+      restaurantName: restaurantId,
+      branchName: branchId,
+      queueUrl: canonicalCustomerQueueUrl(
+        restaurantId: restaurantId,
+        branchId: branchId,
+      ),
+    );
+  }
+
   String get pngFileName => '$restaurantBranchId.png';
   String get svgFileName => '$restaurantBranchId.svg';
 }
