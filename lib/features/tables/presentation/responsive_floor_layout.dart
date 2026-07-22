@@ -1,9 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 typedef ResponsiveFloorItemBuilder =
     Widget Function(BuildContext context, int index, double width);
-typedef ResponsiveFloorWidthBuilder = double Function(int index);
 
 class ResponsiveCapacitySection extends StatelessWidget {
   const ResponsiveCapacitySection({
@@ -14,7 +15,6 @@ class ResponsiveCapacitySection extends StatelessWidget {
     required this.minFloorWidth,
     required this.headerToGridGap,
     required this.floorGap,
-    this.floorWidthBuilder,
   });
 
   final Widget header;
@@ -23,7 +23,6 @@ class ResponsiveCapacitySection extends StatelessWidget {
   final double minFloorWidth;
   final double headerToGridGap;
   final double floorGap;
-  final ResponsiveFloorWidthBuilder? floorWidthBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +36,6 @@ class ResponsiveCapacitySection extends StatelessWidget {
           itemBuilder: floorBuilder,
           minItemWidth: minFloorWidth,
           itemGap: floorGap,
-          itemWidthBuilder: floorWidthBuilder,
         ),
       ],
     );
@@ -51,14 +49,12 @@ class ResponsiveFloorGrid extends StatefulWidget {
     required this.itemBuilder,
     required this.minItemWidth,
     required this.itemGap,
-    this.itemWidthBuilder,
   });
 
   final int itemCount;
   final ResponsiveFloorItemBuilder itemBuilder;
   final double minItemWidth;
   final double itemGap;
-  final ResponsiveFloorWidthBuilder? itemWidthBuilder;
 
   @override
   State<ResponsiveFloorGrid> createState() => _ResponsiveFloorGridState();
@@ -80,13 +76,13 @@ class _ResponsiveFloorGridState extends State<ResponsiveFloorGrid> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableWidth = constraints.maxWidth;
-        final itemWidths = [
-          for (var index = 0; index < widget.itemCount; index++)
-            _itemWidthFor(index),
-        ];
         final totalGaps = widget.itemGap * (widget.itemCount - 1);
-        final contentWidth =
-            itemWidths.fold<double>(0, (sum, width) => sum + width) + totalGaps;
+        final fittedItemWidth = availableWidth.isFinite
+            ? (availableWidth - totalGaps) / widget.itemCount
+            : widget.minItemWidth;
+        final itemWidth = math.max(widget.minItemWidth, fittedItemWidth);
+        final itemWidths = List<double>.filled(widget.itemCount, itemWidth);
+        final contentWidth = (itemWidth * widget.itemCount) + totalGaps;
         final rows = _FloorGridRows(
           itemCount: widget.itemCount,
           itemBuilder: widget.itemBuilder,
@@ -126,14 +122,6 @@ class _ResponsiveFloorGridState extends State<ResponsiveFloorGrid> {
         );
       },
     );
-  }
-
-  double _itemWidthFor(int index) {
-    final preferredWidth = widget.itemWidthBuilder?.call(index);
-    if (preferredWidth == null || preferredWidth < widget.minItemWidth) {
-      return widget.minItemWidth;
-    }
-    return preferredWidth;
   }
 }
 

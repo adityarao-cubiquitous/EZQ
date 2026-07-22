@@ -56,7 +56,7 @@ void main() {
     );
   });
 
-  testWidgets('floor cards keep content-sized widths on a wide dashboard', (
+  testWidgets('floor cards expand evenly across a wide dashboard', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -68,9 +68,8 @@ void main() {
               width: 1000,
               child: ResponsiveFloorGrid(
                 itemCount: 2,
-                minItemWidth: 160,
+                minItemWidth: 220,
                 itemGap: 18,
-                itemWidthBuilder: (index) => index == 0 ? 160 : 290,
                 itemBuilder: (context, index, width) => SizedBox(
                   key: ValueKey('compact-floor-$index'),
                   height: 120,
@@ -82,13 +81,17 @@ void main() {
       ),
     );
 
+    final availableWidth = tester
+        .getSize(find.byType(ResponsiveFloorGrid))
+        .width;
+    final expectedFloorWidth = (availableWidth - 18) / 2;
     expect(
       tester.getSize(find.byKey(const ValueKey('compact-floor-0'))).width,
-      160,
+      expectedFloorWidth,
     );
     expect(
       tester.getSize(find.byKey(const ValueKey('compact-floor-1'))).width,
-      290,
+      expectedFloorWidth,
     );
     expect(find.byType(SingleChildScrollView), findsNothing);
   });

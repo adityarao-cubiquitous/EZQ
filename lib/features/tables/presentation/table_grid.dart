@@ -87,7 +87,7 @@ class _TableGridState extends State<TableGrid> {
     final capacityGap = compact ? 28.0 : 32.0;
     final floorGap = compact ? 14.0 : 18.0;
     final headerToGridGap = compact ? 14.0 : 16.0;
-    final minFloorWidth = compact ? 160.0 : 164.0;
+    final minFloorWidth = compact ? 180.0 : 220.0;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: widget.onEmptySpaceTap,
@@ -144,10 +144,6 @@ class _TableGridState extends State<TableGrid> {
                 minFloorWidth: minFloorWidth,
                 headerToGridGap: headerToGridGap,
                 floorGap: floorGap,
-                floorWidthBuilder: (index) => _preferredFloorWidth(
-                  tableCount: section.floors[index].tables.length,
-                  compact: compact,
-                ),
                 floorBuilder: (context, index, width) {
                   final floorSection = section.floors[index];
                   return _FloorTablesContainer(
@@ -172,19 +168,6 @@ class _TableGridState extends State<TableGrid> {
         ),
       ),
     );
-  }
-
-  double _preferredFloorWidth({
-    required int tableCount,
-    required bool compact,
-  }) {
-    final tileWidth = compact ? 112.0 : 120.0;
-    final spacing = compact ? 8.0 : 10.0;
-    final maxColumns = compact ? 2 : 3;
-    final columns = tableCount.clamp(1, maxColumns);
-    return (columns * tileWidth) +
-        ((columns - 1) * spacing) +
-        (FloorContainer.horizontalPadding(compact) * 2);
   }
 
   GlobalKey _keyForTable(String tableId) {
@@ -335,25 +318,58 @@ class FloorContainer extends StatelessWidget {
     final radius = BorderRadius.circular(compact ? 18 : 20);
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(horizontalPadding(compact)),
       decoration: BoxDecoration(
         color: const Color(0xFFFAFCFE),
         borderRadius: radius,
-        border: Border.all(color: const Color(0xFFE3E8EF)),
+        border: Border.all(color: const Color(0xFFD9E2EC)),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0F0F172A),
             blurRadius: 20,
             offset: Offset(0, 6),
           ),
+          BoxShadow(
+            color: Color(0x08006687),
+            blurRadius: 5,
+            offset: Offset(0, 1),
+          ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
         children: [
-          _FloorHeader(label: floorLabel),
-          SizedBox(height: compact ? 12 : 14),
-          child,
+          Positioned(
+            top: 0,
+            left: compact ? 18 : 22,
+            right: compact ? 18 : 22,
+            child: Container(
+              key: const ValueKey('floor-card-accent'),
+              height: 3,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryTeal.withValues(alpha: 0.62),
+                    AppColors.accentPurple.withValues(alpha: 0.42),
+                    AppColors.tracuraCyan.withValues(alpha: 0.5),
+                  ],
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(999),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.all(horizontalPadding(compact)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _FloorHeader(label: floorLabel),
+                SizedBox(height: compact ? 12 : 14),
+                child,
+              ],
+            ),
+          ),
         ],
       ),
     );
