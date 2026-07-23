@@ -30,7 +30,7 @@ class AdminBranchIdentityPill extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: compact ? double.infinity : 560),
       padding: const EdgeInsets.all(1),
       decoration: BoxDecoration(
-        gradient: AppColors.brandGradient,
+        gradient: AppColors.primaryGradient,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Container(
@@ -38,19 +38,7 @@ class AdminBranchIdentityPill extends StatelessWidget {
           horizontal: compact ? 10 : 12,
           vertical: compact ? 6 : 7,
         ),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [
-              Colors.white,
-              Color(0xFFF7FDFF),
-              Color(0xFFF6FAFF),
-              Color(0xFFFFF7FF),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(11),
-        ),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(11)),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -64,25 +52,10 @@ class AdminBranchIdentityPill extends StatelessWidget {
             ),
             SizedBox(width: compact ? 8 : 12),
             Flexible(
-              child: ShaderMask(
-                blendMode: BlendMode.srcIn,
-                shaderCallback: (bounds) {
-                  return const LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      AppColors.deepTeal,
-                      AppColors.primaryTeal,
-                      Color(0xFF176DE8),
-                      Color(0xFF7A2FD8),
-                    ],
-                  ).createShader(bounds);
-                },
-                child: Text(
-                  restaurantName,
-                  overflow: TextOverflow.ellipsis,
-                  style: textStyle,
-                ),
+              child: Text(
+                restaurantName,
+                overflow: TextOverflow.ellipsis,
+                style: textStyle,
               ),
             ),
           ],
