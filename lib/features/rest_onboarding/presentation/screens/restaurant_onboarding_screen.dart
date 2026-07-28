@@ -369,6 +369,7 @@ class _RestaurantOnboardingScreenState
         branchName: state.trimmedBranchName,
         area: state.trimmedArea,
         address: state.address,
+        fieldIssues: state.step1FieldIssues,
         canContinue: state.isStep1Valid,
         onSaveDraft: _saveDraft,
         onContinue: () => ref

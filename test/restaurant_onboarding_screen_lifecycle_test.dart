@@ -91,6 +91,50 @@ void main() {
     expect(find.byType(RestaurantOnboardingWizardBar), findsOneWidget);
   });
 
+  testWidgets(
+    'missing canonical Step 1 field names its Firestore path and disables Continue',
+    (tester) async {
+      final repository = _SequencedOnboardingRepository([
+        () async => _freshContextMissingArea(),
+      ]);
+      final container = ProviderContainer(
+        overrides: [
+          restaurantOnboardingRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = _router();
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Required Firestore data is missing'), findsOneWidget);
+      expect(
+        find.text(
+          '• Missing restaurantBranches/completed-branch field "area".',
+        ),
+        findsWidgets,
+      );
+      expect(find.text('Not specified'), findsNothing);
+      expect(
+        container
+            .read(restaurantOnboardingControllerProvider)
+            .step1ValidationReasons,
+        contains('Area'),
+      );
+      expect(
+        container.read(restaurantOnboardingControllerProvider).isStep1Valid,
+        isFalse,
+      );
+    },
+  );
+
   testWidgets('load failure resets loading and Retry reconstructs summary', (
     tester,
   ) async {
@@ -299,6 +343,26 @@ RestaurantBranchAdminContext _freshContext() {
     restaurantName: 'Fresh Restaurant',
     branchName: 'Fresh Branch',
     area: 'Indiranagar',
+    address: '12th Main',
+    slug: 'completed-branch',
+  );
+}
+
+RestaurantBranchAdminContext _freshContextMissingArea() {
+  return const RestaurantBranchAdminContext(
+    uid: 'admin-1',
+    name: 'Admin',
+    email: 'admin@example.com',
+    phone: '+919999000000',
+    restaurantBranchId: 'completed-branch',
+    role: 'owner',
+    isActive: true,
+    onboardingCompleted: false,
+    provisioningStatus: 'pending',
+    branchActive: true,
+    restaurantName: 'Fresh Restaurant',
+    branchName: 'Fresh Branch',
+    area: '',
     address: '12th Main',
     slug: 'completed-branch',
   );

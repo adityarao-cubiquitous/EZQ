@@ -19,19 +19,19 @@ void main() {
         onboardingCompleted: false,
         provisioningStatus: 'pending',
         branchActive: true,
-        restaurantName: 'Draft Restaurant',
-        branchName: 'Main',
-        area: 'Indiranagar',
-        address: '12th Main',
+        restaurantName: 'Canonical Restaurant',
+        branchName: 'Canonical Branch',
+        area: 'Canonical Area',
+        address: 'Canonical Address',
         slug: 'draft-branch',
         onboardingDraft: const RestaurantOnboardingDraft(
           restaurantBranchId: 'draft-branch',
           currentStepIndex: 2,
           completedStepIndexes: <int>{0, 1},
-          restaurantName: 'Draft Restaurant',
-          branchName: 'Main',
-          area: 'Indiranagar',
-          address: '12th Main',
+          restaurantName: '',
+          branchName: 'Stale Draft Branch',
+          area: '',
+          address: 'Stale Draft Address',
           floorCount: 2,
           selectedTableCapacities: <int>[2, 4],
           tableCountsByFloor: <List<int>>[
@@ -55,6 +55,11 @@ void main() {
     final state = container.read(restaurantOnboardingControllerProvider);
     expect(state.currentStepIndex, 2);
     expect(state.completedStepIndexes, <int>{0, 1});
+    expect(state.restaurantName, 'Canonical Restaurant');
+    expect(state.branchName, 'Canonical Branch');
+    expect(state.area, 'Canonical Area');
+    expect(state.address, 'Canonical Address');
+    expect(state.isStep1Valid, isTrue);
     expect(state.floorCount, 2);
     expect(state.selectedTableCapacities, <int>[2, 4]);
     expect(state.tableCountsByFloor, <List<int>>[
@@ -64,6 +69,79 @@ void main() {
     expect(state.totalTables, 10);
     expect(state.totalSeats, 32);
   });
+
+  test('Step 1 validation reports every required field', () {
+    var state = RestaurantOnboardingState.initial().copyWith(
+      restaurantBranchId: 'fresh-branch',
+      adminName: 'Admin',
+      adminEmail: 'admin@example.com',
+      adminPhone: '+919999000000',
+      restaurantName: 'Fresh Restaurant',
+      branchName: 'Main',
+    );
+
+    expect(state.step1ValidationRules, <String, bool>{
+      'Restaurant Branch ID': true,
+      'Admin Context Loaded': true,
+      'Admin Name': true,
+      'Email': true,
+      'Phone': true,
+      'Restaurant': true,
+      'Branch': true,
+      'Area': false,
+      'Address': false,
+    });
+    expect(state.step1ValidationReasons, <String>['Area', 'Address']);
+    expect(state.isStep1Valid, isFalse);
+
+    state = state.copyWith(area: 'Indiranagar', address: '12th Main');
+    expect(state.step1ValidationReasons, isEmpty);
+    expect(state.isStep1Valid, isTrue);
+  });
+
+  test(
+    'completed provisioning status cannot restore an incomplete branch',
+    () async {
+      final repository = _FakeOnboardingRepository(
+        context: const RestaurantBranchAdminContext(
+          uid: 'admin-1',
+          name: 'Admin',
+          email: 'admin@example.com',
+          phone: '+919999000000',
+          restaurantBranchId: 'broken-branch',
+          role: 'owner',
+          isActive: true,
+          onboardingCompleted: false,
+          adminOnboardingCompleted: true,
+          provisioningStatus: 'completed',
+          branchActive: true,
+          restaurantName: 'Broken Restaurant',
+          branchName: 'Main',
+          area: 'Indiranagar',
+          address: '12th Main',
+          slug: 'broken-branch',
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          restaurantOnboardingRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(restaurantOnboardingControllerProvider.notifier)
+          .loadAdminContext(expectedRestaurantBranchId: 'broken-branch');
+
+      final state = container.read(restaurantOnboardingControllerProvider);
+      expect(
+        state.adminContextError,
+        contains('Inconsistent onboarding state'),
+      );
+      expect(state.currentStepIndex, 0);
+      expect(state.isStep1Valid, isFalse);
+    },
+  );
 
   test('saveDraft persists current onboarding state', () async {
     final repository = _FakeOnboardingRepository(
@@ -175,8 +253,10 @@ void main() {
 
     controller.selectStep(0);
     controller.backFromStep4();
+    await controller.saveDraft();
     state = container.read(restaurantOnboardingControllerProvider);
     expect(state.currentStepIndex, 3);
+    expect(repository.savedDraft, isNull);
   });
 }
 

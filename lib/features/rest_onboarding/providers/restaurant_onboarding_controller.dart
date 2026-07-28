@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +33,7 @@ class RestaurantOnboardingState {
     required this.branchName,
     required this.area,
     required this.address,
+    required this.step1FieldIssues,
     required this.isLoadingAdminContext,
     required this.adminContextError,
     required this.showRestaurantError,
@@ -61,6 +63,7 @@ class RestaurantOnboardingState {
       branchName: '',
       area: '',
       address: '',
+      step1FieldIssues: const <String, String>{},
       isLoadingAdminContext: false,
       adminContextError: null,
       showRestaurantError: false,
@@ -89,6 +92,7 @@ class RestaurantOnboardingState {
   final String branchName;
   final String area;
   final String address;
+  final Map<String, String> step1FieldIssues;
   final bool isLoadingAdminContext;
   final String? adminContextError;
   final bool showRestaurantError;
@@ -124,12 +128,49 @@ class RestaurantOnboardingState {
     return duplicateRestaurantBranch(trimmedRestaurantName, trimmedBranchName);
   }
 
+  bool get adminNameIsValid => adminName.trim().isNotEmpty;
+
+  bool get adminEmailIsValid {
+    final value = adminEmail.trim();
+    final atIndex = value.indexOf('@');
+    return atIndex > 0 && atIndex < value.length - 1;
+  }
+
+  bool get adminPhoneIsValid {
+    final digits = adminPhone.replaceAll(RegExp(r'\D'), '');
+    return digits.length >= 10 && digits.length <= 15;
+  }
+
+  bool get areaIsValid => trimmedArea.isNotEmpty;
+
+  bool get addressIsValid => address.trim().isNotEmpty;
+
+  Map<String, bool> get step1ValidationRules => <String, bool>{
+    'Restaurant Branch ID': restaurantBranchId.trim().isNotEmpty,
+    'Admin Context Loaded': adminContextError == null && !isLoadingAdminContext,
+    'Admin Name': adminNameIsValid,
+    'Email': adminEmailIsValid,
+    'Phone': adminPhoneIsValid,
+    'Restaurant': restaurantHasValidLength,
+    'Branch': branchHasValidLength,
+    'Area': areaIsValid,
+    'Address': addressIsValid,
+  };
+
+  List<String> get step1ValidationReasons => <String>[
+    for (final rule in step1ValidationRules.entries)
+      if (!rule.value) rule.key,
+  ];
+
   bool get isStep1Valid =>
-      restaurantBranchId.trim().isNotEmpty &&
-      adminContextError == null &&
-      !isLoadingAdminContext &&
-      restaurantName.trim().isNotEmpty &&
-      branchName.trim().isNotEmpty;
+      step1ValidationRules.values.every((isValid) => isValid);
+
+  bool get isOnboardingComplete =>
+      currentStepIndex == 3 &&
+      provisioningResult != null &&
+      provisioningProgress.every(
+        (progress) => progress.status == ProvisioningStepStatus.complete,
+      );
 
   int get totalTables {
     if (persistedTotalTables != null) return persistedTotalTables!;
@@ -241,6 +282,7 @@ class RestaurantOnboardingState {
     String? branchName,
     String? area,
     String? address,
+    Map<String, String>? step1FieldIssues,
     bool? isLoadingAdminContext,
     String? adminContextError,
     bool clearAdminContextError = false,
@@ -274,6 +316,7 @@ class RestaurantOnboardingState {
       branchName: branchName ?? this.branchName,
       area: area ?? this.area,
       address: address ?? this.address,
+      step1FieldIssues: step1FieldIssues ?? this.step1FieldIssues,
       isLoadingAdminContext:
           isLoadingAdminContext ?? this.isLoadingAdminContext,
       adminContextError: clearAdminContextError
@@ -492,13 +535,25 @@ class RestaurantOnboardingController
         branchName: context.branchName,
         area: context.area,
         address: context.address,
+        step1FieldIssues: context.step1FieldIssues,
         isLoadingAdminContext: false,
         clearAdminContextError: true,
       );
+      final completionStateError = context.completionStateError;
+      if (completionStateError != null) {
+        state = nextState.copyWith(adminContextError: completionStateError);
+        _debugLogStep1Validation(state);
+        debugPrint(
+          '[ONBOARDING_CONTROLLER] EXIT loadAdminContext '
+          'completion-state-invalid',
+        );
+        return;
+      }
       if (context.onboardingCompleted) {
         final summaryDataError = context.completedSummaryDataError;
         if (summaryDataError != null) {
           state = nextState.copyWith(adminContextError: summaryDataError);
+          _debugLogStep1Validation(state);
           debugPrint(
             '[ONBOARDING_CONTROLLER] EXIT loadAdminContext '
             'completed-summary-invalid',
@@ -532,6 +587,7 @@ class RestaurantOnboardingController
           ),
         );
         state = nextState;
+        _debugLogStep1Validation(state);
         debugPrint(
           '[ONBOARDING_CONTROLLER] EXIT loadAdminContext completed-summary',
         );
@@ -541,14 +597,13 @@ class RestaurantOnboardingController
       if (draft != null &&
           draft.restaurantBranchId == context.restaurantBranchId &&
           !context.isProvisioningCompleted) {
+        final canRestoreLaterStep = nextState.isStep1Valid;
         nextState = _withSynchronizedTableConfiguration(
           nextState.copyWith(
-            currentStepIndex: draft.currentStepIndex,
-            completedStepIndexes: draft.completedStepIndexes,
-            restaurantName: draft.restaurantName,
-            branchName: draft.branchName,
-            area: draft.area,
-            address: draft.address,
+            currentStepIndex: canRestoreLaterStep ? draft.currentStepIndex : 0,
+            completedStepIndexes: canRestoreLaterStep
+                ? draft.completedStepIndexes
+                : const <int>{},
             floorCount: draft.floorCount,
             selectedTableCapacities: draft.selectedTableCapacities,
             tableCountsByFloor: draft.tableCountsByFloor,
@@ -556,6 +611,7 @@ class RestaurantOnboardingController
         );
       }
       state = nextState;
+      _debugLogStep1Validation(state);
       debugPrint('[ONBOARDING_CONTROLLER] EXIT loadAdminContext success');
     } catch (error, stackTrace) {
       debugPrint(
@@ -575,6 +631,15 @@ class RestaurantOnboardingController
     state = state.copyWith(
       isLoadingAdminContext: false,
       adminContextError: 'Unable to load onboarding details: $error',
+    );
+  }
+
+  void _debugLogStep1Validation(RestaurantOnboardingState value) {
+    if (!kDebugMode) return;
+    debugPrint(
+      '[ONBOARDING_AUDIT] Loaded Validation: '
+      '${jsonEncode(<String, Object?>{for (final rule in value.step1ValidationRules.entries) rule.key: rule.value, 'Continue Enabled': value.isStep1Valid, 'Reason': value.step1ValidationReasons.isEmpty ? 'All required fields are valid.' : 'Missing or invalid: '
+                '${value.step1ValidationReasons.join(', ')}', 'Field Issues': value.step1FieldIssues})}',
     );
   }
 
@@ -797,8 +862,9 @@ class RestaurantOnboardingController
     }
   }
 
-  Future<void> saveDraft() {
-    return _saveDraftState(state);
+  Future<void> saveDraft() async {
+    if (state.isOnboardingComplete) return;
+    await _saveDraftState(state);
   }
 
   void _markProvisioningStepRunning(OnboardingProvisioningStep step) {

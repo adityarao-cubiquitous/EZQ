@@ -174,6 +174,7 @@ class RestaurantBranchAdminContext {
     required this.role,
     required this.isActive,
     required this.onboardingCompleted,
+    this.adminOnboardingCompleted,
     this.provisioningStatus = 'pending',
     this.branchActive = true,
     required this.restaurantName,
@@ -198,6 +199,7 @@ class RestaurantBranchAdminContext {
   final String role;
   final bool isActive;
   final bool onboardingCompleted;
+  final bool? adminOnboardingCompleted;
   final String provisioningStatus;
   final bool branchActive;
   final String restaurantName;
@@ -216,6 +218,44 @@ class RestaurantBranchAdminContext {
   String get displayName => '$restaurantName - $branchName';
 
   bool get isProvisioningCompleted => onboardingCompleted && branchActive;
+
+  Map<String, String> get step1FieldIssues {
+    final adminPath = 'admins/$uid';
+    final branchPath = 'restaurantBranches/$restaurantBranchId';
+    return <String, String>{
+      if (name.trim().isEmpty) 'adminName': 'Missing $adminPath field "name".',
+      if (email.trim().isEmpty)
+        'adminEmail': 'Missing $adminPath field "email".',
+      if (phone.trim().isEmpty)
+        'adminPhone': 'Missing $adminPath field "phone".',
+      if (restaurantName.trim().isEmpty)
+        'restaurantName': 'Missing $branchPath field "restaurantName".',
+      if (branchName.trim().isEmpty)
+        'branchName': 'Missing $branchPath field "branchName".',
+      if (area.trim().isEmpty) 'area': 'Missing $branchPath field "area".',
+      if (address.trim().isEmpty)
+        'address': 'Missing $branchPath field "address".',
+    };
+  }
+
+  String? get completionStateError {
+    final normalizedStatus = provisioningStatus.trim().toLowerCase();
+    final statusIsCompleted = normalizedStatus == 'completed';
+    if (statusIsCompleted != onboardingCompleted) {
+      return 'Inconsistent onboarding state in '
+          'restaurantBranches/$restaurantBranchId: '
+          'provisioningStatus="${provisioningStatus.trim()}" and '
+          'onboardingCompleted=$onboardingCompleted must agree.';
+    }
+    final adminCompleted = adminOnboardingCompleted;
+    if (adminCompleted != null && adminCompleted != onboardingCompleted) {
+      return 'Inconsistent onboarding state between admins/$uid '
+          '(onboardingCompleted=$adminCompleted) and '
+          'restaurantBranches/$restaurantBranchId '
+          '(onboardingCompleted=$onboardingCompleted).';
+    }
+    return null;
+  }
 
   String get completedQueueUrl {
     final persistedQueueUrl = queueUrl.trim();

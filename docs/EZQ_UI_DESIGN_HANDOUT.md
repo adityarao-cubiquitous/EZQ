@@ -621,6 +621,14 @@ Completed onboarding route behavior:
 - The completion summary exposes Setup Summary, Provisioning Checklist, Download Setup Summary, Manage QR, and Go to Dashboard without rebuilding Screens 1-3.
 - Failed Firestore loads replace the loading state with an error page offering Retry and Go to Dashboard, so the route cannot remain on an infinite spinner.
 
+Onboarding data and validation behavior:
+
+- `admins/{uid}.restaurantBranchId` resolves the canonical `restaurantBranches/{restaurantBranchId}` document used by Step 1; restaurant name, branch name, area, and address come from the canonical branch document rather than an onboarding draft.
+- Restoring a draft can recover wizard progress and floor/table configuration, but it cannot overwrite canonical branch identity or administrator profile fields.
+- Step 1 Continue is enabled only when the branch mapping, administrator name, email, phone, restaurant name, branch name, area, and address all pass validation.
+- Missing canonical values are identified by their Firestore document and field instead of being rendered as `Not specified`.
+- `onboardingCompleted` and `provisioningStatus` are written atomically. A completed provisioning status is valid only with `onboardingCompleted: true`; inconsistent persisted states stop restoration and surface an actionable error.
+
 ## 14. Design Decisions Already Made
 
 - Customer web app does not require email authentication.
@@ -685,6 +693,8 @@ Manager features:
 - Refresh- and deep-link-safe completed onboarding restoration from persisted Firestore data, with no dependency on onboarding drafts or provider cache.
 - Completed onboarding summary actions for downloading setup details, shared QR management, and dashboard navigation.
 - Recoverable onboarding-load failure state with Retry and Go to Dashboard actions.
+- Canonical Step 1 restoration from the mapped admin and branch documents, with field-specific missing-data warnings and validation diagnostics.
+- Atomic onboarding completion state across admin and branch records, guarded by Firestore rules.
 - Branch dashboard route for a selected `restaurantBranchId`.
 - Live table grid backed by Firestore streams.
 - Tables grouped and sorted by capacity.
@@ -767,6 +777,11 @@ Manager flow:
 - The system shall prevent completed onboarding summaries from reopening restaurant details, floor/table configuration, or review steps.
 - The system shall reuse the dashboard QR-management dialog from the completed onboarding summary.
 - The system shall replace failed onboarding Firestore loads with an error page containing Retry and Go to Dashboard instead of leaving an infinite loading indicator.
+- The system shall source Step 1 identity from `restaurantBranches/{restaurantBranchId}` and administrator details from `admins/{uid}` after resolving the signed-in administrator's branch mapping.
+- The system shall restore draft progress and table configuration without allowing draft identity fields to replace canonical branch or administrator values.
+- The system shall enable Step 1 Continue only when branch mapping, administrator name, email, phone, restaurant name, branch name, area, and address are valid.
+- The system shall name the exact Firestore document and field when required onboarding data is missing instead of displaying `Not specified`.
+- The system shall keep admin and branch `onboardingCompleted` flags synchronized with branch `provisioningStatus`, and shall reject any persisted completed/incomplete mismatch.
 - The system shall show live waiting queue entries for the selected branch.
 - The system shall allow the Live Queue to be collapsed and reopened by touch, mouse, or keyboard on desktop, tablet, and mobile layouts.
 - The system shall expand the table dashboard into all released space when the Live Queue is closed.
@@ -836,6 +851,8 @@ Manager user stories:
 - As a manager, I want a completed setup summary to survive refreshes, deep links, and new sessions without relying on an old onboarding draft.
 - As a manager, I want the onboarding summary to offer the same QR management actions as the dashboard.
 - As a manager, I want a failed setup-summary load to offer Retry and dashboard access instead of spinning indefinitely.
+- As a manager, I want Step 1 to restore canonical restaurant, branch, area, address, and administrator details without a stale draft erasing them.
+- As a manager, I want Continue to explain every invalid required field so I can distinguish missing Firestore data from an application defect.
 - As a manager, I want to see all waiting parties live so I can decide who to seat next.
 - As a manager, I want to see tables grouped by capacity so I can quickly find a good fit.
 - As a manager, I want best-fit and next-best-fit suggestions so I can seat parties quickly without wasting capacity.
