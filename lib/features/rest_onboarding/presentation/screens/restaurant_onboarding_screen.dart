@@ -58,33 +58,6 @@ class _RestaurantOnboardingScreenState
       '[ONBOARDING_INIT] ENTER _initialize '
       'pathRestaurantBranchId=${restaurantBranchId ?? ''}',
     );
-    try {
-      debugPrint(
-        '[ONBOARDING_INIT] BEFORE await completedOnboardingForCurrentAdmin',
-      );
-      final completion = await _controller
-          .completedOnboardingForCurrentAdmin()
-          .timeout(const Duration(seconds: 12));
-      debugPrint(
-        '[ONBOARDING_INIT] AFTER await completedOnboardingForCurrentAdmin '
-        'completion=${completion?.restaurantBranchId ?? 'null'}',
-      );
-      if (!mounted) return;
-      if (completion != null) {
-        debugPrint(
-          '[ONBOARDING_INIT] REDIRECT dashboard '
-          'restaurantBranchId=${completion.restaurantBranchId}',
-        );
-        context.go('/admin/${completion.restaurantBranchId}/dashboard');
-        return;
-      }
-    } catch (error, stackTrace) {
-      debugPrint(
-        '[ONBOARDING_INIT] completedOnboardingForCurrentAdmin failed: $error\n'
-        '$stackTrace',
-      );
-      if (!mounted) return;
-    }
     debugPrint('[ONBOARDING_INIT] BEFORE await loadAdminContext');
     await _controller.loadAdminContext(
       expectedRestaurantBranchId: restaurantBranchId,
@@ -224,28 +197,31 @@ class _RestaurantOnboardingScreenState
                         : state.trimmedRestaurantName,
                     onLogout: _logoutAdmin,
                   ),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      horizontalPadding,
-                      isMobile ? 16 : 24,
-                      horizontalPadding,
-                      0,
+                  if (!state.isLoadingAdminContext &&
+                      state.adminContextError == null) ...[
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        horizontalPadding,
+                        isMobile ? 16 : 24,
+                        horizontalPadding,
+                        0,
+                      ),
+                      child: RestaurantOnboardingWizardBar(
+                        steps: _steps,
+                        currentStepIndex: state.currentStepIndex,
+                        completedStepIndexes: state.completedStepIndexes,
+                        enabledStepIndexes: state.enabledStepIndexes,
+                        onStepSelected: (index) {
+                          if (state.isProvisioning) {
+                            _showProvisioningWarning();
+                            return;
+                          }
+                          _controller.selectStep(index);
+                        },
+                      ),
                     ),
-                    child: RestaurantOnboardingWizardBar(
-                      steps: _steps,
-                      currentStepIndex: state.currentStepIndex,
-                      completedStepIndexes: state.completedStepIndexes,
-                      enabledStepIndexes: state.enabledStepIndexes,
-                      onStepSelected: (index) {
-                        if (state.isProvisioning) {
-                          _showProvisioningWarning();
-                          return;
-                        }
-                        _controller.selectStep(index);
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 8),
+                    const SizedBox(height: 8),
+                  ],
                   Expanded(
                     child: Center(
                       child: ConstrainedBox(

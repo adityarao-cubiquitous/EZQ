@@ -436,6 +436,7 @@ Purpose: let branch staff and operators access the QR assets that route customer
 Entry point:
 
 - QR icon in the admin top bar.
+- Manage QR action on the completed onboarding summary.
 
 Current capabilities:
 
@@ -612,6 +613,12 @@ Manager:
 - `/admin/:restaurantBranchId/dashboard`
 - `/admin/:restaurantBranchId/reports`
 
+Completed onboarding route behavior:
+
+- Normal manager login continues directly to the branch dashboard.
+- Explicitly opening the branch onboarding URL after provisioning shows only the locked completion summary (Screen 4).
+- The completion summary keeps setup-summary, QR-management, and dashboard actions available without reopening Screens 1-3.
+
 ## 14. Design Decisions Already Made
 
 - Customer web app does not require email authentication.
@@ -630,6 +637,7 @@ Manager:
 - Admin toasts are popup-style feedback, not bottom snackbars.
 - Walk-in queue entries support seating preference and live ETA context.
 - Branch QR management is available from the admin top bar.
+- Completed onboarding remains available as a read-only Screen 4 summary only when its branch URL is opened explicitly; login still routes completed managers directly to the dashboard.
 - Customer status includes ad space and hidden-object puzzle placeholder.
 - Mobile app customer auth uses phone/OTP. Native debug builds accept `123456`; pre-production profile/release builds can opt in with `--dart-define=ALLOW_CUSTOMER_OTP_BYPASS=true`. Production builds must omit that flag and use Firebase OTP.
 - A customer with a `waiting`, `reserved`, or `on_the_way` queue entry cannot join another restaurant queue. Cancelling or being seated releases the customer to join again.
@@ -671,6 +679,8 @@ Customer features:
 Manager features:
 
 - Firebase email/password manager login.
+- One-time restaurant onboarding with a persistent, locked completion summary at the explicit branch onboarding URL.
+- Completed onboarding summary actions for setup details, shared QR management, and dashboard navigation.
 - Branch dashboard route for a selected `restaurantBranchId`.
 - Live table grid backed by Firestore streams.
 - Tables grouped and sorted by capacity.
@@ -746,6 +756,10 @@ Customer flow:
 Manager flow:
 
 - The system shall require manager login before accessing the admin dashboard.
+- The system shall route completed managers directly to the dashboard after login.
+- The system shall render only the locked completion summary when a completed branch onboarding URL is opened explicitly.
+- The system shall prevent completed onboarding summaries from reopening restaurant details, floor/table configuration, or review steps.
+- The system shall reuse the dashboard QR-management dialog from the completed onboarding summary.
 - The system shall show live waiting queue entries for the selected branch.
 - The system shall allow the Live Queue to be collapsed and reopened by touch, mouse, or keyboard on desktop, tablet, and mobile layouts.
 - The system shall expand the table dashboard into all released space when the Live Queue is closed.
@@ -810,6 +824,9 @@ Customer user stories:
 Manager user stories:
 
 - As a manager, I want to log in securely so only staff can manage the queue.
+- As a manager, I want login to return me directly to my dashboard after onboarding is complete.
+- As a manager, I want to revisit the completed onboarding summary by its explicit URL without being able to rerun setup.
+- As a manager, I want the onboarding summary to offer the same QR management actions as the dashboard.
 - As a manager, I want to see all waiting parties live so I can decide who to seat next.
 - As a manager, I want to see tables grouped by capacity so I can quickly find a good fit.
 - As a manager, I want best-fit and next-best-fit suggestions so I can seat parties quickly without wasting capacity.

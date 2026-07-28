@@ -132,6 +132,7 @@ service cloud.firestore {
           'totalTables',
           'totalSeats',
           'capacityTypes',
+          'onboardingCompletedAt',
           'onboardingDraft',
           'onboardingDraftUpdatedAt',
           'updatedAt'

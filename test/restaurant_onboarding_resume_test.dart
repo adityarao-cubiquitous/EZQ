@@ -110,6 +110,74 @@ void main() {
       <int>[5],
     ]);
   });
+
+  test('completed onboarding restores locked Screen 4 summary state', () async {
+    final repository = _FakeOnboardingRepository(
+      context: RestaurantBranchAdminContext(
+        uid: 'admin-1',
+        name: 'Admin',
+        email: 'admin@example.com',
+        phone: '+919999000000',
+        restaurantBranchId: 'completed-branch',
+        role: 'owner',
+        isActive: true,
+        onboardingCompleted: true,
+        provisioningStatus: 'completed',
+        branchActive: true,
+        restaurantName: 'Completed Restaurant',
+        branchName: 'Main',
+        area: 'Indiranagar',
+        address: '12th Main',
+        slug: 'completed-branch',
+        floorCount: 3,
+        selectedTableCapacities: const <int>[2, 4, 8],
+        totalTables: 14,
+        totalSeats: 68,
+        createdAt: DateTime.utc(2026, 7, 28),
+        queueUrl:
+            'https://ezq-dev-cubiquitous.web.app/customer/completed-branch',
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        restaurantOnboardingRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(
+      restaurantOnboardingControllerProvider.notifier,
+    );
+    await controller.loadAdminContext(
+      expectedRestaurantBranchId: 'completed-branch',
+    );
+
+    var state = container.read(restaurantOnboardingControllerProvider);
+    expect(state.currentStepIndex, 3);
+    expect(state.completedStepIndexes, <int>{0, 1, 2});
+    expect(state.enabledStepIndexes, <int>{3});
+    expect(state.lockNavigation, isTrue);
+    expect(state.floorCount, 3);
+    expect(state.selectedTableCapacities, <int>[2, 4, 8]);
+    expect(state.totalTables, 14);
+    expect(state.totalSeats, 68);
+    expect(state.provisioningResult?.restaurantBranchId, 'completed-branch');
+    expect(
+      state.provisioningResult?.qrUrl,
+      'https://ezq-dev-cubiquitous.web.app/customer/completed-branch',
+    );
+    expect(
+      state.provisioningProgress.every(
+        (step) => step.status == ProvisioningStepStatus.complete,
+      ),
+      isTrue,
+    );
+
+    controller.selectStep(0);
+    controller.backFromStep4();
+    state = container.read(restaurantOnboardingControllerProvider);
+    expect(state.currentStepIndex, 3);
+  });
 }
 
 class _FakeOnboardingRepository implements RestaurantOnboardingRepository {

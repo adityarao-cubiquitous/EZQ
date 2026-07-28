@@ -146,6 +146,17 @@ class FirebaseRestaurantOnboardingRepository
       onboardingDraft: RestaurantOnboardingDraft.fromFirestore(
         branchData['onboardingDraft'],
       ),
+      floorCount: _readInt(branchData['floorCount'], fallback: 1).clamp(1, 15),
+      selectedTableCapacities: _readPositiveIntList(
+        branchData['capacityTypes'],
+      ),
+      totalTables: _readInt(branchData['totalTables']),
+      totalSeats: _readInt(branchData['totalSeats']),
+      createdAt:
+          _readDateTime(branchData['onboardingCompletedAt']) ??
+          _readDateTime(adminData['onboardedAt']) ??
+          _readDateTime(branchData['createdAt']),
+      queueUrl: (branchData['queueUrl'] as String? ?? '').trim(),
     );
     _debugLog('[ONBOARDING_REPO] EXIT loadAdminContext success');
     return context;
@@ -328,6 +339,7 @@ class FirebaseRestaurantOnboardingRepository
       'totalTables': request.totalTables,
       'totalSeats': request.totalSeats,
       'capacityTypes': request.selectedTableCapacities,
+      'onboardingCompletedAt': FieldValue.serverTimestamp(),
       'onboardingDraft': FieldValue.delete(),
       'onboardingDraftUpdatedAt': FieldValue.delete(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -486,6 +498,29 @@ class FirebaseRestaurantOnboardingRepository
         });
     final title = words.join(' ').trim();
     return title.isEmpty ? restaurantBranchId : title;
+  }
+
+  int _readInt(Object? value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    if (value is String) return int.tryParse(value.trim()) ?? fallback;
+    return fallback;
+  }
+
+  List<int> _readPositiveIntList(Object? value) {
+    if (value is! Iterable) return const <int>[];
+    final values = <int>{
+      for (final item in value)
+        if (_readInt(item) > 0) _readInt(item),
+    }.toList()..sort();
+    return List<int>.unmodifiable(values);
+  }
+
+  DateTime? _readDateTime(Object? value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value.trim());
+    return null;
   }
 
   void _debugLog(String message) {

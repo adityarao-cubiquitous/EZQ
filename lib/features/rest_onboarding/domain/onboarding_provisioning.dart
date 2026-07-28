@@ -65,7 +65,7 @@ class RestaurantOnboardingResult {
   });
 
   final String restaurantBranchId;
-  final DateTime createdAt;
+  final DateTime? createdAt;
   final String adminEmail;
   final String qrUrl;
 
@@ -182,6 +182,12 @@ class RestaurantBranchAdminContext {
     required this.address,
     required this.slug,
     this.onboardingDraft,
+    this.floorCount = 1,
+    this.selectedTableCapacities = const <int>[],
+    this.totalTables = 0,
+    this.totalSeats = 0,
+    this.createdAt,
+    this.queueUrl = '',
   });
 
   final String uid;
@@ -200,6 +206,12 @@ class RestaurantBranchAdminContext {
   final String address;
   final String slug;
   final RestaurantOnboardingDraft? onboardingDraft;
+  final int floorCount;
+  final List<int> selectedTableCapacities;
+  final int totalTables;
+  final int totalSeats;
+  final DateTime? createdAt;
+  final String queueUrl;
 
   String get displayName => '$restaurantName - $branchName';
 

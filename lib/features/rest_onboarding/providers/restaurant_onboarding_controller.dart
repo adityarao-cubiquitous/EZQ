@@ -47,6 +47,8 @@ class RestaurantOnboardingState {
     required this.provisioningResult,
     required this.failedProvisioningStep,
     required this.provisioningErrorMessage,
+    required this.persistedTotalTables,
+    required this.persistedTotalSeats,
   });
 
   factory RestaurantOnboardingState.initial() {
@@ -74,6 +76,8 @@ class RestaurantOnboardingState {
       provisioningResult: null,
       failedProvisioningStep: null,
       provisioningErrorMessage: null,
+      persistedTotalTables: null,
+      persistedTotalSeats: null,
     );
   }
 
@@ -100,6 +104,8 @@ class RestaurantOnboardingState {
   final RestaurantOnboardingResult? provisioningResult;
   final OnboardingProvisioningStep? failedProvisioningStep;
   final String? provisioningErrorMessage;
+  final int? persistedTotalTables;
+  final int? persistedTotalSeats;
 
   String get trimmedRestaurantName => restaurantName.trim();
 
@@ -128,6 +134,7 @@ class RestaurantOnboardingState {
       branchName.trim().isNotEmpty;
 
   int get totalTables {
+    if (persistedTotalTables != null) return persistedTotalTables!;
     return tableCountsByFloor.fold<int>(
       0,
       (total, floorCounts) =>
@@ -136,6 +143,7 @@ class RestaurantOnboardingState {
   }
 
   int get totalSeats {
+    if (persistedTotalSeats != null) return persistedTotalSeats!;
     var seats = 0;
     for (final floorCounts in tableCountsByFloor) {
       for (var index = 0; index < selectedTableCapacities.length; index++) {
@@ -252,6 +260,10 @@ class RestaurantOnboardingState {
     bool clearFailedProvisioningStep = false,
     String? provisioningErrorMessage,
     bool clearProvisioningErrorMessage = false,
+    int? persistedTotalTables,
+    bool clearPersistedTotalTables = false,
+    int? persistedTotalSeats,
+    bool clearPersistedTotalSeats = false,
   }) {
     return RestaurantOnboardingState(
       currentStepIndex: currentStepIndex ?? this.currentStepIndex,
@@ -288,6 +300,12 @@ class RestaurantOnboardingState {
       provisioningErrorMessage: clearProvisioningErrorMessage
           ? null
           : provisioningErrorMessage ?? this.provisioningErrorMessage,
+      persistedTotalTables: clearPersistedTotalTables
+          ? null
+          : persistedTotalTables ?? this.persistedTotalTables,
+      persistedTotalSeats: clearPersistedTotalSeats
+          ? null
+          : persistedTotalSeats ?? this.persistedTotalSeats,
     );
   }
 
@@ -339,7 +357,7 @@ class RestaurantOnboardingState {
       'Capacity Types: ${selectedTableCapacities.map((capacity) => '$capacity Top').join(', ')}',
       'Tables: $totalTables',
       'Seats: $totalSeats',
-      'Creation Timestamp: ${result.createdAt.toIso8601String()}',
+      'Creation Timestamp: ${result.createdAt?.toIso8601String() ?? 'Not available'}',
       'QR URL: ${result.qrUrl}',
     ].join('\n');
   }
@@ -409,17 +427,9 @@ class RestaurantOnboardingController
       'expectedRestaurantBranchId=${expectedRestaurantBranchId ?? ''}',
     );
     debugPrint('[ONBOARDING_STATE] Loading=true');
-    state = state.copyWith(
+    state = RestaurantOnboardingState.initial().copyWith(
       isLoadingAdminContext: true,
-      restaurantBranchId: '',
-      adminName: '',
-      adminEmail: '',
-      adminPhone: '',
-      restaurantName: '',
-      branchName: '',
-      area: '',
-      address: '',
-      clearAdminContextError: true,
+      restaurantBranchId: expectedRestaurantBranchId?.trim(),
     );
 
     try {
@@ -487,6 +497,41 @@ class RestaurantOnboardingController
         isLoadingAdminContext: false,
         clearAdminContextError: true,
       );
+      if (context.isProvisioningCompleted) {
+        nextState = _withSynchronizedTableConfiguration(
+          nextState.copyWith(
+            currentStepIndex: 3,
+            completedStepIndexes: const <int>{0, 1, 2},
+            floorCount: context.floorCount,
+            selectedTableCapacities: context.selectedTableCapacities,
+            tableCountsByFloor: const <List<int>>[],
+            persistedTotalTables: context.totalTables,
+            persistedTotalSeats: context.totalSeats,
+            provisioningProgress: [
+              for (final step in OnboardingProvisioningStep.values)
+                ProvisioningStepProgress(
+                  step: step,
+                  status: ProvisioningStepStatus.complete,
+                ),
+            ],
+            provisioningResult: RestaurantOnboardingResult(
+              restaurantBranchId: context.restaurantBranchId,
+              createdAt: context.createdAt,
+              adminEmail: context.email.isEmpty
+                  ? 'Not available'
+                  : context.email,
+              qrUrl: context.queueUrl.isEmpty
+                  ? '/customer/${context.restaurantBranchId}'
+                  : context.queueUrl,
+            ),
+          ),
+        );
+        state = nextState;
+        debugPrint(
+          '[ONBOARDING_CONTROLLER] EXIT loadAdminContext completed-summary',
+        );
+        return;
+      }
       final draft = context.onboardingDraft;
       if (draft != null &&
           draft.restaurantBranchId == context.restaurantBranchId &&
@@ -581,7 +626,7 @@ class RestaurantOnboardingController
   }
 
   void backFromStep4() {
-    if (state.isProvisioning) return;
+    if (state.isProvisioning || state.provisioningResult != null) return;
     state = state.copyWith(currentStepIndex: 2);
     _queueDraftSave();
   }
