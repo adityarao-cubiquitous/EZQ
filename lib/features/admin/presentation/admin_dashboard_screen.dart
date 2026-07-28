@@ -530,47 +530,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   Future<void> _showQrManagementDialog() {
-    return showDialog<void>(
+    return showQrManagementDialog(
       context: context,
-      builder: (context) {
-        final viewport = MediaQuery.sizeOf(context);
-        final compact = Responsive.isCompact(context);
-        final landscape = viewport.width > viewport.height;
-        final horizontalInset = compact ? 12.0 : 40.0;
-        final availableContentWidth =
-            viewport.width - (horizontalInset * 2) - 32;
-        return AlertDialog(
-          insetPadding: EdgeInsets.symmetric(
-            horizontal: horizontalInset,
-            vertical: landscape ? 12 : 24,
-          ),
-          scrollable: true,
-          titlePadding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
-          title: Row(
-            children: [
-              const Expanded(child: Text('QR Management')),
-              IconButton(
-                key: const ValueKey('qr-management-close'),
-                tooltip: 'Close QR Management',
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close_rounded),
-                style: IconButton.styleFrom(
-                  foregroundColor: AppColors.mutedText,
-                  backgroundColor: AppColors.softSurface,
-                ),
-              ),
-            ],
-          ),
-          contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          content: SizedBox(
-            width: math.min(availableContentWidth, 760.0),
-            child: QrManagementPanel(
-              restaurantId: widget.restaurantId,
-              branchId: widget.branchId,
-            ),
-          ),
-        );
-      },
+      restaurantId: widget.restaurantId,
+      branchId: widget.branchId,
     );
   }
 

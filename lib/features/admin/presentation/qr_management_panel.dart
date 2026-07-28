@@ -8,6 +8,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/qr_generation.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/utils/web_file_actions.dart' as file_actions;
 import '../data/qr_management_repository.dart';
 
@@ -37,6 +38,77 @@ final branchQrInfoProvider = StreamProvider.family<BranchQrInfo, BranchQrArgs>((
         branchId: args.branchId,
       );
 });
+
+Future<void> showQrManagementDialog({
+  required BuildContext context,
+  required String restaurantId,
+  required String branchId,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (context) =>
+        QrManagementDialog(restaurantId: restaurantId, branchId: branchId),
+  );
+}
+
+class QrManagementDialog extends StatelessWidget {
+  const QrManagementDialog({
+    super.key,
+    required this.restaurantId,
+    required this.branchId,
+  });
+
+  final String restaurantId;
+  final String branchId;
+
+  @override
+  Widget build(BuildContext context) {
+    final viewport = MediaQuery.sizeOf(context);
+    final compact = Responsive.isCompact(context);
+    final landscape = viewport.width > viewport.height;
+    final horizontalInset = compact ? 12.0 : 40.0;
+    final verticalInset = landscape ? 12.0 : 24.0;
+    final availableContentWidth = viewport.width - (horizontalInset * 2) - 32;
+    final availableContentHeight = viewport.height - (verticalInset * 2) - 96;
+    final contentHeight = math.min(
+      math.max(availableContentHeight, 240.0),
+      landscape ? 520.0 : 680.0,
+    );
+    return AlertDialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: horizontalInset,
+        vertical: verticalInset,
+      ),
+      titlePadding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
+      title: Row(
+        children: [
+          const Expanded(child: Text('QR Management')),
+          IconButton(
+            key: const ValueKey('qr-management-close'),
+            tooltip: 'Close QR Management',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close_rounded),
+            style: IconButton.styleFrom(
+              foregroundColor: AppColors.mutedText,
+              backgroundColor: AppColors.softSurface,
+            ),
+          ),
+        ],
+      ),
+      contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      content: SizedBox(
+        width: math.min(availableContentWidth, 760.0),
+        height: contentHeight,
+        child: SingleChildScrollView(
+          child: QrManagementPanel(
+            restaurantId: restaurantId,
+            branchId: branchId,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class QrManagementPanel extends ConsumerStatefulWidget {
   const QrManagementPanel({

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/brand_mark.dart';
+import '../../../admin/presentation/qr_management_panel.dart';
 import '../../../admin/presentation/widgets/admin_branch_identity_pill.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../providers/restaurant_onboarding_controller.dart';
@@ -171,6 +172,16 @@ class _RestaurantOnboardingScreenState
       return;
     }
     context.go('/admin/${result.restaurantBranchId}/dashboard');
+  }
+
+  Future<void> _manageQr(RestaurantOnboardingState state) async {
+    final result = state.provisioningResult;
+    if (result == null) return;
+    await showQrManagementDialog(
+      context: context,
+      restaurantId: result.restaurantBranchId,
+      branchId: result.restaurantBranchId,
+    );
   }
 
   void _showProvisioningWarning() {
@@ -402,6 +413,7 @@ class _RestaurantOnboardingScreenState
       onRetry: _retryProvisioning,
       onBackToReview: _controller.backToReviewFromFailure,
       onViewSummary: () => _downloadSetupSummary(state),
+      onManageQr: () => _manageQr(state),
       onGoToDashboard: () => _goToDashboard(state),
     );
   }
