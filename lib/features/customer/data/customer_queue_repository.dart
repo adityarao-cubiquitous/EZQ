@@ -257,6 +257,8 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
         'status': QueueStatus.waiting.wireName,
         'assignedTableId': null,
         'assignedTableNumber': null,
+        'assignedTableIds': const <String>[],
+        'assignedTableNumbers': const <String>[],
         'estimatedWaitMinutes': estimatedWaitMinutes,
         'queuePosition': nextToken,
         'extensionUsed': false,

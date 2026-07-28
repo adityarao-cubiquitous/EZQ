@@ -22,6 +22,8 @@ class QueueEntry {
     this.appSource = 'web',
     this.assignedTableId,
     this.assignedTableNumber,
+    this.assignedTableIds = const [],
+    this.assignedTableNumbers = const [],
     this.reservedAt,
     this.onTheWayAt,
     this.seatedAt,
@@ -52,6 +54,8 @@ class QueueEntry {
   final QueueStatus status;
   final String? assignedTableId;
   final String? assignedTableNumber;
+  final List<String> assignedTableIds;
+  final List<String> assignedTableNumbers;
   final int estimatedWaitMinutes;
   final int queuePosition;
   final bool extensionUsed;
@@ -100,6 +104,14 @@ class QueueEntry {
       status: QueueStatus.fromWireName(data['status'] as String?),
       assignedTableId: data['assignedTableId'] as String?,
       assignedTableNumber: data['assignedTableNumber'] as String?,
+      assignedTableIds: _readStringList(
+        data['assignedTableIds'],
+        fallback: data['assignedTableId'] as String?,
+      ),
+      assignedTableNumbers: _readStringList(
+        data['assignedTableNumbers'],
+        fallback: data['assignedTableNumber'] as String?,
+      ),
       estimatedWaitMinutes: data['estimatedWaitMinutes'] as int? ?? 5,
       queuePosition: data['queuePosition'] as int? ?? 1,
       extensionUsed: data['extensionUsed'] as bool? ?? false,
@@ -139,6 +151,8 @@ class QueueEntry {
     'status': status.wireName,
     'assignedTableId': assignedTableId,
     'assignedTableNumber': assignedTableNumber,
+    'assignedTableIds': assignedTableIds,
+    'assignedTableNumbers': assignedTableNumbers,
     'estimatedWaitMinutes': estimatedWaitMinutes,
     'queuePosition': queuePosition,
     'extensionUsed': extensionUsed,
@@ -185,6 +199,8 @@ class QueueEntry {
       appSource: appSource,
       assignedTableId: assignedTableId ?? this.assignedTableId,
       assignedTableNumber: assignedTableNumber ?? this.assignedTableNumber,
+      assignedTableIds: assignedTableIds,
+      assignedTableNumbers: assignedTableNumbers,
       reservedAt: reservedAt,
       onTheWayAt: onTheWayAt,
       seatedAt: seatedAt,
@@ -200,6 +216,14 @@ class QueueEntry {
       customerPreferences: customerPreferences,
     );
   }
+}
+
+List<String> _readStringList(Object? value, {String? fallback}) {
+  if (value is List) {
+    final items = value.whereType<String>().toList(growable: false);
+    if (items.isNotEmpty) return items;
+  }
+  return fallback == null || fallback.isEmpty ? const [] : [fallback];
 }
 
 int compareQueueEntriesByFifo(QueueEntry a, QueueEntry b) {
