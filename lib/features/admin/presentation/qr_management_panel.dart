@@ -10,6 +10,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/qr_generation.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/utils/web_file_actions.dart' as file_actions;
+import '../../../core/widgets/dialog_close_button.dart';
 import '../data/qr_management_repository.dart';
 
 typedef BranchQrArgs = ({String restaurantId, String branchId});
@@ -83,15 +84,10 @@ class QrManagementDialog extends StatelessWidget {
       title: Row(
         children: [
           const Expanded(child: Text('QR Management')),
-          IconButton(
+          DialogCloseButton(
             key: const ValueKey('qr-management-close'),
             tooltip: 'Close QR Management',
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close_rounded),
-            style: IconButton.styleFrom(
-              foregroundColor: AppColors.mutedText,
-              backgroundColor: AppColors.softSurface,
-            ),
           ),
         ],
       ),

@@ -13,6 +13,7 @@ import '../widgets/floors_tables_step.dart';
 import '../widgets/restaurant_details_step.dart';
 import '../widgets/restaurant_onboarding_wizard_bar.dart';
 import '../widgets/review_confirm_step.dart';
+import '../widgets/setup_summary_dialog.dart';
 
 class RestaurantOnboardingScreen extends ConsumerStatefulWidget {
   const RestaurantOnboardingScreen({super.key});
@@ -143,23 +144,8 @@ class _RestaurantOnboardingScreenState
     if (result == null) return;
     showDialog<void>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Setup Summary'),
-          content: SizedBox(
-            width: 560,
-            child: SingleChildScrollView(
-              child: SelectableText(state.setupSummaryText(result)),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
+      builder: (context) =>
+          SetupSummaryDialog(summaryText: state.setupSummaryText(result)),
     );
   }
 
