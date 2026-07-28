@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -31,43 +33,60 @@ class _RestaurantOnboardingScreenState
     OnboardingWizardStep(number: 3, label: 'Review & Confirm'),
     OnboardingWizardStep(number: 4, label: 'Complete Onboarding'),
   ];
-  bool _didInitialize = false;
-
-  RestaurantOnboardingController get _controller {
-    return ref.read(restaurantOnboardingControllerProvider.notifier);
-  }
+  bool _isInitializing = true;
+  String? _pathRestaurantBranchId;
 
   @override
   void initState() {
     super.initState();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_didInitialize) return;
-    _didInitialize = true;
-    _initialize();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_initialize());
+    });
   }
 
   Future<void> _initialize() async {
     final restaurantBranchId = GoRouterState.of(
       context,
     ).pathParameters['restaurantBranchId']?.trim();
+    _pathRestaurantBranchId = restaurantBranchId;
     debugPrint(
       '[ONBOARDING_INIT] ENTER _initialize '
       'pathRestaurantBranchId=${restaurantBranchId ?? ''}',
     );
-    debugPrint('[ONBOARDING_INIT] BEFORE await loadAdminContext');
-    await _controller.loadAdminContext(
-      expectedRestaurantBranchId: restaurantBranchId,
-    );
-    debugPrint('[ONBOARDING_INIT] AFTER await loadAdminContext');
+    try {
+      debugPrint('[ONBOARDING_INIT] BEFORE await loadAdminContext');
+      await ref
+          .read(restaurantOnboardingControllerProvider.notifier)
+          .loadAdminContext(expectedRestaurantBranchId: restaurantBranchId);
+      debugPrint('[ONBOARDING_INIT] AFTER await loadAdminContext');
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[ONBOARDING_INIT] unexpected initialization failure: '
+        '$error\n$stackTrace',
+      );
+      if (mounted) {
+        ref
+            .read(restaurantOnboardingControllerProvider.notifier)
+            .reportAdminContextLoadFailure(error);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isInitializing = false);
+      }
+    }
+  }
+
+  Future<void> _retryInitialization() async {
+    setState(() => _isInitializing = true);
+    await _initialize();
   }
 
   Future<void> _saveDraft() async {
     try {
-      await _controller.saveDraft();
+      await ref
+          .read(restaurantOnboardingControllerProvider.notifier)
+          .saveDraft();
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -83,7 +102,9 @@ class _RestaurantOnboardingScreenState
   Future<void> _logoutAdmin() async {
     ScaffoldMessenger.of(context).clearSnackBars();
     try {
-      await _controller.saveDraft();
+      await ref
+          .read(restaurantOnboardingControllerProvider.notifier)
+          .saveDraft();
     } catch (error, stackTrace) {
       debugPrint(
         '[ONBOARDING_LOGOUT] draft save failed before logout: $error\n'
@@ -105,11 +126,15 @@ class _RestaurantOnboardingScreenState
   }
 
   Future<void> _confirmReview() async {
-    await _controller.startProvisioning();
+    await ref
+        .read(restaurantOnboardingControllerProvider.notifier)
+        .startProvisioning();
   }
 
   Future<void> _retryProvisioning() async {
-    await _controller.startProvisioning();
+    await ref
+        .read(restaurantOnboardingControllerProvider.notifier)
+        .startProvisioning();
   }
 
   void _downloadSetupSummary(RestaurantOnboardingState state) {
@@ -131,6 +156,17 @@ class _RestaurantOnboardingScreenState
       return;
     }
     context.go('/admin/${result.restaurantBranchId}/dashboard');
+  }
+
+  void _goToDashboardFromError(RestaurantOnboardingState state) {
+    final restaurantBranchId = state.restaurantBranchId.trim().isNotEmpty
+        ? state.restaurantBranchId.trim()
+        : _pathRestaurantBranchId?.trim() ?? '';
+    if (restaurantBranchId.isEmpty) {
+      context.go('/admin/login');
+      return;
+    }
+    context.go('/admin/$restaurantBranchId/dashboard');
   }
 
   Future<void> _manageQr(RestaurantOnboardingState state) async {
@@ -169,10 +205,11 @@ class _RestaurantOnboardingScreenState
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(restaurantOnboardingControllerProvider);
+    final isLoading = _isInitializing || state.isLoadingAdminContext;
     assert(state.debugAssertTableConfigurationInvariant());
 
     return PopScope(
-      canPop: !state.lockNavigation,
+      canPop: !state.isProvisioning,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         if (state.isProvisioning) {
@@ -197,8 +234,9 @@ class _RestaurantOnboardingScreenState
                         : state.trimmedRestaurantName,
                     onLogout: _logoutAdmin,
                   ),
-                  if (!state.isLoadingAdminContext &&
-                      state.adminContextError == null) ...[
+                  if (!isLoading &&
+                      state.adminContextError == null &&
+                      state.provisioningResult == null) ...[
                     Padding(
                       padding: EdgeInsets.fromLTRB(
                         horizontalPadding,
@@ -216,7 +254,11 @@ class _RestaurantOnboardingScreenState
                             _showProvisioningWarning();
                             return;
                           }
-                          _controller.selectStep(index);
+                          ref
+                              .read(
+                                restaurantOnboardingControllerProvider.notifier,
+                              )
+                              .selectStep(index);
                         },
                       ),
                     ),
@@ -231,7 +273,7 @@ class _RestaurantOnboardingScreenState
                             horizontal: horizontalPadding,
                             vertical: isMobile ? 16 : 24,
                           ),
-                          child: _buildStepContent(state),
+                          child: _buildStepContent(state, isLoading: isLoading),
                         ),
                       ),
                     ),
@@ -245,8 +287,11 @@ class _RestaurantOnboardingScreenState
     );
   }
 
-  Widget _buildStepContent(RestaurantOnboardingState state) {
-    if (state.isLoadingAdminContext) {
+  Widget _buildStepContent(
+    RestaurantOnboardingState state, {
+    required bool isLoading,
+  }) {
+    if (isLoading) {
       return const Center(
         child: CircularProgressIndicator(color: AppColors.primaryTeal),
       );
@@ -291,10 +336,22 @@ class _RestaurantOnboardingScreenState
                   ),
                 ),
                 const SizedBox(height: 20),
-                OutlinedButton.icon(
-                  onPressed: _controller.loadAdminContext,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Retry'),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _retryInitialization,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Retry'),
+                    ),
+                    FilledButton.icon(
+                      onPressed: () => _goToDashboardFromError(state),
+                      icon: const Icon(Icons.dashboard_rounded),
+                      label: const Text('Go to Dashboard'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -314,7 +371,9 @@ class _RestaurantOnboardingScreenState
         address: state.address,
         canContinue: state.isStep1Valid,
         onSaveDraft: _saveDraft,
-        onContinue: _controller.continueFromStep1,
+        onContinue: () => ref
+            .read(restaurantOnboardingControllerProvider.notifier)
+            .continueFromStep1(),
       );
     }
 
@@ -325,13 +384,25 @@ class _RestaurantOnboardingScreenState
         tableCountsByFloor: state.tableCountsByFloor,
         showValidationError: state.showStep2ValidationError,
         canContinue: state.isStep2Valid,
-        onFloorCountChanged: _controller.updateFloorCount,
-        onTableCapacityAdded: _controller.addTableCapacity,
-        onTableCapacityRemoved: _controller.removeTableCapacity,
-        onTableCountChanged: _controller.updateTableCount,
-        onBack: _controller.backFromStep2,
+        onFloorCountChanged: (value) => ref
+            .read(restaurantOnboardingControllerProvider.notifier)
+            .updateFloorCount(value),
+        onTableCapacityAdded: (capacity) => ref
+            .read(restaurantOnboardingControllerProvider.notifier)
+            .addTableCapacity(capacity),
+        onTableCapacityRemoved: (capacity) => ref
+            .read(restaurantOnboardingControllerProvider.notifier)
+            .removeTableCapacity(capacity),
+        onTableCountChanged: (floorIndex, tableTypeIndex, value) => ref
+            .read(restaurantOnboardingControllerProvider.notifier)
+            .updateTableCount(floorIndex, tableTypeIndex, value),
+        onBack: () => ref
+            .read(restaurantOnboardingControllerProvider.notifier)
+            .backFromStep2(),
         onSaveDraft: _saveDraft,
-        onContinue: _controller.continueFromStep2,
+        onContinue: () => ref
+            .read(restaurantOnboardingControllerProvider.notifier)
+            .continueFromStep2(),
       );
     }
 
@@ -345,7 +416,9 @@ class _RestaurantOnboardingScreenState
         tableCountsByFloor: state.tableCountsByFloor,
         totalTables: state.totalTables,
         totalSeats: state.totalSeats,
-        onBack: _controller.backFromStep3,
+        onBack: () => ref
+            .read(restaurantOnboardingControllerProvider.notifier)
+            .backFromStep3(),
         onSaveDraft: _saveDraft,
         onConfirm: _confirmReview,
       );
@@ -371,9 +444,13 @@ class _RestaurantOnboardingScreenState
       totalSeats: state.totalSeats,
       failedStep: state.failedProvisioningStep,
       errorMessage: state.provisioningErrorMessage,
-      onBack: _controller.backFromStep4,
+      onBack: () => ref
+          .read(restaurantOnboardingControllerProvider.notifier)
+          .backFromStep4(),
       onRetry: _retryProvisioning,
-      onBackToReview: _controller.backToReviewFromFailure,
+      onBackToReview: () => ref
+          .read(restaurantOnboardingControllerProvider.notifier)
+          .backToReviewFromFailure(),
       onViewSummary: () => _downloadSetupSummary(state),
       onManageQr: () => _manageQr(state),
       onGoToDashboard: () => _goToDashboard(state),

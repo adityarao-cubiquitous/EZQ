@@ -617,7 +617,9 @@ Completed onboarding route behavior:
 
 - Normal manager login continues directly to the branch dashboard.
 - Explicitly opening the branch onboarding URL after provisioning shows only the locked completion summary (Screen 4).
-- The completion summary keeps setup-summary, QR-management, and dashboard actions available without reopening Screens 1-3.
+- Screen 4 initializes after the first widget frame and reconstructs its summary from fresh Firestore admin and branch documents, independent of onboarding drafts, provider cache, navigation history, or prior in-memory state.
+- The completion summary exposes Setup Summary, Provisioning Checklist, Download Setup Summary, Manage QR, and Go to Dashboard without rebuilding Screens 1-3.
+- Failed Firestore loads replace the loading state with an error page offering Retry and Go to Dashboard, so the route cannot remain on an infinite spinner.
 
 ## 14. Design Decisions Already Made
 
@@ -680,7 +682,9 @@ Manager features:
 
 - Firebase email/password manager login.
 - One-time restaurant onboarding with a persistent, locked completion summary at the explicit branch onboarding URL.
-- Completed onboarding summary actions for setup details, shared QR management, and dashboard navigation.
+- Refresh- and deep-link-safe completed onboarding restoration from persisted Firestore data, with no dependency on onboarding drafts or provider cache.
+- Completed onboarding summary actions for downloading setup details, shared QR management, and dashboard navigation.
+- Recoverable onboarding-load failure state with Retry and Go to Dashboard actions.
 - Branch dashboard route for a selected `restaurantBranchId`.
 - Live table grid backed by Firestore streams.
 - Tables grouped and sorted by capacity.
@@ -758,8 +762,11 @@ Manager flow:
 - The system shall require manager login before accessing the admin dashboard.
 - The system shall route completed managers directly to the dashboard after login.
 - The system shall render only the locked completion summary when a completed branch onboarding URL is opened explicitly.
+- The system shall initialize onboarding data after widget construction and shall not mutate Riverpod providers during `initState`, `didChangeDependencies`, or `build`.
+- The system shall reconstruct completed Screen 4 from fresh persisted Firestore admin and branch data after refresh, deep link, new browser session, or logout/login.
 - The system shall prevent completed onboarding summaries from reopening restaurant details, floor/table configuration, or review steps.
 - The system shall reuse the dashboard QR-management dialog from the completed onboarding summary.
+- The system shall replace failed onboarding Firestore loads with an error page containing Retry and Go to Dashboard instead of leaving an infinite loading indicator.
 - The system shall show live waiting queue entries for the selected branch.
 - The system shall allow the Live Queue to be collapsed and reopened by touch, mouse, or keyboard on desktop, tablet, and mobile layouts.
 - The system shall expand the table dashboard into all released space when the Live Queue is closed.
@@ -826,7 +833,9 @@ Manager user stories:
 - As a manager, I want to log in securely so only staff can manage the queue.
 - As a manager, I want login to return me directly to my dashboard after onboarding is complete.
 - As a manager, I want to revisit the completed onboarding summary by its explicit URL without being able to rerun setup.
+- As a manager, I want a completed setup summary to survive refreshes, deep links, and new sessions without relying on an old onboarding draft.
 - As a manager, I want the onboarding summary to offer the same QR management actions as the dashboard.
+- As a manager, I want a failed setup-summary load to offer Retry and dashboard access instead of spinning indefinitely.
 - As a manager, I want to see all waiting parties live so I can decide who to seat next.
 - As a manager, I want to see tables grouped by capacity so I can quickly find a good fit.
 - As a manager, I want best-fit and next-best-fit suggestions so I can seat parties quickly without wasting capacity.

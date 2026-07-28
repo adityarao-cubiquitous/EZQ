@@ -542,7 +542,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                     children: [
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Restaurant Name',
                           value: restaurantName,
@@ -550,7 +549,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Branch Name',
                           value: branchName,
@@ -558,7 +556,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Restaurant ID',
                           value: restaurantId ?? 'Pending',
@@ -566,7 +563,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Branch ID',
                           value: branchId ?? 'Pending',
@@ -574,7 +570,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Date Created',
                           value: createdAt?.toIso8601String() ?? 'Pending',
@@ -582,7 +577,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Admin Email',
                           value: adminEmail ?? 'Not available',
@@ -590,7 +584,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'QR URL',
                           value: qrUrl ?? 'Pending',
@@ -598,7 +591,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Floors',
                           value: '$floorCount',
@@ -606,7 +598,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Capacity Types',
                           value: '${selectedTableCapacities.length}',
@@ -614,7 +605,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Tables',
                           value: '$totalTables',
@@ -622,7 +612,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Seats',
                           value: '$totalSeats',

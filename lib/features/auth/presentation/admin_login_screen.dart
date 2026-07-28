@@ -10,7 +10,6 @@ import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../rest_onboarding/providers/restaurant_onboarding_controller.dart';
 import '../data/auth_repository.dart';
-import '../../rest_onboarding/domain/onboarding_provisioning.dart';
 
 class AdminLoginScreen extends ConsumerStatefulWidget {
   const AdminLoginScreen({super.key});
@@ -151,7 +150,6 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
       context.go('/admin/${session.restaurantBranchId}/dashboard');
       return;
     }
-    temporaryAdminContext = session.context;
     context.go('/admin/register/onboarding?${session.onboardingQuery}');
   }
 
@@ -429,24 +427,6 @@ class _TemporaryAdminSession {
         'debugSlug': slug,
       },
     ).query;
-  }
-
-  RestaurantBranchAdminContext get context {
-    return RestaurantBranchAdminContext(
-      uid: adminUid,
-      name: adminName,
-      email: adminEmail,
-      phone: adminPhone,
-      restaurantBranchId: restaurantBranchId,
-      role: 'owner',
-      isActive: true,
-      onboardingCompleted: onboardingCompleted,
-      restaurantName: restaurantName,
-      branchName: branchName,
-      area: area,
-      address: address,
-      slug: slug,
-    );
   }
 }
 

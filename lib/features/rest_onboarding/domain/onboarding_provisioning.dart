@@ -216,6 +216,33 @@ class RestaurantBranchAdminContext {
   String get displayName => '$restaurantName - $branchName';
 
   bool get isProvisioningCompleted => onboardingCompleted && branchActive;
+
+  String get completedQueueUrl {
+    final persistedQueueUrl = queueUrl.trim();
+    if (persistedQueueUrl.isNotEmpty) return persistedQueueUrl;
+    return '/customer/$restaurantBranchId';
+  }
+
+  String? get completedSummaryDataError {
+    if (!onboardingCompleted) return null;
+    if (!branchActive) {
+      return 'This completed restaurant branch is inactive. '
+          'Open the dashboard or contact your EZQ administrator.';
+    }
+
+    final missingFields = <String>[
+      if (restaurantName.trim().isEmpty) 'restaurant name',
+      if (branchName.trim().isEmpty) 'branch name',
+      if (floorCount < 1) 'floor count',
+      if (selectedTableCapacities.isEmpty) 'table capacity types',
+      if (totalTables < 1) 'total tables',
+      if (totalSeats < 1) 'total seats',
+      if (createdAt == null) 'completion timestamp',
+    ];
+    if (missingFields.isEmpty) return null;
+    return 'Completed onboarding data is incomplete in Firestore '
+        '(missing ${missingFields.join(', ')}).';
+  }
 }
 
 class RestaurantOnboardingFailure implements Exception {

@@ -86,33 +86,11 @@ class FirebaseRestaurantOnboardingRepository
       'Document exists=${branchSnapshot.exists}',
     );
     if (!branchSnapshot.exists || branchData == null) {
-      _debugLog(
-        '[OUTLET]\n'
-        'path=$outletPath\n'
-        'Using default empty onboarding context because document is missing.',
+      throw AdminContextLoadException(
+        'Restaurant branch document is missing at $outletPath. '
+        'Onboarding cannot continue until the admin mapping points to an '
+        'existing branch.',
       );
-      final context = RestaurantBranchAdminContext(
-        uid: user.uid,
-        name: (adminData['name'] as String? ?? '').trim(),
-        email: (adminData['email'] as String? ?? '').trim(),
-        phone: (adminData['phone'] as String? ?? '').trim(),
-        restaurantBranchId: restaurantBranchId,
-        role: (adminData['role'] as String? ?? 'owner').trim(),
-        isActive: adminData['isActive'] as bool? ?? false,
-        onboardingCompleted: false,
-        provisioningStatus: 'pending',
-        branchActive: false,
-        restaurantName: _titleFromBranchId(restaurantBranchId),
-        branchName: 'Main',
-        area: '',
-        address: '',
-        slug: restaurantBranchId,
-        onboardingDraft: null,
-      );
-      _debugLog(
-        '[ONBOARDING_REPO] EXIT loadAdminContext missing branch default',
-      );
-      return context;
     }
     _debugLog(
       '[OUTLET]\n'
@@ -146,7 +124,7 @@ class FirebaseRestaurantOnboardingRepository
       onboardingDraft: RestaurantOnboardingDraft.fromFirestore(
         branchData['onboardingDraft'],
       ),
-      floorCount: _readInt(branchData['floorCount'], fallback: 1).clamp(1, 15),
+      floorCount: _readInt(branchData['floorCount']).clamp(0, 15),
       selectedTableCapacities: _readPositiveIntList(
         branchData['capacityTypes'],
       ),
@@ -486,18 +464,6 @@ class FirebaseRestaurantOnboardingRepository
         cause: error,
       );
     }
-  }
-
-  String _titleFromBranchId(String restaurantBranchId) {
-    final words = restaurantBranchId
-        .split(RegExp(r'[-_\s]+'))
-        .where((word) => word.trim().isNotEmpty)
-        .map((word) {
-          final lower = word.toLowerCase();
-          return lower[0].toUpperCase() + lower.substring(1);
-        });
-    final title = words.join(' ').trim();
-    return title.isEmpty ? restaurantBranchId : title;
   }
 
   int _readInt(Object? value, {int fallback = 0}) {

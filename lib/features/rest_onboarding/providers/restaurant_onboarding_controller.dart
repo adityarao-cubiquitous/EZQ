@@ -16,8 +16,6 @@ final restaurantOnboardingControllerProvider =
       RestaurantOnboardingController.new,
     );
 
-RestaurantBranchAdminContext? temporaryAdminContext;
-
 bool duplicateRestaurantBranch(String restaurant, String branch) {
   return false;
 }
@@ -497,7 +495,16 @@ class RestaurantOnboardingController
         isLoadingAdminContext: false,
         clearAdminContextError: true,
       );
-      if (context.isProvisioningCompleted) {
+      if (context.onboardingCompleted) {
+        final summaryDataError = context.completedSummaryDataError;
+        if (summaryDataError != null) {
+          state = nextState.copyWith(adminContextError: summaryDataError);
+          debugPrint(
+            '[ONBOARDING_CONTROLLER] EXIT loadAdminContext '
+            'completed-summary-invalid',
+          );
+          return;
+        }
         nextState = _withSynchronizedTableConfiguration(
           nextState.copyWith(
             currentStepIndex: 3,
@@ -520,9 +527,7 @@ class RestaurantOnboardingController
               adminEmail: context.email.isEmpty
                   ? 'Not available'
                   : context.email,
-              qrUrl: context.queueUrl.isEmpty
-                  ? '/customer/${context.restaurantBranchId}'
-                  : context.queueUrl,
+              qrUrl: context.completedQueueUrl,
             ),
           ),
         );
@@ -564,6 +569,13 @@ class RestaurantOnboardingController
       );
       debugPrint('[ONBOARDING_CONTROLLER] EXIT loadAdminContext error');
     }
+  }
+
+  void reportAdminContextLoadFailure(Object error) {
+    state = state.copyWith(
+      isLoadingAdminContext: false,
+      adminContextError: 'Unable to load onboarding details: $error',
+    );
   }
 
   void updateRestaurantName(String value) {
