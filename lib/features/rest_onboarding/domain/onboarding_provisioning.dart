@@ -3,7 +3,8 @@ enum OnboardingProvisioningStep {
   createFloors,
   createTables,
   createSettings,
-  updateAdmin;
+  updateAdmin,
+  commitProvisioning;
 
   String get label {
     return switch (this) {
@@ -13,6 +14,7 @@ enum OnboardingProvisioningStep {
       OnboardingProvisioningStep.createTables => 'Create Tables',
       OnboardingProvisioningStep.createSettings => 'Create Settings',
       OnboardingProvisioningStep.updateAdmin => 'Update Admin',
+      OnboardingProvisioningStep.commitProvisioning => 'Commit Provisioning',
     };
   }
 }

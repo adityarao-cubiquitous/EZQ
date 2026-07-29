@@ -726,7 +726,7 @@ class RestaurantOnboardingController
         ),
       );
     } catch (error) {
-      const fallbackStep = OnboardingProvisioningStep.updateAdmin;
+      const fallbackStep = OnboardingProvisioningStep.commitProvisioning;
       state = state.copyWith(
         isProvisioning: false,
         failedProvisioningStep: fallbackStep,

@@ -319,6 +319,7 @@ class FirebaseRestaurantOnboardingRepository
     batch.update(branchRef, <String, dynamic>{
       'onboardingCompleted': true,
       'provisioningStatus': 'completed',
+      'onboardingCompletedAt': FieldValue.serverTimestamp(),
       'qrEnabled': true,
       'qrSlug': request.restaurantBranchId,
       'queueUrl': hostedQrUrl,
@@ -411,18 +412,44 @@ class FirebaseRestaurantOnboardingRepository
         });
 
     _markStarted(OnboardingProvisioningStep.updateAdmin, onStepStarted);
-    batch.update(adminRef, <String, dynamic>{
-      'onboardedAt': FieldValue.serverTimestamp(),
-    });
+    batch.update(adminRef, buildAdminProvisioningCompletionUpdate());
 
+    _markStarted(OnboardingProvisioningStep.commitProvisioning, onStepStarted);
+    _debugLog(
+      '[ONBOARDING_PROVISIONING]\n'
+      'method=WriteBatch.commit\n'
+      'authenticatedUid=${user.uid}\n'
+      'expectedUid=${adminContext.uid}\n'
+      'adminPath=${adminRef.path}\n'
+      'branchPath=${branchRef.path}\n'
+      'restaurantBranchId=${request.restaurantBranchId}\n'
+      'adminFields=onboardingCompleted,onboardedAt\n'
+      'branchFields=onboardingCompleted,provisioningStatus,'
+      'onboardingCompletedAt,qrEnabled,qrSlug,queueUrl,qrPngLocalPath,'
+      'qrSvgLocalPath,floorCount,totalTables,totalSeats,capacityTypes,'
+      'onboardingDraft,onboardingDraftUpdatedAt,updatedAt\n'
+      'floorWrites=${request.floorCount}\n'
+      'tableWrites=${request.totalTables}\n'
+      'settingsWrites=1\n'
+      'totalWrites=$batchWriteCount',
+    );
     try {
       await batch.commit();
       for (final step in OnboardingProvisioningStep.values) {
         onStepCompleted(step);
       }
-    } catch (error) {
+    } catch (error, stackTrace) {
+      _debugLog(
+        '[ONBOARDING_PROVISIONING]\n'
+        'commit=failed\n'
+        'authenticatedUid=${user.uid}\n'
+        'adminPath=${adminRef.path}\n'
+        'branchPath=${branchRef.path}\n'
+        'error=$error\n'
+        'stackTrace=$stackTrace',
+      );
       throw RestaurantOnboardingFailure(
-        step: OnboardingProvisioningStep.updateAdmin,
+        step: OnboardingProvisioningStep.commitProvisioning,
         message: 'Provisioning failed: $error',
         cause: error,
       );
@@ -491,6 +518,14 @@ class FirebaseRestaurantOnboardingRepository
   void _debugLog(String message) {
     debugPrint(message);
   }
+}
+
+@visibleForTesting
+Map<String, dynamic> buildAdminProvisioningCompletionUpdate() {
+  return <String, dynamic>{
+    'onboardingCompleted': true,
+    'onboardedAt': FieldValue.serverTimestamp(),
+  };
 }
 
 class AdminContextLoadException implements Exception {

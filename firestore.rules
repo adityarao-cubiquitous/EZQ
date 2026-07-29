@@ -18,6 +18,19 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/restaurantBranches/$(restaurantBranchId)).data.isActive == true;
     }
 
+    function hasConsistentOnboardingState() {
+      return request.resource.data.keys().hasAll([
+          'onboardingCompleted',
+          'provisioningStatus'
+        ])
+        && (
+          (request.resource.data.onboardingCompleted == true
+            && request.resource.data.provisioningStatus == 'completed')
+          || (request.resource.data.onboardingCompleted == false
+            && request.resource.data.provisioningStatus == 'pending')
+        );
+    }
+
     function isCustomerJoinCounterCreate(businessDate) {
       return request.resource.data.keys().hasOnly([
           'businessDate',
@@ -112,7 +125,11 @@ service cloud.firestore {
           'onboardingCompleted',
           'onboardedAt'
         ])
-        && request.resource.data.restaurantBranchId == resource.data.restaurantBranchId;
+        && request.resource.data.restaurantBranchId == resource.data.restaurantBranchId
+        && request.resource.data.onboardingCompleted
+          == getAfter(
+            /databases/$(database)/documents/restaurantBranches/$(resource.data.restaurantBranchId)
+          ).data.onboardingCompleted;
       allow create, delete: if false;
     }
 
@@ -120,6 +137,11 @@ service cloud.firestore {
       allow read: if resource.data.isActive == true
         || isRootRestaurantBranchAdmin(restaurantBranchId);
       allow update: if isRootRestaurantBranchAdmin(restaurantBranchId)
+        && hasConsistentOnboardingState()
+        && request.resource.data.onboardingCompleted
+          == getAfter(
+            /databases/$(database)/documents/admins/$(request.auth.uid)
+          ).data.onboardingCompleted
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'onboardingCompleted',
           'provisioningStatus',
@@ -132,6 +154,7 @@ service cloud.firestore {
           'totalTables',
           'totalSeats',
           'capacityTypes',
+          'onboardingCompletedAt',
           'onboardingDraft',
           'onboardingDraftUpdatedAt',
           'updatedAt'
