@@ -349,6 +349,7 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
       branchId: branchId,
       queueEntryId: queueEntryId,
       phone: phone,
+      transitionTo: QueueStatus.onTheWay,
       data: {
         'status': QueueStatus.onTheWay.wireName,
         'onTheWayAt': FieldValue.serverTimestamp(),
@@ -387,6 +388,7 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
       branchId: branchId,
       queueEntryId: queueEntryId,
       phone: phone,
+      transitionTo: QueueStatus.cancelled,
       data: {
         'status': QueueStatus.cancelled.wireName,
         'cancelledAt': FieldValue.serverTimestamp(),
@@ -400,6 +402,7 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     required String queueEntryId,
     required String phone,
     required Map<String, Object?> data,
+    QueueStatus? transitionTo,
   }) async {
     final resolvedBranchSlug = await _resolveBranchSlug(
       restaurantId: restaurantId,
@@ -415,6 +418,18 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
       }
       if (snapshot.data()?['phone'] != PhoneUtils.normalizeIndiaMobile(phone)) {
         throw StateError('Phone number does not match this queue entry.');
+      }
+      final nextStatus = transitionTo;
+      if (nextStatus != null) {
+        final currentStatus = QueueStatus.fromWireName(
+          snapshot.data()?['status'] as String?,
+        );
+        if (!currentStatus.canTransitionTo(nextStatus)) {
+          throw StateError(
+            'Queue entry cannot transition from '
+            '${currentStatus.wireName} to ${nextStatus.wireName}.',
+          );
+        }
       }
       transaction.update(entryRef, {
         ...data,
@@ -535,6 +550,11 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
     joinedAt: DateTime.now().subtract(const Duration(minutes: 7)),
   );
 
+  void setStatusForTesting(QueueStatus status) {
+    _entry = _entry.copyWith(status: status);
+    _controller.add(_entry);
+  }
+
   @override
   Future<ActiveQueueConflictException?> findActiveQueueEntry({
     required String phone,
@@ -637,8 +657,7 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
     required String queueEntryId,
     required String phone,
   }) async {
-    _entry = _entry.copyWith(status: QueueStatus.onTheWay);
-    _controller.add(_entry);
+    _transitionTo(QueueStatus.onTheWay);
   }
 
   @override
@@ -656,8 +675,18 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
     required String queueEntryId,
     required String phone,
   }) async {
-    _entry = _entry.copyWith(status: QueueStatus.cancelled);
+    _transitionTo(QueueStatus.cancelled);
     _hasJoinedActiveQueue = false;
+  }
+
+  void _transitionTo(QueueStatus nextStatus) {
+    if (!_entry.status.canTransitionTo(nextStatus)) {
+      throw StateError(
+        'Queue entry cannot transition from '
+        '${_entry.status.wireName} to ${nextStatus.wireName}.',
+      );
+    }
+    _entry = _entry.copyWith(status: nextStatus);
     _controller.add(_entry);
   }
 }
@@ -701,7 +730,7 @@ final queueEntryProvider =
         branchId: args.branchId,
         queueEntryId: args.queueEntryId,
       );
-    });
+    }, retry: (_, _) => null);
 
 final queueAheadCountProvider = StreamProvider.family<int, QueueEntryWatchArgs>(
   (ref, args) {
@@ -713,6 +742,7 @@ final queueAheadCountProvider = StreamProvider.family<int, QueueEntryWatchArgs>(
           queueEntryId: args.queueEntryId,
         );
   },
+  retry: (_, _) => null,
 );
 
 typedef CurrentVisitLookupArgs = ({String phone, String? customerId});

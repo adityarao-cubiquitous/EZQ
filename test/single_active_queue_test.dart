@@ -89,6 +89,7 @@ void main() {
     );
 
     await repository.joinQueue(firstJoin);
+    repository.setStatusForTesting(QueueStatus.reserved);
     await repository.markOnTheWay(
       restaurantId: firstJoin.restaurantId,
       branchId: firstJoin.branchId,
@@ -108,6 +109,40 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('customer cancellation is rejected after seating', () async {
+    final repository = MockCustomerQueueRepository();
+    final request = _request(
+      restaurantId: 'restaurant-a',
+      branchId: 'branch-a',
+    );
+
+    await repository.joinQueue(request);
+    repository.setStatusForTesting(QueueStatus.seated);
+
+    await expectLater(
+      repository.cancelQueueEntry(
+        restaurantId: request.restaurantId,
+        branchId: request.branchId,
+        queueEntryId: 'demo-entry',
+        phone: request.phone,
+      ),
+      throwsStateError,
+    );
+  });
+
+  test('terminal queue entries cannot transition again', () {
+    for (final status in QueueStatus.values.where(
+      (status) => status.isTerminal,
+    )) {
+      expect(
+        status.canTransitionTo(QueueStatus.waiting),
+        isFalse,
+        reason: '${status.wireName} must stay terminal',
+      );
+      expect(status.canBeCancelledByCustomer, isFalse);
+    }
   });
 }
 

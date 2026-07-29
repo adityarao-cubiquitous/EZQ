@@ -156,6 +156,15 @@ class FirebaseTableRepository implements TableRepository {
       if (status != TableStatus.available) {
         throw StateError('Selected table is no longer available.');
       }
+      final entryStatus = QueueStatus.fromWireName(
+        entrySnapshot.data()?['status'] as String?,
+      );
+      if (!entryStatus.canTransitionTo(QueueStatus.seated)) {
+        throw StateError(
+          'Queue entry cannot transition from '
+          '${entryStatus.wireName} to ${QueueStatus.seated.wireName}.',
+        );
+      }
       final tableData = tableSnapshot.data();
       final previousCycleEndAt =
           tableData?['lastCycleEndAt'] ?? tableData?['lastCompletedAt'];
@@ -317,6 +326,16 @@ class FirebaseTableRepository implements TableRepository {
           '[TABLE_REPO] Completing meal for tableId=$tableId with missing '
           'queueEntryId=$queueEntryId. Freeing table and skipping queue update.',
         );
+      } else {
+        final entryStatus = QueueStatus.fromWireName(
+          entrySnapshot.data()?['status'] as String?,
+        );
+        if (!entryStatus.canTransitionTo(QueueStatus.completed)) {
+          throw StateError(
+            'Queue entry cannot transition from '
+            '${entryStatus.wireName} to ${QueueStatus.completed.wireName}.',
+          );
+        }
       }
       final tableData = tableSnapshot.data();
       final entryData = entrySnapshot.data();
