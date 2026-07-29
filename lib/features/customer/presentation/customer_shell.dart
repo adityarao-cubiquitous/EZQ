@@ -9,6 +9,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/brand_mark.dart';
+import '../../../core/widgets/restaurant_logo.dart';
 import '../../auth/data/auth_repository.dart';
 
 enum CustomerTab { join, status, menu, support }
@@ -253,7 +254,19 @@ class _CustomerTopBar extends ConsumerWidget {
                       _AppBackButton(route: appBackRoute!),
                       const SizedBox(width: 8),
                     ],
-                    const BrandMark(size: 25),
+                    if (restaurantId.isEmpty || branchId.isEmpty)
+                      const BrandMark(size: 25)
+                    else
+                      RestaurantLogo(
+                        restaurantBranchId:
+                            FirestorePaths.restaurantBranchIdFromRoute(
+                              restaurantId,
+                              branchId,
+                            ),
+                        size: 25,
+                        shape: RestaurantLogoShape.circle,
+                        showShadow: false,
+                      ),
                     const SizedBox(width: 8),
                     const Text(
                       'EZQ',

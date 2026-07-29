@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../../../core/constants/restaurant_logo_assets.dart';
 
 const _hostingOrigin = 'https://ezq-dev-cubiquitous.web.app';
 
@@ -100,6 +101,7 @@ class QrManagementRepository {
     );
     final generatedAtValue = data['qrGeneratedAt'];
     final logoUrl = (data['logoUrl'] as String? ?? '').trim();
+    final logoAsset = (data['logoAsset'] as String? ?? '').trim();
 
     return BranchQrInfo(
       restaurantId: restaurantId,
@@ -107,7 +109,11 @@ class QrManagementRepository {
       restaurantName: restaurantName,
       branchName: branchName,
       queueUrl: queueUrl,
-      restaurantLogoUrl: logoUrl.isEmpty ? null : logoUrl,
+      restaurantLogoUrl: logoUrl.isEmpty
+          ? logoAsset.isEmpty
+                ? RestaurantLogoAssets.forBranch(restaurantBranchId)
+                : logoAsset
+          : logoUrl,
       generatedAt: switch (generatedAtValue) {
         Timestamp timestamp => timestamp.toDate(),
         String isoDate => DateTime.tryParse(isoDate),

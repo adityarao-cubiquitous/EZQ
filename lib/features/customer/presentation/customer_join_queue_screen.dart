@@ -408,6 +408,7 @@ class _CustomerJoinQueueScreenState
         child: Column(
           children: [
             _HeroHeader(
+              restaurantBranchId: widget.restaurantId,
               restaurantName: widget.restaurantName,
               branchName: widget.branchName,
             ),
@@ -542,8 +543,13 @@ bool _tableCanFitParty(
 // ─────────────────────────── Hero header ─────────────────────────────────────
 
 class _HeroHeader extends StatelessWidget {
-  const _HeroHeader({required this.restaurantName, required this.branchName});
+  const _HeroHeader({
+    required this.restaurantBranchId,
+    required this.restaurantName,
+    required this.branchName,
+  });
 
+  final String restaurantBranchId;
   final String restaurantName;
   final String branchName;
 
@@ -551,7 +557,7 @@ class _HeroHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const RestaurantLogo(size: 66),
+        RestaurantLogo(restaurantBranchId: restaurantBranchId, size: 66),
         const SizedBox(height: 14),
         StatusBadge(
           label: '$branchName Branch',

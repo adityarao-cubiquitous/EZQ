@@ -29,6 +29,10 @@ class DailySummaryScreen extends StatelessWidget {
         child: Column(
           children: [
             _AnalyticsNavbar(
+              restaurantBranchId: FirestorePaths.restaurantBranchIdFromRoute(
+                restaurantId,
+                branchId,
+              ),
               restaurantName: adminRestaurantDisplayName(restaurantId),
               onBackToDashboard: () => context.go(
                 '${FirestorePaths.adminRoute(restaurantId, branchId)}/dashboard',
@@ -46,10 +50,12 @@ class DailySummaryScreen extends StatelessWidget {
 
 class _AnalyticsNavbar extends StatelessWidget {
   const _AnalyticsNavbar({
+    required this.restaurantBranchId,
     required this.restaurantName,
     required this.onBackToDashboard,
   });
 
+  final String restaurantBranchId;
   final String restaurantName;
   final VoidCallback onBackToDashboard;
 
@@ -72,6 +78,7 @@ class _AnalyticsNavbar extends StatelessWidget {
           child: Align(
             alignment: Alignment.centerLeft,
             child: AdminBranchIdentityPill(
+              restaurantBranchId: restaurantBranchId,
               restaurantName: restaurantName,
               compact: compact,
             ),

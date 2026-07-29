@@ -222,6 +222,7 @@ class _RestaurantOnboardingScreenState
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _OnboardingTopBar(
+                    restaurantBranchId: state.restaurantBranchId,
                     restaurantName: state.trimmedRestaurantName.isEmpty
                         ? state.restaurantBranchId
                         : state.trimmedRestaurantName,
@@ -409,10 +410,12 @@ class _RestaurantOnboardingScreenState
 
 class _OnboardingTopBar extends StatelessWidget {
   const _OnboardingTopBar({
+    required this.restaurantBranchId,
     required this.restaurantName,
     required this.onLogout,
   });
 
+  final String restaurantBranchId;
   final String restaurantName;
   final VoidCallback onLogout;
 
@@ -449,6 +452,7 @@ class _OnboardingTopBar extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: AdminBranchIdentityPill(
+                    restaurantBranchId: restaurantBranchId,
                     restaurantName: restaurantName,
                     compact: true,
                   ),
@@ -466,7 +470,10 @@ class _OnboardingTopBar extends StatelessWidget {
                 children: [
                   const BrandMark(size: 70),
                   const SizedBox(width: 30),
-                  AdminBranchIdentityPill(restaurantName: restaurantName),
+                  AdminBranchIdentityPill(
+                    restaurantBranchId: restaurantBranchId,
+                    restaurantName: restaurantName,
+                  ),
                   const Spacer(),
                   IconButton(
                     tooltip: 'Logout',

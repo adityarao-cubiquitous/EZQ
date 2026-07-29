@@ -1303,7 +1303,10 @@ class _QueueStatusCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const RestaurantLogo(size: 42),
+              RestaurantLogo(
+                restaurantBranchId: branchLink.branch.id,
+                size: 42,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
