@@ -387,7 +387,6 @@ await patchDocument(`${basePath}/dailyCounters/${businessDate}`, {
 await patchDocument(basePath, {
   restaurantBranchId,
   isActive: true,
-  onboardingCompleted: true,
   floorCount: floors.length,
   totalTables: tables.length,
   totalSeats: tables.reduce((total, table) => total + table.capacity, 0),

@@ -172,6 +172,7 @@ await patchDocument(`restaurantBranches/${restaurantBranchId}`, {
   qrSlug: 'biryani-bay-domlur-edge',
   isActive: true,
   onboardingCompleted: false,
+  provisioningStatus: 'pending',
   floorCount: 0,
   totalTables: 0,
   totalSeats: 0,
@@ -188,6 +189,7 @@ await patchDocument(`admins/${adminAuth.localId}`, {
   restaurantBranchId,
   role: 'owner',
   isActive: true,
+  onboardingCompleted: false,
   createdAt: now,
   updatedAt: now,
 });
