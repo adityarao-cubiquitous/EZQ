@@ -170,36 +170,43 @@ class _ReadOnlyDetailsGrid extends StatelessWidget {
             icon: Icons.badge_outlined,
             label: 'Admin Name',
             value: adminName,
+            missingSource: 'admins/{uid}.name',
           ),
           _ReadOnlyDetailItem(
             icon: Icons.mail_outline_rounded,
             label: 'Email',
             value: adminEmail,
+            missingSource: 'admins/{uid}.email',
           ),
           _ReadOnlyDetailItem(
             icon: Icons.phone_outlined,
             label: 'Admin Phone',
             value: adminPhone,
+            missingSource: 'admins/{uid}.phone',
           ),
           _ReadOnlyDetailItem(
             icon: Icons.storefront_outlined,
             label: 'Restaurant',
             value: restaurantName,
+            missingSource: 'restaurantBranches/{branchId}.restaurantName',
           ),
           _ReadOnlyDetailItem(
             icon: Icons.apartment_rounded,
             label: 'Branch',
             value: branchName,
+            missingSource: 'restaurantBranches/{branchId}.branchName',
           ),
           _ReadOnlyDetailItem(
             icon: Icons.location_on_outlined,
             label: 'Area',
             value: area,
+            missingSource: 'restaurantBranches/{branchId}.area',
           ),
           _ReadOnlyDetailItem(
             icon: Icons.map_outlined,
             label: 'Address',
             value: address,
+            missingSource: 'restaurantBranches/{branchId}.address',
           ),
         ];
 
@@ -232,15 +239,20 @@ class _ReadOnlyDetailItem extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    required this.missingSource,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final String missingSource;
 
   @override
   Widget build(BuildContext context) {
-    final displayValue = value.trim().isEmpty ? 'Not specified' : value.trim();
+    final isMissing = value.trim().isEmpty;
+    final displayValue = isMissing
+        ? 'Missing required Firestore field: $missingSource'
+        : value.trim();
 
     return Container(
       constraints: const BoxConstraints(minHeight: 72),
@@ -270,7 +282,7 @@ class _ReadOnlyDetailItem extends StatelessWidget {
                 Text(
                   displayValue,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.navyText,
+                    color: isMissing ? AppColors.errorRed : AppColors.navyText,
                     fontWeight: FontWeight.w800,
                   ),
                 ),

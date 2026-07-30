@@ -124,8 +124,26 @@ class RestaurantOnboardingState {
       restaurantBranchId.trim().isNotEmpty &&
       adminContextError == null &&
       !isLoadingAdminContext &&
-      restaurantName.trim().isNotEmpty &&
-      branchName.trim().isNotEmpty;
+      adminName.trim().isNotEmpty &&
+      adminEmail.trim().isNotEmpty &&
+      adminPhone.trim().isNotEmpty &&
+      restaurantHasValidLength &&
+      branchHasValidLength &&
+      area.trim().isNotEmpty &&
+      address.trim().isNotEmpty;
+
+  List<String> get step1ValidationFailures => <String>[
+    if (restaurantBranchId.trim().isEmpty) 'restaurantBranchId',
+    if (adminName.trim().isEmpty) 'admins.name',
+    if (adminEmail.trim().isEmpty) 'admins.email',
+    if (adminPhone.trim().isEmpty) 'admins.phone',
+    if (!restaurantHasValidLength) 'restaurantBranches.restaurantName',
+    if (!branchHasValidLength) 'restaurantBranches.branchName',
+    if (area.trim().isEmpty) 'restaurantBranches.area',
+    if (address.trim().isEmpty) 'restaurantBranches.address',
+    if (adminContextError != null) 'adminContextError',
+    if (isLoadingAdminContext) 'loading',
+  ];
 
   int get totalTables {
     return tableCountsByFloor.fold<int>(
@@ -487,6 +505,44 @@ class RestaurantOnboardingController
         isLoadingAdminContext: false,
         clearAdminContextError: true,
       );
+      if (context.isProvisioningCompleted) {
+        final completionTime =
+            context.onboardingCompletedAt ?? context.onboardedAt;
+        if (completionTime == null) {
+          state = nextState.copyWith(
+            adminContextError:
+                'Completed onboarding is missing onboardingCompletedAt and '
+                'admins/${context.uid}.onboardedAt.',
+          );
+          return;
+        }
+        nextState = _withSynchronizedTableConfiguration(
+          nextState.copyWith(
+            currentStepIndex: 3,
+            completedStepIndexes: const <int>{0, 1, 2},
+            floorCount: context.floorCount,
+            selectedTableCapacities: context.capacityTypes,
+            tableCountsByFloor: context.tableCountsByFloor,
+            provisioningProgress: [
+              for (final step in OnboardingProvisioningStep.values)
+                ProvisioningStepProgress(
+                  step: step,
+                  status: ProvisioningStepStatus.complete,
+                ),
+            ],
+            provisioningResult: RestaurantOnboardingResult(
+              restaurantBranchId: context.restaurantBranchId,
+              createdAt: completionTime,
+              adminEmail: context.email.isEmpty
+                  ? 'Not available'
+                  : context.email,
+              qrUrl: context.queueUrl,
+            ),
+            clearFailedProvisioningStep: true,
+            clearProvisioningErrorMessage: true,
+          ),
+        );
+      }
       final draft = context.onboardingDraft;
       if (draft != null &&
           draft.restaurantBranchId == context.restaurantBranchId &&
@@ -506,6 +562,18 @@ class RestaurantOnboardingController
         );
       }
       state = nextState;
+      debugPrint(
+        '[ONBOARDING_VALIDATION] '
+        'restaurant=${state.restaurantHasValidLength ? 'valid' : 'invalid'} '
+        'branch=${state.branchHasValidLength ? 'valid' : 'invalid'} '
+        'area=${state.area.trim().isNotEmpty ? 'valid' : 'invalid'} '
+        'address=${state.address.trim().isNotEmpty ? 'valid' : 'invalid'} '
+        'adminName=${state.adminName.trim().isNotEmpty ? 'valid' : 'invalid'} '
+        'phone=${state.adminPhone.trim().isNotEmpty ? 'valid' : 'invalid'} '
+        'email=${state.adminEmail.trim().isNotEmpty ? 'valid' : 'invalid'} '
+        'continueEnabled=${state.isStep1Valid} '
+        'reason=${state.step1ValidationFailures.join(',')}',
+      );
       debugPrint('[ONBOARDING_CONTROLLER] EXIT loadAdminContext success');
     } catch (error, stackTrace) {
       debugPrint(

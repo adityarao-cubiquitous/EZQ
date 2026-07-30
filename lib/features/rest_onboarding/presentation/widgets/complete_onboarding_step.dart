@@ -871,13 +871,8 @@ class _FooterActions extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _SecondaryButton(
-            label: 'Download Setup Summary',
+            label: 'View Setup Summary',
             onPressed: onDownloadSetupSummary,
-          ),
-          const SizedBox(height: 12),
-          _SecondaryButton(
-            label: 'Manage QR',
-            onPressed: () => _showComingSoon(context, 'QR management'),
           ),
           const SizedBox(height: 12),
           _GradientButton(label: 'Go to Dashboard', onPressed: onGoToDashboard),
@@ -890,15 +885,8 @@ class _FooterActions extends StatelessWidget {
         const Spacer(),
         Flexible(
           child: _SecondaryButton(
-            label: 'Download Setup Summary',
+            label: 'View Setup Summary',
             onPressed: onDownloadSetupSummary,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Flexible(
-          child: _SecondaryButton(
-            label: 'Manage QR',
-            onPressed: () => _showComingSoon(context, 'QR management'),
           ),
         ),
         const SizedBox(width: 16),
@@ -909,12 +897,6 @@ class _FooterActions extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  void _showComingSoon(BuildContext context, String label) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label will be available after integration.')),
     );
   }
 }

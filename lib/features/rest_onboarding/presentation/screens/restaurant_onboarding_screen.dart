@@ -29,8 +29,6 @@ class _RestaurantOnboardingScreenState
     OnboardingWizardStep(number: 3, label: 'Review & Confirm'),
     OnboardingWizardStep(number: 4, label: 'Complete Onboarding'),
   ];
-  bool _didInitialize = false;
-
   RestaurantOnboardingController get _controller {
     return ref.read(restaurantOnboardingControllerProvider.notifier);
   }
@@ -38,14 +36,10 @@ class _RestaurantOnboardingScreenState
   @override
   void initState() {
     super.initState();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_didInitialize) return;
-    _didInitialize = true;
-    _initialize();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _initialize();
+    });
   }
 
   Future<void> _initialize() async {
@@ -56,38 +50,31 @@ class _RestaurantOnboardingScreenState
       '[ONBOARDING_INIT] ENTER _initialize '
       'pathRestaurantBranchId=${restaurantBranchId ?? ''}',
     );
-    try {
-      debugPrint(
-        '[ONBOARDING_INIT] BEFORE await completedOnboardingForCurrentAdmin',
-      );
-      final completion = await _controller
-          .completedOnboardingForCurrentAdmin()
-          .timeout(const Duration(seconds: 12));
-      debugPrint(
-        '[ONBOARDING_INIT] AFTER await completedOnboardingForCurrentAdmin '
-        'completion=${completion?.restaurantBranchId ?? 'null'}',
-      );
-      if (!mounted) return;
-      if (completion != null) {
-        debugPrint(
-          '[ONBOARDING_INIT] REDIRECT dashboard '
-          'restaurantBranchId=${completion.restaurantBranchId}',
-        );
-        context.go('/admin/${completion.restaurantBranchId}/dashboard');
-        return;
-      }
-    } catch (error, stackTrace) {
-      debugPrint(
-        '[ONBOARDING_INIT] completedOnboardingForCurrentAdmin failed: $error\n'
-        '$stackTrace',
-      );
-      if (!mounted) return;
-    }
     debugPrint('[ONBOARDING_INIT] BEFORE await loadAdminContext');
     await _controller.loadAdminContext(
       expectedRestaurantBranchId: restaurantBranchId,
     );
     debugPrint('[ONBOARDING_INIT] AFTER await loadAdminContext');
+  }
+
+  Future<void> _retryAdminContext() {
+    final restaurantBranchId = GoRouterState.of(
+      context,
+    ).pathParameters['restaurantBranchId']?.trim();
+    return _controller.loadAdminContext(
+      expectedRestaurantBranchId: restaurantBranchId,
+    );
+  }
+
+  void _goToDashboardFromRoute() {
+    final restaurantBranchId = GoRouterState.of(
+      context,
+    ).pathParameters['restaurantBranchId']?.trim();
+    if (restaurantBranchId == null || restaurantBranchId.isEmpty) {
+      context.go('/admin/login');
+      return;
+    }
+    context.go('/admin/$restaurantBranchId/dashboard');
   }
 
   Future<void> _saveDraft() async {
@@ -144,19 +131,22 @@ class _RestaurantOnboardingScreenState
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Setup Summary'),
+          title: Row(
+            children: [
+              const Expanded(child: Text('Setup Summary')),
+              IconButton(
+                tooltip: 'Close',
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
           content: SizedBox(
             width: 560,
             child: SingleChildScrollView(
               child: SelectableText(state.setupSummaryText(result)),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
         );
       },
     );
@@ -228,28 +218,30 @@ class _RestaurantOnboardingScreenState
                         : state.trimmedRestaurantName,
                     onLogout: _logoutAdmin,
                   ),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      horizontalPadding,
-                      isMobile ? 16 : 24,
-                      horizontalPadding,
-                      0,
+                  if (state.provisioningResult == null) ...[
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        horizontalPadding,
+                        isMobile ? 16 : 24,
+                        horizontalPadding,
+                        0,
+                      ),
+                      child: RestaurantOnboardingWizardBar(
+                        steps: _steps,
+                        currentStepIndex: state.currentStepIndex,
+                        completedStepIndexes: state.completedStepIndexes,
+                        enabledStepIndexes: state.enabledStepIndexes,
+                        onStepSelected: (index) {
+                          if (state.isProvisioning) {
+                            _showProvisioningWarning();
+                            return;
+                          }
+                          _controller.selectStep(index);
+                        },
+                      ),
                     ),
-                    child: RestaurantOnboardingWizardBar(
-                      steps: _steps,
-                      currentStepIndex: state.currentStepIndex,
-                      completedStepIndexes: state.completedStepIndexes,
-                      enabledStepIndexes: state.enabledStepIndexes,
-                      onStepSelected: (index) {
-                        if (state.isProvisioning) {
-                          _showProvisioningWarning();
-                          return;
-                        }
-                        _controller.selectStep(index);
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 8),
+                    const SizedBox(height: 8),
+                  ],
                   Expanded(
                     child: Center(
                       child: ConstrainedBox(
@@ -319,10 +311,22 @@ class _RestaurantOnboardingScreenState
                   ),
                 ),
                 const SizedBox(height: 20),
-                OutlinedButton.icon(
-                  onPressed: _controller.loadAdminContext,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Retry'),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _retryAdminContext,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Retry'),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _goToDashboardFromRoute,
+                      icon: const Icon(Icons.dashboard_outlined),
+                      label: const Text('Go to Dashboard'),
+                    ),
+                  ],
                 ),
               ],
             ),

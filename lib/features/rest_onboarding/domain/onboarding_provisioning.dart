@@ -19,6 +19,35 @@ enum OnboardingProvisioningStep {
   }
 }
 
+enum RestaurantProvisioningStage {
+  branch,
+  qr,
+  floors,
+  tables,
+  settings,
+  admin,
+  commit;
+
+  String get logName => name;
+
+  OnboardingProvisioningStep get uiStep {
+    return switch (this) {
+      RestaurantProvisioningStage.branch || RestaurantProvisioningStage.qr =>
+        OnboardingProvisioningStep.updateRestaurantBranch,
+      RestaurantProvisioningStage.floors =>
+        OnboardingProvisioningStep.createFloors,
+      RestaurantProvisioningStage.tables =>
+        OnboardingProvisioningStep.createTables,
+      RestaurantProvisioningStage.settings =>
+        OnboardingProvisioningStep.createSettings,
+      RestaurantProvisioningStage.admin =>
+        OnboardingProvisioningStep.updateAdmin,
+      RestaurantProvisioningStage.commit =>
+        OnboardingProvisioningStep.commitProvisioning,
+    };
+  }
+}
+
 enum ProvisioningStepStatus { pending, running, complete, failed }
 
 class ProvisioningStepProgress {
@@ -56,6 +85,15 @@ class RestaurantOnboardingRequest {
   final List<List<int>> tableCountsByFloor;
   final int totalTables;
   final int totalSeats;
+
+  String get provisioningFingerprint {
+    final capacityKey = selectedTableCapacities.join(',');
+    final tableKey = tableCountsByFloor
+        .map((counts) => counts.join(','))
+        .join(';');
+    return 'v1|$restaurantBranchId|$floorCount|$capacityKey|$tableKey|'
+        '$totalTables|$totalSeats';
+  }
 }
 
 class RestaurantOnboardingResult {
@@ -176,6 +214,7 @@ class RestaurantBranchAdminContext {
     required this.role,
     required this.isActive,
     required this.onboardingCompleted,
+    this.adminOnboardingCompleted = false,
     this.provisioningStatus = 'pending',
     this.branchActive = true,
     required this.restaurantName,
@@ -183,6 +222,15 @@ class RestaurantBranchAdminContext {
     required this.area,
     required this.address,
     required this.slug,
+    this.floorCount = 0,
+    this.totalTables = 0,
+    this.totalSeats = 0,
+    this.capacityTypes = const <int>[],
+    this.tableCountsByFloor = const <List<int>>[],
+    this.onboardingCompletedAt,
+    this.onboardedAt,
+    this.queueUrl = '',
+    this.provisioningFingerprint = '',
     this.onboardingDraft,
   });
 
@@ -194,6 +242,7 @@ class RestaurantBranchAdminContext {
   final String role;
   final bool isActive;
   final bool onboardingCompleted;
+  final bool adminOnboardingCompleted;
   final String provisioningStatus;
   final bool branchActive;
   final String restaurantName;
@@ -201,11 +250,23 @@ class RestaurantBranchAdminContext {
   final String area;
   final String address;
   final String slug;
+  final int floorCount;
+  final int totalTables;
+  final int totalSeats;
+  final List<int> capacityTypes;
+  final List<List<int>> tableCountsByFloor;
+  final DateTime? onboardingCompletedAt;
+  final DateTime? onboardedAt;
+  final String queueUrl;
+  final String provisioningFingerprint;
   final RestaurantOnboardingDraft? onboardingDraft;
 
   String get displayName => '$restaurantName - $branchName';
 
-  bool get isProvisioningCompleted => onboardingCompleted && branchActive;
+  bool get isProvisioningCompleted =>
+      onboardingCompleted &&
+      adminOnboardingCompleted &&
+      provisioningStatus == 'completed';
 }
 
 class RestaurantOnboardingFailure implements Exception {

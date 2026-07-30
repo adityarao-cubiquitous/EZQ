@@ -2,12 +2,13 @@ import 'package:ezq/features/customer/domain/restaurant_branch_readiness.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('completed migrated branch without provisioning fields is ready', () {
+  test('completed branch with canonical provisioning state is ready', () {
     final readiness = evaluateRestaurantBranchReadiness(
       branchExists: true,
       branchData: {
         'isActive': true,
         'onboardingCompleted': true,
+        'provisioningStatus': 'completed',
         'floorCount': 2,
         'totalTables': 25,
         'totalSeats': 92,
@@ -15,6 +16,18 @@ void main() {
     );
 
     expect(readiness.isReady, isTrue);
+  });
+
+  test('completed branch without provisioningStatus remains blocked', () {
+    final readiness = evaluateRestaurantBranchReadiness(
+      branchExists: true,
+      branchData: {'isActive': true, 'onboardingCompleted': true},
+    );
+
+    expect(
+      readiness.blockReason,
+      RestaurantBranchReadinessBlockReason.setupIncomplete,
+    );
   });
 
   test('incomplete branch remains blocked', () {
@@ -47,6 +60,7 @@ void main() {
       branchData: {
         'isActive': true,
         'onboardingCompleted': true,
+        'provisioningStatus': 'completed',
         'qrEnabled': false,
       },
     );
@@ -60,7 +74,11 @@ void main() {
   test('inactive parent restaurant blocks customer access', () {
     final readiness = evaluateRestaurantBranchReadiness(
       branchExists: true,
-      branchData: {'isActive': true, 'onboardingCompleted': true},
+      branchData: {
+        'isActive': true,
+        'onboardingCompleted': true,
+        'provisioningStatus': 'completed',
+      },
       restaurantExists: true,
       restaurantData: {'isActive': false},
     );

@@ -138,6 +138,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         redirect: (context, state) => _redirectAdminBranchRoute(
           state,
           state.pathParameters['restaurantBranchId']!,
+          allowOnboardingRoute: true,
         ),
         builder: (context, state) => const RestaurantOnboardingScreen(),
       ),
@@ -211,14 +212,18 @@ Future<String> _redirectLegacyAdminOnboarding() async {
   final restaurantBranchId = (adminData?['restaurantBranchId'] as String? ?? '')
       .trim();
   if (restaurantBranchId.isEmpty) return '/admin/login';
+  if (adminData?['onboardingCompleted'] != true) {
+    return '/admin/$restaurantBranchId/register/onboarding';
+  }
 
   return _adminBranchDestination(restaurantBranchId);
 }
 
 Future<String?> _redirectAdminBranchRoute(
   GoRouterState state,
-  String restaurantBranchId,
-) async {
+  String restaurantBranchId, {
+  bool allowOnboardingRoute = false,
+}) async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return '/admin/login';
 
@@ -234,6 +239,10 @@ Future<String?> _redirectAdminBranchRoute(
   }
   if (mappedRestaurantBranchId != restaurantBranchId) {
     return _adminBranchDestination(mappedRestaurantBranchId);
+  }
+  if (allowOnboardingRoute) return null;
+  if (adminData?['onboardingCompleted'] != true) {
+    return '/admin/$restaurantBranchId/register/onboarding';
   }
 
   final destination = await _adminBranchDestination(mappedRestaurantBranchId);

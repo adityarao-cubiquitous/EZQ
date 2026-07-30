@@ -344,6 +344,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     super.initState();
     _uiPreferences = SharedPreferencesAsync();
     unawaited(_restoreLiveQueuePreference());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final openQr =
+          GoRouterState.of(context).uri.queryParameters['openQr'] == 'true';
+      if (openQr) unawaited(_showQrManagementDialog());
+    });
   }
 
   Future<void> _restoreLiveQueuePreference() async {
