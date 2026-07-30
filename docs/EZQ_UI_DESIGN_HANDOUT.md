@@ -628,6 +628,9 @@ Manager:
 - Admin toasts are popup-style feedback, not bottom snackbars.
 - Walk-in queue entries support seating preference and live ETA context.
 - Branch QR management is available from the admin top bar.
+- Restaurant onboarding completes the admin, branch, floors, tables, settings, and QR configuration in one atomic Firestore batch with deterministic document IDs.
+- Failed onboarding can be retried safely without duplicate or orphan floors, tables, settings, or QR metadata.
+- Completed onboarding deep links restore a read-only setup summary from Firestore; they never reopen editable wizard steps.
 - Customer status includes ad space and hidden-object puzzle placeholder.
 - Mobile app customer auth uses phone/OTP. Native debug builds accept `123456`; pre-production profile/release builds can opt in with `--dart-define=ALLOW_CUSTOMER_OTP_BYPASS=true`. Production builds must omit that flag and use Firebase OTP.
 - A customer with a `waiting`, `reserved`, or `on_the_way` queue entry cannot join another restaurant queue. Cancelling or being seated releases the customer to join again.
@@ -829,6 +832,8 @@ Manager user stories:
 
 Admin and operator user stories:
 
+- As a restaurant admin, I want onboarding Retry to be safe after a network or provisioning failure so setup never creates duplicate operational data.
+- As a restaurant admin, I want the completed setup summary to restore after refresh, login, or a direct link so I can verify the persisted configuration at any time.
 - As an operator, I want seeded demo data so I can test the app without manually building a restaurant branch.
 - As an operator, I want realistic queue seed data so I can test table recommendation behavior under pressure.
 - As an operator, I want smoke tests for Firestore flows so I can verify queue and table behavior after changes.
