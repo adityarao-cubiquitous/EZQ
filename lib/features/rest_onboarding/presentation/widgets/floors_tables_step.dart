@@ -556,7 +556,7 @@ class _TableMatrixState extends State<_TableMatrix> {
             builder: (context, panelConstraints) {
               const floorColumnWidth = 140.0;
               const capacityColumnWidth = 116.0;
-              const rowHeight = 72.0;
+              const rowHeight = 94.0;
               const headerHeight = 42.0;
               final capacityWidth =
                   widget.selectedCapacities.length * capacityColumnWidth;
@@ -581,10 +581,11 @@ class _TableMatrixState extends State<_TableMatrix> {
                       floorIndex++
                     ) ...[
                       _CapacityCountRow(
+                        floorNumber: floorIndex + 1,
                         counts: floorIndex < widget.tableCountsByFloor.length
                             ? widget.tableCountsByFloor[floorIndex]
                             : const [],
-                        capacitiesLength: widget.selectedCapacities.length,
+                        capacities: widget.selectedCapacities,
                         columnWidth: capacityColumnWidth,
                         height: rowHeight,
                         onChanged: (tableTypeIndex, value) =>
@@ -742,15 +743,17 @@ class _CapacityHeaderRow extends StatelessWidget {
 
 class _CapacityCountRow extends StatelessWidget {
   const _CapacityCountRow({
+    required this.floorNumber,
     required this.counts,
-    required this.capacitiesLength,
+    required this.capacities,
     required this.columnWidth,
     required this.height,
     required this.onChanged,
   });
 
+  final int floorNumber;
   final List<int> counts;
-  final int capacitiesLength;
+  final List<int> capacities;
   final double columnWidth;
   final double height;
   final void Function(int tableTypeIndex, int value) onChanged;
@@ -761,38 +764,65 @@ class _CapacityCountRow extends StatelessWidget {
       height: height,
       child: Row(
         children: [
-          for (var index = 0; index < capacitiesLength; index++)
+          for (var index = 0; index < capacities.length; index++)
             SizedBox(
               width: columnWidth,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Center(
-                  child: SizedBox(
-                    height: 50,
-                    child: DropdownButtonFormField<int>(
-                      key: ValueKey(
-                        'cap-$index-${index < counts.length ? counts[index] : 0}',
-                      ),
-                      initialValue: index < counts.length ? counts[index] : 0,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 10,
+                  child: Builder(
+                    builder: (context) {
+                      final count = index < counts.length ? counts[index] : 0;
+                      final capacity = capacities[index];
+                      final seats = count * capacity;
+                      return Semantics(
+                        label:
+                            'Floor $floorNumber, $capacity Top, '
+                            '$count tables, $seats seats',
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              height: 50,
+                              child: DropdownButtonFormField<int>(
+                                key: ValueKey(
+                                  'floor-$floorNumber-cap-$capacity-count-$count',
+                                ),
+                                initialValue: count,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 10,
+                                  ),
+                                ),
+                                items: [
+                                  for (var value = 0; value <= 50; value++)
+                                    DropdownMenuItem<int>(
+                                      value: value,
+                                      child: Text('$value'),
+                                    ),
+                                ],
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  onChanged(index, value);
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              'Seats: $seats',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.mutedText,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                          ],
                         ),
-                      ),
-                      items: [
-                        for (var count = 0; count <= 50; count++)
-                          DropdownMenuItem<int>(
-                            value: count,
-                            child: Text('$count'),
-                          ),
-                      ],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        onChanged(index, value);
-                      },
-                    ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -956,11 +986,13 @@ class _CapacityTotals extends StatelessWidget {
       if (total == 0) continue;
       visibleItems.add(
         SizedBox(
-          width: 180,
-          height: 72,
+          width: 200,
+          height: 88,
           child: _SummaryLine(
             label: '${selectedCapacities[index]} Top',
-            value: '$total tables',
+            value:
+                'Tables: $total\n'
+                'Seats: ${total * selectedCapacities[index]}',
           ),
         ),
       );

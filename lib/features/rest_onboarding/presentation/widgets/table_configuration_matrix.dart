@@ -47,12 +47,23 @@ class _TableConfigurationMatrixState extends State<TableConfigurationMatrix> {
     super.dispose();
   }
 
-  int get _grandTotal {
+  int get _grandTotalTables {
     return widget.tableCountsByFloor.fold<int>(
       0,
       (total, floorCounts) =>
           total + floorCounts.fold<int>(0, (sum, count) => sum + count),
     );
+  }
+
+  int get _grandTotalSeats {
+    var seats = 0;
+    for (final floorCounts in widget.tableCountsByFloor) {
+      for (var index = 0; index < widget.selectedCapacities.length; index++) {
+        final count = index < floorCounts.length ? floorCounts[index] : 0;
+        seats += count * widget.selectedCapacities[index];
+      }
+    }
+    return seats;
   }
 
   @override
@@ -81,9 +92,9 @@ class _TableConfigurationMatrixState extends State<TableConfigurationMatrix> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           const floorColumnWidth = 132.0;
-          const capacityColumnWidth = 112.0;
-          const grandTotalWidth = 136.0;
-          const rowHeight = 58.0;
+          const capacityColumnWidth = 126.0;
+          const grandTotalWidth = 150.0;
+          const rowHeight = 72.0;
           const headerHeight = 48.0;
           const rowGap = 10.0;
           final visibleCapacityCount = selectedCapacities.length;
@@ -128,7 +139,8 @@ class _TableConfigurationMatrixState extends State<TableConfigurationMatrix> {
                 _TotalsRow(
                   capacities: selectedCapacities,
                   tableCountsByFloor: tableCountsByFloor,
-                  grandTotal: _grandTotal,
+                  grandTotalTables: _grandTotalTables,
+                  grandTotalSeats: _grandTotalSeats,
                   columnWidth: capacityColumnWidth,
                   grandTotalWidth: grandTotalWidth,
                   height: rowHeight,
@@ -298,7 +310,16 @@ class _FloorCapacityRow extends StatelessWidget {
   final double height;
   final bool showGrandTotal;
 
-  int get _rowTotal => counts.fold<int>(0, (total, count) => total + count);
+  int get _rowTotalTables =>
+      counts.fold<int>(0, (total, count) => total + count);
+
+  int get _rowTotalSeats {
+    var seats = 0;
+    for (var index = 0; index < capacities.length; index++) {
+      seats += (index < counts.length ? counts[index] : 0) * capacities[index];
+    }
+    return seats;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -317,7 +338,14 @@ class _FloorCapacityRow extends StatelessWidget {
         if (showGrandTotal)
           SizedBox(
             width: grandTotalWidth,
-            child: _TotalValueCell(value: '$_rowTotal', height: height),
+            child: _TotalValueCell(
+              tableCount: _rowTotalTables,
+              seatCount: _rowTotalSeats,
+              height: height,
+              semanticLabel:
+                  'Floor $floorNumber total, $_rowTotalTables tables, '
+                  '$_rowTotalSeats seats',
+            ),
           ),
       ],
     );
@@ -328,7 +356,8 @@ class _TotalsRow extends StatelessWidget {
   const _TotalsRow({
     required this.capacities,
     required this.tableCountsByFloor,
-    required this.grandTotal,
+    required this.grandTotalTables,
+    required this.grandTotalSeats,
     required this.columnWidth,
     required this.grandTotalWidth,
     required this.height,
@@ -337,7 +366,8 @@ class _TotalsRow extends StatelessWidget {
 
   final List<int> capacities;
   final List<List<int>> tableCountsByFloor;
-  final int grandTotal;
+  final int grandTotalTables;
+  final int grandTotalSeats;
   final double columnWidth;
   final double grandTotalWidth;
   final double height;
@@ -351,19 +381,25 @@ class _TotalsRow extends StatelessWidget {
           SizedBox(
             width: columnWidth,
             child: _TotalValueCell(
-              value: '${_capacityTotal(index)}',
+              tableCount: _capacityTotal(index),
+              seatCount: _capacityTotal(index) * capacities[index],
               height: height,
               semanticLabel:
-                  'Total ${capacities[index]} Top tables, ${_capacityTotal(index)}',
+                  'Total ${capacities[index]} Top, '
+                  '${_capacityTotal(index)} tables, '
+                  '${_capacityTotal(index) * capacities[index]} seats',
             ),
           ),
         if (showGrandTotal)
           SizedBox(
             width: grandTotalWidth,
             child: _TotalValueCell(
-              value: '$grandTotal',
+              tableCount: grandTotalTables,
+              seatCount: grandTotalSeats,
               height: height,
-              semanticLabel: 'Grand total tables, $grandTotal',
+              semanticLabel:
+                  'Grand total, $grandTotalTables tables, '
+                  '$grandTotalSeats seats',
             ),
           ),
       ],
@@ -477,7 +513,8 @@ class _MatrixValueCellState extends State<_MatrixValueCell> {
   Widget build(BuildContext context) {
     final isConfigured = widget.value > 0;
     final semanticLabel = isConfigured
-        ? 'Floor ${widget.floorNumber}, ${widget.capacity} Top, ${widget.value} tables'
+        ? 'Floor ${widget.floorNumber}, ${widget.capacity} Top, '
+              '${widget.value} tables, ${widget.value * widget.capacity} seats'
         : 'Floor ${widget.floorNumber}, ${widget.capacity} Top, Not configured';
 
     return Semantics(
@@ -497,14 +534,19 @@ class _MatrixValueCellState extends State<_MatrixValueCell> {
             borderRadius: BorderRadius.circular(8),
           ),
           alignment: Alignment.center,
-          child: Text(
-            isConfigured ? '${widget.value}' : '—',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: isConfigured ? AppColors.navyText : AppColors.mutedText,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+          child: isConfigured
+              ? _TableSeatValue(
+                  tableCount: widget.value,
+                  seatCount: widget.value * widget.capacity,
+                )
+              : Text(
+                  '—',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.mutedText,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
         ),
       ),
     );
@@ -513,12 +555,14 @@ class _MatrixValueCellState extends State<_MatrixValueCell> {
 
 class _TotalValueCell extends StatelessWidget {
   const _TotalValueCell({
-    required this.value,
+    required this.tableCount,
+    required this.seatCount,
     required this.height,
     this.semanticLabel,
   });
 
-  final String value;
+  final int tableCount;
+  final int seatCount;
   final double height;
   final String? semanticLabel;
 
@@ -535,15 +579,41 @@ class _TotalValueCell extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         alignment: Alignment.center,
-        child: Text(
-          value,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: AppColors.navyText,
-            fontWeight: FontWeight.w900,
-          ),
+        child: _TableSeatValue(
+          tableCount: tableCount,
+          seatCount: seatCount,
+          isTotal: true,
         ),
       ),
+    );
+  }
+}
+
+class _TableSeatValue extends StatelessWidget {
+  const _TableSeatValue({
+    required this.tableCount,
+    required this.seatCount,
+    this.isTotal = false,
+  });
+
+  final int tableCount;
+  final int seatCount;
+  final bool isTotal;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: AppColors.navyText,
+      fontWeight: isTotal ? FontWeight.w900 : FontWeight.w800,
+      height: 1.25,
+    );
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text('Tables: $tableCount', textAlign: TextAlign.center, style: style),
+        const SizedBox(height: 3),
+        Text('Seats: $seatCount', textAlign: TextAlign.center, style: style),
+      ],
     );
   }
 }
