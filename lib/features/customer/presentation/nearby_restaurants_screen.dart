@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/customer_queue_repository.dart';
@@ -205,7 +204,15 @@ class NearbyRestaurantsScreen extends ConsumerWidget {
               data: (result) {
                 final restaurants = result.restaurants;
                 if (restaurants.isEmpty) {
-                  return _EmptyNearbyCard(locationLabel: result.locationLabel);
+                  return _EmptyNearbyCard(
+                    locationLabel: result.locationLabel,
+                    onRefresh: () {
+                      ref
+                          .read(nearbyUseDemoLocationProvider.notifier)
+                          .useCurrentLocation();
+                      ref.invalidate(nearbyRestaurantsControllerProvider);
+                    },
+                  );
                 }
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -503,9 +510,13 @@ class _LoadingNearbyCard extends StatelessWidget {
 }
 
 class _EmptyNearbyCard extends StatelessWidget {
-  const _EmptyNearbyCard({required this.locationLabel});
+  const _EmptyNearbyCard({
+    required this.locationLabel,
+    required this.onRefresh,
+  });
 
   final String locationLabel;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -517,14 +528,9 @@ class _EmptyNearbyCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.only(top: 18),
         child: EzqButton(
-          label: 'Join demo queue',
-          icon: Icons.arrow_forward_rounded,
-          onPressed: () => context.go(
-            FirestorePaths.customerRoute(
-              AppConstants.demoRestaurantId,
-              AppConstants.demoBranchId,
-            ),
-          ),
+          label: 'Check current location again',
+          icon: Icons.refresh_rounded,
+          onPressed: onRefresh,
         ),
       ),
     );

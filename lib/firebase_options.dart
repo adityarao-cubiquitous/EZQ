@@ -30,7 +30,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyAD7IVeF2oAwDcTVkiWad4qZ4qj3nAp2sg',
-    appId: '1:1066151489638:android:fe06ef713f4c93ea8c7da7',
+    appId: '1:1066151489638:android:b2d90cb3bde1d7e28c7da7',
     messagingSenderId: '1066151489638',
     projectId: 'ezq-dev-cubiquitous',
     storageBucket: 'ezq-dev-cubiquitous.firebasestorage.app',

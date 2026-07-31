@@ -16,6 +16,7 @@ class TableGrid extends StatefulWidget {
   const TableGrid({
     super.key,
     required this.floorTableMap,
+    this.occupiedSeatCountFor,
     this.completedPartySizeFor,
     this.occupiedSinceFor,
     this.onTableRecommendationTap,
@@ -25,9 +26,16 @@ class TableGrid extends StatefulWidget {
     this.matchingTableIds = const {},
     this.tableHighlightTones = const {},
     this.highlightScrollKey,
+    this.offlineReserveSelectionMode = false,
+    this.offlineReserveSelectedTableIds = const {},
+    this.onOfflineReserveTableSelectionChanged,
+    this.enableOfflineSelectionMode = false,
+    this.enableOfflineSelectedTableIds = const {},
+    this.onEnableOfflineTableSelectionChanged,
   });
 
   final RestaurantFloorTableMap floorTableMap;
+  final int Function(RestaurantTable table)? occupiedSeatCountFor;
   final int Function(RestaurantTable table)? completedPartySizeFor;
   final DateTime? Function(RestaurantTable table)? occupiedSinceFor;
   final void Function(RestaurantTable table)? onTableRecommendationTap;
@@ -38,6 +46,14 @@ class TableGrid extends StatefulWidget {
   final Set<String> matchingTableIds;
   final Map<String, TableHighlightTone> tableHighlightTones;
   final Object? highlightScrollKey;
+  final bool offlineReserveSelectionMode;
+  final Set<String> offlineReserveSelectedTableIds;
+  final void Function(RestaurantTable table, bool selected)?
+  onOfflineReserveTableSelectionChanged;
+  final bool enableOfflineSelectionMode;
+  final Set<String> enableOfflineSelectedTableIds;
+  final void Function(RestaurantTable table, bool selected)?
+  onEnableOfflineTableSelectionChanged;
 
   @override
   State<TableGrid> createState() => _TableGridState();
@@ -152,12 +168,25 @@ class _TableGridState extends State<TableGrid> {
                     compact: compact,
                     now: _now,
                     tableKeyFor: _keyForTable,
+                    occupiedSeatCountFor: widget.occupiedSeatCountFor,
                     completedPartySizeFor: widget.completedPartySizeFor,
                     onTableRecommendationTap: widget.onTableRecommendationTap,
                     onMealFinished: widget.onMealFinished,
                     onUndoReservation: widget.onUndoReservation,
                     matchingTableIds: widget.matchingTableIds,
                     tableHighlightTones: widget.tableHighlightTones,
+                    offlineReserveSelectionMode:
+                        widget.offlineReserveSelectionMode,
+                    offlineReserveSelectedTableIds:
+                        widget.offlineReserveSelectedTableIds,
+                    onOfflineReserveTableSelectionChanged:
+                        widget.onOfflineReserveTableSelectionChanged,
+                    enableOfflineSelectionMode:
+                        widget.enableOfflineSelectionMode,
+                    enableOfflineSelectedTableIds:
+                        widget.enableOfflineSelectedTableIds,
+                    onEnableOfflineTableSelectionChanged:
+                        widget.onEnableOfflineTableSelectionChanged,
                   );
                 },
               ),
@@ -229,12 +258,19 @@ class _FloorTablesContainer extends StatelessWidget {
     required this.compact,
     required this.now,
     required this.tableKeyFor,
+    required this.occupiedSeatCountFor,
     required this.completedPartySizeFor,
     required this.onTableRecommendationTap,
     required this.onMealFinished,
     required this.onUndoReservation,
     required this.matchingTableIds,
     required this.tableHighlightTones,
+    required this.offlineReserveSelectionMode,
+    required this.offlineReserveSelectedTableIds,
+    required this.onOfflineReserveTableSelectionChanged,
+    required this.enableOfflineSelectionMode,
+    required this.enableOfflineSelectedTableIds,
+    required this.onEnableOfflineTableSelectionChanged,
   });
 
   final RestaurantFloor floor;
@@ -242,6 +278,7 @@ class _FloorTablesContainer extends StatelessWidget {
   final bool compact;
   final DateTime now;
   final GlobalKey Function(String tableId) tableKeyFor;
+  final int Function(RestaurantTable table)? occupiedSeatCountFor;
   final int Function(RestaurantTable table)? completedPartySizeFor;
   final void Function(RestaurantTable table)? onTableRecommendationTap;
   final void Function(RestaurantTable table, int initialPartySize)?
@@ -249,6 +286,14 @@ class _FloorTablesContainer extends StatelessWidget {
   final void Function(RestaurantTable table)? onUndoReservation;
   final Set<String> matchingTableIds;
   final Map<String, TableHighlightTone> tableHighlightTones;
+  final bool offlineReserveSelectionMode;
+  final Set<String> offlineReserveSelectedTableIds;
+  final void Function(RestaurantTable table, bool selected)?
+  onOfflineReserveTableSelectionChanged;
+  final bool enableOfflineSelectionMode;
+  final Set<String> enableOfflineSelectedTableIds;
+  final void Function(RestaurantTable table, bool selected)?
+  onEnableOfflineTableSelectionChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -270,31 +315,46 @@ class _FloorTablesContainer extends StatelessWidget {
       '${floor.floorName} (${tables.length} ${tables.length == 1 ? 'Table' : 'Tables'})';
 
   Widget _buildTableCard(RestaurantTable table) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {},
-      child: _TableCard(
-        table: table,
-        now: now,
-        initialPartySize: completedPartySizeFor?.call(table),
-        onTableRecommendationTap: onTableRecommendationTap == null
-            ? null
-            : () => onTableRecommendationTap!(table),
-        highlightTone:
-            tableHighlightTones[table.id] ??
-            (matchingTableIds.contains(table.id)
-                ? TableHighlightTone.best
-                : null),
-        onMealFinished: onMealFinished == null
-            ? null
-            : () => onMealFinished!(
-                table,
-                completedPartySizeFor?.call(table) ?? table.capacity,
-              ),
-        onUndoReservation: onUndoReservation == null
-            ? null
-            : () => onUndoReservation!(table),
+    return _TableCard(
+      table: table,
+      now: now,
+      occupiedSeatCount: occupiedSeatCountFor?.call(table),
+      initialPartySize: completedPartySizeFor?.call(table),
+      onTableRecommendationTap: onTableRecommendationTap == null
+          ? null
+          : () => onTableRecommendationTap!(table),
+      highlightTone:
+          tableHighlightTones[table.id] ??
+          (matchingTableIds.contains(table.id)
+              ? TableHighlightTone.best
+              : null),
+      onMealFinished: onMealFinished == null
+          ? null
+          : () => onMealFinished!(
+              table,
+              completedPartySizeFor?.call(table) ?? table.capacity,
+            ),
+      onUndoReservation: onUndoReservation == null
+          ? null
+          : () => onUndoReservation!(table),
+      offlineReserveSelectionMode: offlineReserveSelectionMode,
+      selectedForOfflineReserve: offlineReserveSelectedTableIds.contains(
+        table.id,
       ),
+      onOfflineReserveSelectionChanged:
+          onOfflineReserveTableSelectionChanged == null
+          ? null
+          : (selected) =>
+                onOfflineReserveTableSelectionChanged!(table, selected),
+      enableOfflineSelectionMode: enableOfflineSelectionMode,
+      selectedForEnableOffline: enableOfflineSelectedTableIds.contains(
+        table.id,
+      ),
+      onEnableOfflineSelectionChanged:
+          onEnableOfflineTableSelectionChanged == null
+          ? null
+          : (selected) =>
+                onEnableOfflineTableSelectionChanged!(table, selected),
     );
   }
 }
@@ -419,22 +479,27 @@ class _FloorHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayLabel = label.replaceFirst(' (', ' • ').replaceFirst(')', '');
     return Row(
       children: [
-        const Expanded(child: Divider(color: Color(0x4D8A9AA5))),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Text(
-            label.replaceFirst(' (', ' • ').replaceFirst(')', ''),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.inkBlue,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
+        const SizedBox(width: 22, child: Divider(color: Color(0x4D8A9AA5))),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              displayLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.inkBlue,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ),
-        const Expanded(child: Divider(color: Color(0x4D8A9AA5))),
+        const SizedBox(width: 22, child: Divider(color: Color(0x4D8A9AA5))),
       ],
     );
   }
@@ -552,6 +617,7 @@ class _StatusLegend extends StatelessWidget {
         _TableStatusBadge(label: 'Full', color: AppColors.errorRed),
         _TableStatusBadge(label: 'Partial', color: AppColors.partialLavender),
         _TableStatusBadge(label: 'Available', color: AppColors.primaryTeal),
+        _TableStatusBadge(label: 'Offline', color: Colors.grey),
       ],
     );
   }
@@ -588,10 +654,17 @@ class _TableCard extends StatelessWidget {
   const _TableCard({
     required this.table,
     required this.now,
+    required this.occupiedSeatCount,
     required this.initialPartySize,
     required this.onTableRecommendationTap,
     required this.onMealFinished,
     required this.onUndoReservation,
+    required this.offlineReserveSelectionMode,
+    required this.selectedForOfflineReserve,
+    required this.onOfflineReserveSelectionChanged,
+    required this.enableOfflineSelectionMode,
+    required this.selectedForEnableOffline,
+    required this.onEnableOfflineSelectionChanged,
     this.highlightTone,
   });
 
@@ -599,21 +672,45 @@ class _TableCard extends StatelessWidget {
 
   final RestaurantTable table;
   final DateTime now;
+  final int? occupiedSeatCount;
   final int? initialPartySize;
   final VoidCallback? onTableRecommendationTap;
   final VoidCallback? onMealFinished;
   final VoidCallback? onUndoReservation;
   final TableHighlightTone? highlightTone;
+  final bool offlineReserveSelectionMode;
+  final bool selectedForOfflineReserve;
+  final ValueChanged<bool>? onOfflineReserveSelectionChanged;
+  final bool enableOfflineSelectionMode;
+  final bool selectedForEnableOffline;
+  final ValueChanged<bool>? onEnableOfflineSelectionChanged;
 
   @override
   Widget build(BuildContext context) {
     final compact = Responsive.isCompact(context);
     final occupiedCount = table.currentQueueEntryId == null
         ? 0
-        : table.currentPartySize ?? initialPartySize ?? table.capacity;
+        : occupiedSeatCount ??
+              table.currentPartySize ??
+              initialPartySize ??
+              table.capacity;
     final color = _tableColor(occupiedCount);
+    final isOfflineReserved = table.status == TableStatus.blocked;
+    final canSelectForOfflineReserve =
+        offlineReserveSelectionMode &&
+        table.status == TableStatus.available &&
+        table.currentQueueEntryId == null &&
+        table.currentTokenCode == null &&
+        table.currentPartySize == null &&
+        onOfflineReserveSelectionChanged != null;
+    final canSelectForEnableOffline =
+        enableOfflineSelectionMode &&
+        table.status == TableStatus.blocked &&
+        onEnableOfflineSelectionChanged != null;
     final highlightColor = _highlightColor();
-    final isHighlighted = highlightColor != null;
+    final selectionMode =
+        offlineReserveSelectionMode || enableOfflineSelectionMode;
+    final isHighlighted = highlightColor != null && !selectionMode;
     final canFinishMeal =
         table.status == TableStatus.occupied &&
         table.currentQueueEntryId != null &&
@@ -632,7 +729,8 @@ class _TableCard extends StatelessWidget {
         onTableRecommendationTap != null &&
         remainingSeats > 0 &&
         (table.status == TableStatus.available ||
-            table.status == TableStatus.occupied);
+            table.status == TableStatus.occupied) &&
+        !selectionMode;
     final tokenCode = table.currentTokenCode?.trim();
 
     final card = AnimatedContainer(
@@ -645,10 +743,14 @@ class _TableCard extends StatelessWidget {
                 highlightColor.withValues(alpha: 0.12),
                 color.withValues(alpha: 0.11),
               )
+            : isOfflineReserved
+            ? const Color(0xFFF1F5F9)
             : color.withValues(alpha: 0.11),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: highlightColor ?? color.withValues(alpha: 0.62),
+          color: isOfflineReserved
+              ? const Color(0xFFCBD5E1)
+              : highlightColor ?? color.withValues(alpha: 0.62),
           width: isHighlighted ? 2.5 : 1,
         ),
         boxShadow: isHighlighted
@@ -684,7 +786,9 @@ class _TableCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: AppColors.navyText,
+                    color: isOfflineReserved
+                        ? AppColors.mutedText
+                        : AppColors.navyText,
                     fontSize: compact ? 18 : 19,
                     fontWeight: FontWeight.w900,
                     height: 1.0,
@@ -701,6 +805,25 @@ class _TableCard extends StatelessWidget {
                   borderColor: AppColors.warningOrange.withValues(alpha: 0.32),
                   onPressed: onUndoReservation,
                 ),
+              ] else if (canSelectForOfflineReserve) ...[
+                const SizedBox(width: 4),
+                _OfflineReserveCheckbox(
+                  selected: selectedForOfflineReserve,
+                  selectedMessage: 'Selected for offline reserve',
+                  unselectedMessage: 'Select table for offline reserve',
+                  onChanged: onOfflineReserveSelectionChanged,
+                ),
+              ] else if (canSelectForEnableOffline) ...[
+                const SizedBox(width: 4),
+                _OfflineReserveCheckbox(
+                  selected: selectedForEnableOffline,
+                  selectedMessage: 'Selected to enable',
+                  unselectedMessage: 'Select table to enable',
+                  onChanged: onEnableOfflineSelectionChanged,
+                ),
+              ] else if (isOfflineReserved) ...[
+                const SizedBox(width: 4),
+                const _OfflineReservedIcon(),
               ],
             ],
           ),
@@ -729,7 +852,10 @@ class _TableCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _RemainingSeatsPill(value: remainingSeats),
+              if (isOfflineReserved)
+                const _OfflineReservedPill()
+              else
+                _RemainingSeatsPill(value: remainingSeats),
               const Spacer(),
               if (hasOccupiedParty) ...[
                 if (canFinishMeal)
@@ -749,6 +875,40 @@ class _TableCard extends StatelessWidget {
         ],
       ),
     );
+
+    if (canSelectForOfflineReserve) {
+      return Tooltip(
+        message: selectedForOfflineReserve
+            ? 'Remove from offline reserve selection'
+            : 'Select table for offline reserve',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () =>
+                onOfflineReserveSelectionChanged!(!selectedForOfflineReserve),
+            borderRadius: BorderRadius.circular(14),
+            child: card,
+          ),
+        ),
+      );
+    }
+
+    if (canSelectForEnableOffline) {
+      return Tooltip(
+        message: selectedForEnableOffline
+            ? 'Remove from enable selection'
+            : 'Select table to enable',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () =>
+                onEnableOfflineSelectionChanged!(!selectedForEnableOffline),
+            borderRadius: BorderRadius.circular(14),
+            child: card,
+          ),
+        ),
+      );
+    }
 
     if (!canSuggestParty) return card;
 
@@ -798,7 +958,7 @@ class _TableCard extends StatelessWidget {
         occupiedCount >= table.capacity
             ? AppColors.errorRed
             : AppColors.partialLavender,
-      TableStatus.blocked => Colors.grey,
+      TableStatus.blocked => const Color(0xFF94A3B8),
     };
   }
 
@@ -869,6 +1029,53 @@ class _TableTileIconButton extends StatelessWidget {
   }
 }
 
+class _OfflineReserveCheckbox extends StatelessWidget {
+  const _OfflineReserveCheckbox({
+    required this.selected,
+    required this.selectedMessage,
+    required this.unselectedMessage,
+    required this.onChanged,
+  });
+
+  final bool selected;
+  final String selectedMessage;
+  final String unselectedMessage;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: selected ? selectedMessage : unselectedMessage,
+      child: SizedBox.square(
+        dimension: 30,
+        child: Checkbox(
+          value: selected,
+          onChanged: onChanged == null
+              ? null
+              : (value) => onChanged!(value ?? false),
+          activeColor: AppColors.accentPurple,
+          side: const BorderSide(color: AppColors.deepTeal, width: 1.6),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+}
+
+class _OfflineReservedIcon extends StatelessWidget {
+  const _OfflineReservedIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Tooltip(
+      message: 'Offline reserved / disabled',
+      child: Icon(Icons.block_rounded, size: 19, color: Color(0xFF64748B)),
+    );
+  }
+}
+
 class _RemainingSeatsPill extends StatelessWidget {
   const _RemainingSeatsPill({required this.value});
 
@@ -891,6 +1098,38 @@ class _RemainingSeatsPill extends StatelessWidget {
           fontWeight: FontWeight.w700,
           height: 1.0,
         ),
+      ),
+    );
+  }
+}
+
+class _OfflineReservedPill extends StatelessWidget {
+  const _OfflineReservedPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE2E8F0),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFCBD5E1), width: 0.8),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.block_rounded, size: 10, color: Color(0xFF475569)),
+          SizedBox(width: 4),
+          Text(
+            'Offline',
+            style: TextStyle(
+              color: Color(0xFF475569),
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              height: 1.0,
+            ),
+          ),
+        ],
       ),
     );
   }

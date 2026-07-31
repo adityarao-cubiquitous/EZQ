@@ -1,4 +1,6 @@
 import 'package:ezq/app/ezq_app.dart';
+import 'package:ezq/features/auth/data/auth_repository.dart';
+import 'package:ezq/features/auth/presentation/customer_name_profile_screen.dart';
 import 'package:ezq/features/customer/data/nearby_restaurants_repository.dart';
 import 'package:ezq/features/customer/domain/branch.dart';
 import 'package:ezq/features/customer/presentation/customer_join_queue_screen.dart';
@@ -54,6 +56,32 @@ void main() {
       expect(find.text('The Spice House'), findsNothing);
     },
   );
+
+  testWidgets('mobile account profile opens in edit mode', (tester) async {
+    tester.view.physicalSize = const Size(430, 1100);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          debugCustomerPhoneSessionProvider.overrideWithValue(
+            ValueNotifier<String?>('+919880478370'),
+          ),
+        ],
+        child: const MaterialApp(
+          home: CustomerNameProfileScreen(editing: true),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Your profile'), findsOneWidget);
+    expect(find.text('Save changes'), findsOneWidget);
+    expect(find.text('Tell us your name'), findsNothing);
+  });
 
   test(
     'nearby fixture routes all restaurants by canonical branch id',

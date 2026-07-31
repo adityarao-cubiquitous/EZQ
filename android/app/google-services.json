@@ -7,10 +7,10 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1066151489638:android:fe06ef713f4c93ea8c7da7",
-        "android_client_info": {
-          "package_name": "com.example.ezq"
-        }
+          "mobilesdk_app_id": "1:1066151489638:android:b2d90cb3bde1d7e28c7da7",
+          "android_client_info": {
+          "package_name": "com.cubiquitous.ezq"
+          }
       },
       "oauth_client": [],
       "api_key": [

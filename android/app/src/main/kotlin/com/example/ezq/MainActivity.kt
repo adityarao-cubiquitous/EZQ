@@ -1,4 +1,4 @@
-package com.example.ezq
+package com.cubiquitous.ezq
 
 import io.flutter.embedding.android.FlutterActivity
 

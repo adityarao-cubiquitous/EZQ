@@ -7,10 +7,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/utils/date_time_utils.dart';
 import '../../queue/domain/queue_status.dart';
+import '../../recommendation/domain/recommendation_types.dart';
 import '../domain/floor_table_map.dart';
 import '../domain/restaurant_floor.dart';
 import '../domain/restaurant_table.dart';
 import '../domain/table_status.dart';
+
+@visibleForTesting
+int occupiedSeatCountForSeatedEntry({
+  required int tableCapacity,
+  required int partySize,
+  required Object? customerPreferences,
+}) {
+  final preferenceWireName = customerPreferences is Map
+      ? customerPreferences['seatingPreference'] as String?
+      : null;
+  final seatingPreference = SeatingPreference.fromWireName(preferenceWireName);
+  if (seatingPreference == SeatingPreference.emptyTableOnly) {
+    return tableCapacity;
+  }
+  return partySize.clamp(0, tableCapacity).toInt();
+}
 
 abstract class TableRepository {
   Stream<List<RestaurantTable>> watchTables({
@@ -41,6 +58,13 @@ abstract class TableRepository {
     required String restaurantId,
     required String branchId,
     required String tableId,
+    required TableStatus status,
+  });
+
+  Future<void> updateTablesStatus({
+    required String restaurantId,
+    required String branchId,
+    required Set<String> tableIds,
     required TableStatus status,
   });
 
@@ -168,12 +192,17 @@ class FirebaseTableRepository implements TableRepository {
           (tableData?['tableNumber'] as String? ?? '');
       final tokenCode = entrySnapshot.data()?['tokenCode'] as String? ?? '';
       final partySize = entrySnapshot.data()?['partySize'] as int? ?? 0;
+      final occupiedSeatCount = occupiedSeatCountForSeatedEntry(
+        tableCapacity: tableData?['capacity'] as int? ?? partySize,
+        partySize: partySize,
+        customerPreferences: entrySnapshot.data()?['customerPreferences'],
+      );
       final assignedAt = FieldValue.serverTimestamp();
       transaction.update(tableRef, {
         'status': TableStatus.occupied.wireName,
         'currentQueueEntryId': queueEntryId,
         'currentTokenCode': tokenCode,
-        'currentPartySize': partySize,
+        'currentPartySize': occupiedSeatCount,
         'reservedAt': assignedAt,
         'occupiedAt': assignedAt,
         'currentCycleStartAt': cycleStartAt,
@@ -282,6 +311,41 @@ class FirebaseTableRepository implements TableRepository {
           'status': status.wireName,
           'updatedAt': FieldValue.serverTimestamp(),
         });
+  }
+
+  @override
+  Future<void> updateTablesStatus({
+    required String restaurantId,
+    required String branchId,
+    required Set<String> tableIds,
+    required TableStatus status,
+  }) async {
+    if (tableIds.isEmpty) return;
+    final batch = _firestore.batch();
+    final updatedAt = FieldValue.serverTimestamp();
+    for (final tableId in tableIds) {
+      final tableRef = _firestore.doc(
+        FirestorePaths.table(restaurantId, branchId, tableId),
+      );
+      batch.update(tableRef, {
+        'status': status.wireName,
+        if (status == TableStatus.blocked) ...{
+          'offlineReservedAt': updatedAt,
+          'currentQueueEntryId': null,
+          'currentTokenCode': null,
+          'currentPartySize': null,
+          'reservedAt': null,
+          'occupiedAt': null,
+          'cleaningStartedAt': null,
+          'currentCycleStartAt': null,
+          'currentCycleSource': null,
+        } else if (status == TableStatus.available) ...{
+          'offlineReservedAt': null,
+        },
+        'updatedAt': updatedAt,
+      });
+    }
+    await batch.commit();
   }
 
   @override
@@ -518,6 +582,14 @@ class MockTableRepository implements TableRepository {
     required String restaurantId,
     required String branchId,
     required String tableId,
+    required TableStatus status,
+  }) async {}
+
+  @override
+  Future<void> updateTablesStatus({
+    required String restaurantId,
+    required String branchId,
+    required Set<String> tableIds,
     required TableStatus status,
   }) async {}
 

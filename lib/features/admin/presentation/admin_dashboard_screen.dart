@@ -335,6 +335,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   Map<String, TableHighlightTone> _focusedRecommendationHighlights = const {};
   _TopMetricFilter? _selectedMetricFilter;
   Object? _lastLoggedFloorTableMapError;
+  bool _offlineReserveSelectionMode = false;
+  final Set<String> _offlineReserveSelectedTableIds = <String>{};
+  bool _enableOfflineSelectionMode = false;
+  final Set<String> _enableOfflineSelectedTableIds = <String>{};
 
   String get _liveQueuePreferenceKey =>
       'ezq.admin.liveQueueOpen.${widget.restaurantId}.${widget.branchId}';
@@ -608,12 +612,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       .toList()
                     ..sort(compareQueueEntriesByFifo);
               final queueById = {for (final entry in queue) entry.id: entry};
-              int occupiedFor(RestaurantTable t) =>
-                  t.currentQueueEntryId == null
-                  ? 0
-                  : t.currentPartySize ??
-                        queueById[t.currentQueueEntryId]?.partySize ??
-                        t.capacity;
+              int occupiedFor(RestaurantTable t) {
+                final currentQueueEntryId = t.currentQueueEntryId;
+                if (currentQueueEntryId == null) return 0;
+                final entry = queueById[currentQueueEntryId];
+                if (entry != null && _prefersEmptyTable(entry)) {
+                  return t.capacity;
+                }
+                return t.currentPartySize ?? entry?.partySize ?? t.capacity;
+              }
+
               final free = tables
                   .where((table) => table.status == TableStatus.available)
                   .length;
@@ -623,6 +631,20 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               final occupied = tables
                   .where((table) => table.status == TableStatus.occupied)
                   .length;
+              final offlineReserveEligibleTableIds = {
+                for (final table in tables)
+                  if (_canOfflineReserveTable(table)) table.id,
+              };
+              final selectedOfflineReserveIds = _offlineReserveSelectedTableIds
+                  .where(offlineReserveEligibleTableIds.contains)
+                  .toSet();
+              final enableOfflineEligibleTableIds = {
+                for (final table in tables)
+                  if (_canEnableOfflineTable(table)) table.id,
+              };
+              final selectedEnableOfflineIds = _enableOfflineSelectedTableIds
+                  .where(enableOfflineEligibleTableIds.contains)
+                  .toSet();
               final matchingHighlights = _matchingTableHighlights(
                 tables,
                 occupiedFor,
@@ -667,6 +689,29 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       onReports: () => context.go(
                         '${FirestorePaths.adminRoute(widget.restaurantId, widget.branchId)}/reports',
                       ),
+                      offlineReserveSelectionMode: _offlineReserveSelectionMode,
+                      offlineReserveSelectedCount:
+                          selectedOfflineReserveIds.length,
+                      offlineReserveEligibleCount:
+                          offlineReserveEligibleTableIds.length,
+                      onOfflineReserveAction: () => _handleOfflineReserveAction(
+                        context: context,
+                        tables: tables,
+                      ),
+                      enableOfflineSelectionMode: _enableOfflineSelectionMode,
+                      enableOfflineSelectedCount:
+                          selectedEnableOfflineIds.length,
+                      enableOfflineEligibleCount:
+                          enableOfflineEligibleTableIds.length,
+                      onEnableOfflineAction: () => _handleEnableOfflineAction(
+                        context: context,
+                        tables: tables,
+                      ),
+                      onTableSelectionCancel:
+                          _offlineReserveSelectionMode ||
+                              _enableOfflineSelectionMode
+                          ? _cancelTableStatusSelection
+                          : null,
                     ),
                     Expanded(
                       child: CollapsibleLiveQueueLayout(
@@ -677,9 +722,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                           floorTableMap: floorTableMap,
                           tableHighlightTones: tableHighlights,
                           highlightScrollKey: _tableHighlightScrollKey,
+                          occupiedSeatCountFor: occupiedFor,
                           completedPartySizeFor: (table) =>
-                              table.currentPartySize ??
                               queueById[table.currentQueueEntryId]?.partySize ??
+                              table.currentPartySize ??
                               table.capacity,
                           occupiedSinceFor: (table) =>
                               _occupiedSinceForTable(table, queueById),
@@ -703,6 +749,18 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                             context: context,
                             table: table,
                           ),
+                          offlineReserveSelectionMode:
+                              _offlineReserveSelectionMode,
+                          offlineReserveSelectedTableIds:
+                              selectedOfflineReserveIds,
+                          onOfflineReserveTableSelectionChanged:
+                              _setOfflineReserveTableSelected,
+                          enableOfflineSelectionMode:
+                              _enableOfflineSelectionMode,
+                          enableOfflineSelectedTableIds:
+                              selectedEnableOfflineIds,
+                          onEnableOfflineTableSelectionChanged:
+                              _setEnableOfflineTableSelected,
                         ),
                         liveQueue: QueuePanel(
                           queue: queuePresentation.queue,
@@ -759,6 +817,220 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }
     _lastLoggedFloorTableMapError = error;
     debugPrint('[ADMIN_DASHBOARD] Floor/table map stream failed: $error');
+  }
+
+  bool _canOfflineReserveTable(RestaurantTable table) {
+    return table.status == TableStatus.available &&
+        table.currentQueueEntryId == null &&
+        table.currentTokenCode == null &&
+        table.currentPartySize == null;
+  }
+
+  bool _canEnableOfflineTable(RestaurantTable table) {
+    return table.status == TableStatus.blocked;
+  }
+
+  void _setOfflineReserveTableSelected(RestaurantTable table, bool selected) {
+    if (!_offlineReserveSelectionMode || !_canOfflineReserveTable(table)) {
+      return;
+    }
+    setState(() {
+      if (selected) {
+        _offlineReserveSelectedTableIds.add(table.id);
+      } else {
+        _offlineReserveSelectedTableIds.remove(table.id);
+      }
+    });
+  }
+
+  void _setEnableOfflineTableSelected(RestaurantTable table, bool selected) {
+    if (!_enableOfflineSelectionMode || !_canEnableOfflineTable(table)) {
+      return;
+    }
+    setState(() {
+      if (selected) {
+        _enableOfflineSelectedTableIds.add(table.id);
+      } else {
+        _enableOfflineSelectedTableIds.remove(table.id);
+      }
+    });
+  }
+
+  void _handleOfflineReserveAction({
+    required BuildContext context,
+    required List<RestaurantTable> tables,
+  }) {
+    if (!_offlineReserveSelectionMode) {
+      final eligibleCount = tables.where(_canOfflineReserveTable).length;
+      if (eligibleCount == 0) {
+        _showAdminPopup(
+          context,
+          message: 'No fully available tables can be marked offline right now.',
+          tone: _AdminPopupTone.warning,
+        );
+        return;
+      }
+      _clearTableGridSelection();
+      setState(() {
+        _offlineReserveSelectionMode = true;
+        _offlineReserveSelectedTableIds.clear();
+        _enableOfflineSelectionMode = false;
+        _enableOfflineSelectedTableIds.clear();
+      });
+      _showAdminPopup(
+        context,
+        message:
+            'Select the available tables to offline reserve, then tap Disable selected.',
+      );
+      return;
+    }
+
+    unawaited(_applyOfflineReserveSelection(context: context, tables: tables));
+  }
+
+  void _handleEnableOfflineAction({
+    required BuildContext context,
+    required List<RestaurantTable> tables,
+  }) {
+    if (!_enableOfflineSelectionMode) {
+      final eligibleCount = tables.where(_canEnableOfflineTable).length;
+      if (eligibleCount == 0) {
+        _showAdminPopup(
+          context,
+          message: 'No offline reserved tables to enable right now.',
+          tone: _AdminPopupTone.warning,
+        );
+        return;
+      }
+      _clearTableGridSelection();
+      setState(() {
+        _enableOfflineSelectionMode = true;
+        _enableOfflineSelectedTableIds.clear();
+        _offlineReserveSelectionMode = false;
+        _offlineReserveSelectedTableIds.clear();
+      });
+      _showAdminPopup(
+        context,
+        message:
+            'Select the offline reserved tables to enable, then tap Enable selected.',
+      );
+      return;
+    }
+
+    unawaited(_applyEnableOfflineSelection(context: context, tables: tables));
+  }
+
+  void _cancelTableStatusSelection() {
+    setState(() {
+      _offlineReserveSelectionMode = false;
+      _offlineReserveSelectedTableIds.clear();
+      _enableOfflineSelectionMode = false;
+      _enableOfflineSelectedTableIds.clear();
+    });
+  }
+
+  Future<void> _applyOfflineReserveSelection({
+    required BuildContext context,
+    required List<RestaurantTable> tables,
+  }) async {
+    final eligibleIds = {
+      for (final table in tables)
+        if (_canOfflineReserveTable(table)) table.id,
+    };
+    final selectedIds = _offlineReserveSelectedTableIds
+        .where(eligibleIds.contains)
+        .toSet();
+    if (selectedIds.isEmpty) {
+      _showAdminPopup(
+        context,
+        message: 'Select at least one fully available table first.',
+        tone: _AdminPopupTone.warning,
+      );
+      return;
+    }
+
+    try {
+      await ref
+          .read(tableRepositoryProvider)
+          .updateTablesStatus(
+            restaurantId: widget.restaurantId,
+            branchId: widget.branchId,
+            tableIds: selectedIds,
+            status: TableStatus.blocked,
+          );
+      if (!context.mounted) return;
+      setState(() {
+        _offlineReserveSelectionMode = false;
+        _offlineReserveSelectedTableIds.clear();
+        _enableOfflineSelectionMode = false;
+        _enableOfflineSelectedTableIds.clear();
+      });
+      _showAdminPopup(
+        context,
+        message:
+            '${selectedIds.length} ${selectedIds.length == 1 ? 'table' : 'tables'} marked offline reserved.',
+        tone: _AdminPopupTone.success,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      _showAdminPopup(
+        context,
+        message: 'Could not offline reserve tables: $error',
+        tone: _AdminPopupTone.error,
+      );
+    }
+  }
+
+  Future<void> _applyEnableOfflineSelection({
+    required BuildContext context,
+    required List<RestaurantTable> tables,
+  }) async {
+    final eligibleIds = {
+      for (final table in tables)
+        if (_canEnableOfflineTable(table)) table.id,
+    };
+    final selectedIds = _enableOfflineSelectedTableIds
+        .where(eligibleIds.contains)
+        .toSet();
+    if (selectedIds.isEmpty) {
+      _showAdminPopup(
+        context,
+        message: 'Select at least one offline reserved table first.',
+        tone: _AdminPopupTone.warning,
+      );
+      return;
+    }
+
+    try {
+      await ref
+          .read(tableRepositoryProvider)
+          .updateTablesStatus(
+            restaurantId: widget.restaurantId,
+            branchId: widget.branchId,
+            tableIds: selectedIds,
+            status: TableStatus.available,
+          );
+      if (!context.mounted) return;
+      setState(() {
+        _enableOfflineSelectionMode = false;
+        _enableOfflineSelectedTableIds.clear();
+        _offlineReserveSelectionMode = false;
+        _offlineReserveSelectedTableIds.clear();
+      });
+      _showAdminPopup(
+        context,
+        message:
+            '${selectedIds.length} ${selectedIds.length == 1 ? 'table' : 'tables'} enabled and available for queue seating.',
+        tone: _AdminPopupTone.success,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      _showAdminPopup(
+        context,
+        message: 'Could not enable tables: $error',
+        tone: _AdminPopupTone.error,
+      );
+    }
   }
 
   Future<void> _reserveQueueEntry({
@@ -2388,6 +2660,15 @@ class _AdminTopBar extends StatelessWidget {
     required this.onLogout,
     required this.onQrManagement,
     required this.onReports,
+    required this.offlineReserveSelectionMode,
+    required this.offlineReserveSelectedCount,
+    required this.offlineReserveEligibleCount,
+    required this.onOfflineReserveAction,
+    required this.enableOfflineSelectionMode,
+    required this.enableOfflineSelectedCount,
+    required this.enableOfflineEligibleCount,
+    required this.onEnableOfflineAction,
+    this.onTableSelectionCancel,
   });
 
   final String restaurantId;
@@ -2401,12 +2682,25 @@ class _AdminTopBar extends StatelessWidget {
   final VoidCallback onLogout;
   final VoidCallback onQrManagement;
   final VoidCallback onReports;
+  final bool offlineReserveSelectionMode;
+  final int offlineReserveSelectedCount;
+  final int offlineReserveEligibleCount;
+  final VoidCallback onOfflineReserveAction;
+  final bool enableOfflineSelectionMode;
+  final int enableOfflineSelectedCount;
+  final int enableOfflineEligibleCount;
+  final VoidCallback onEnableOfflineAction;
+  final VoidCallback? onTableSelectionCancel;
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 1100;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final compact = screenWidth < 1100;
+    final tightDesktop = !compact && screenWidth < 1500;
     final tablet = Responsive.isTablet(context);
     final horizontalPadding = compact ? 14.0 : 32.0;
+    final tableSelectionMode =
+        offlineReserveSelectionMode || enableOfflineSelectionMode;
     return Container(
       padding: EdgeInsets.fromLTRB(
         horizontalPadding,
@@ -2492,9 +2786,12 @@ class _AdminTopBar extends StatelessWidget {
                         compact: true,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 112,
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
                       child: EzqButton(
                         label: 'Walk-in',
                         icon: Icons.add,
@@ -2507,17 +2804,66 @@ class _AdminTopBar extends StatelessWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _OfflineReserveTopBarButton(
+                        selectionMode: offlineReserveSelectionMode,
+                        selectedCount: offlineReserveSelectedCount,
+                        eligibleCount: offlineReserveEligibleCount,
+                        idleLabel: 'Offline',
+                        emptySelectionLabel: 'Disable selected',
+                        selectedLabelPrefix: 'Disable',
+                        idleTooltip:
+                            'Select available tables to offline reserve',
+                        selectionTooltip:
+                            'Mark selected tables offline reserved',
+                        idleIcon: Icons.event_busy_rounded,
+                        selectionIcon: Icons.block_rounded,
+                        idleTone: AppColors.deepTeal,
+                        selectionTone: const Color(0xFF7C2D12),
+                        onPressed: onOfflineReserveAction,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _OfflineReserveTopBarButton(
+                        selectionMode: enableOfflineSelectionMode,
+                        selectedCount: enableOfflineSelectedCount,
+                        eligibleCount: enableOfflineEligibleCount,
+                        idleLabel: 'Enable',
+                        emptySelectionLabel: 'Enable selected',
+                        selectedLabelPrefix: 'Enable',
+                        idleTooltip: 'Select offline reserved tables to enable',
+                        selectionTooltip: 'Enable selected tables',
+                        idleIcon: Icons.event_available_rounded,
+                        selectionIcon: Icons.check_circle_rounded,
+                        idleTone: AppColors.successGreen,
+                        selectionTone: AppColors.successGreen,
+                        onPressed: onEnableOfflineAction,
+                      ),
+                    ),
+                    if (tableSelectionMode) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        tooltip: 'Cancel table selection',
+                        onPressed: onTableSelectionCancel,
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
                   ],
                 ),
               ],
             )
           : SizedBox(
-              height: tablet ? 72 : 76,
+              height: tablet || tightDesktop ? 72 : 76,
               child: Row(
                 children: [
-                  const BrandMark(size: 70),
-                  const SizedBox(width: 30),
-                  AdminBranchIdentityPill(restaurantName: restaurantName),
+                  BrandMark(size: tightDesktop ? 58 : 70),
+                  SizedBox(width: tightDesktop ? 14 : 30),
+                  AdminBranchIdentityPill(
+                    restaurantName: restaurantName,
+                    compact: tightDesktop,
+                  ),
                   const Spacer(),
                   _TopMetric(
                     label: 'Free',
@@ -2525,6 +2871,7 @@ class _AdminTopBar extends StatelessWidget {
                     color: AppColors.primaryTeal,
                     selected: selectedMetric == _TopMetricFilter.free,
                     onTap: () => onMetricTap(_TopMetricFilter.free),
+                    compact: tightDesktop,
                   ),
                   _TopMetric(
                     label: 'Occupied',
@@ -2532,6 +2879,7 @@ class _AdminTopBar extends StatelessWidget {
                     color: AppColors.errorRed,
                     selected: selectedMetric == _TopMetricFilter.occupied,
                     onTap: () => onMetricTap(_TopMetricFilter.occupied),
+                    compact: tightDesktop,
                   ),
                   _TopMetric(
                     label: 'Waiting',
@@ -2539,10 +2887,11 @@ class _AdminTopBar extends StatelessWidget {
                     color: AppColors.accentPurple,
                     selected: selectedMetric == _TopMetricFilter.waiting,
                     onTap: () => onMetricTap(_TopMetricFilter.waiting),
+                    compact: tightDesktop,
                   ),
-                  const SizedBox(width: 16),
+                  SizedBox(width: tightDesktop ? 8 : 16),
                   SizedBox(
-                    width: 150,
+                    width: tightDesktop ? 130 : 150,
                     child: EzqButton(
                       label: 'Walk-in',
                       icon: Icons.add,
@@ -2555,6 +2904,54 @@ class _AdminTopBar extends StatelessWidget {
                       ),
                     ),
                   ),
+                  SizedBox(width: tightDesktop ? 8 : 10),
+                  SizedBox(
+                    width: tightDesktop
+                        ? (offlineReserveSelectionMode ? 150 : 124)
+                        : (offlineReserveSelectionMode ? 168 : 144),
+                    child: _OfflineReserveTopBarButton(
+                      selectionMode: offlineReserveSelectionMode,
+                      selectedCount: offlineReserveSelectedCount,
+                      eligibleCount: offlineReserveEligibleCount,
+                      idleLabel: 'Offline',
+                      emptySelectionLabel: 'Disable selected',
+                      selectedLabelPrefix: 'Disable',
+                      idleTooltip: 'Select available tables to offline reserve',
+                      selectionTooltip: 'Mark selected tables offline reserved',
+                      idleIcon: Icons.event_busy_rounded,
+                      selectionIcon: Icons.block_rounded,
+                      idleTone: AppColors.deepTeal,
+                      selectionTone: const Color(0xFF7C2D12),
+                      onPressed: onOfflineReserveAction,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: tightDesktop
+                        ? (enableOfflineSelectionMode ? 136 : 116)
+                        : (enableOfflineSelectionMode ? 154 : 132),
+                    child: _OfflineReserveTopBarButton(
+                      selectionMode: enableOfflineSelectionMode,
+                      selectedCount: enableOfflineSelectedCount,
+                      eligibleCount: enableOfflineEligibleCount,
+                      idleLabel: 'Enable',
+                      emptySelectionLabel: 'Enable selected',
+                      selectedLabelPrefix: 'Enable',
+                      idleTooltip: 'Select offline reserved tables to enable',
+                      selectionTooltip: 'Enable selected tables',
+                      idleIcon: Icons.event_available_rounded,
+                      selectionIcon: Icons.check_circle_rounded,
+                      idleTone: AppColors.successGreen,
+                      selectionTone: AppColors.successGreen,
+                      onPressed: onEnableOfflineAction,
+                    ),
+                  ),
+                  if (tableSelectionMode)
+                    IconButton(
+                      tooltip: 'Cancel table selection',
+                      onPressed: onTableSelectionCancel,
+                      icon: const Icon(Icons.close_rounded),
+                    ),
                   IconButton(
                     tooltip: 'QR management',
                     onPressed: onQrManagement,
@@ -2573,6 +2970,84 @@ class _AdminTopBar extends StatelessWidget {
                 ],
               ),
             ),
+    );
+  }
+}
+
+class _OfflineReserveTopBarButton extends StatelessWidget {
+  const _OfflineReserveTopBarButton({
+    required this.selectionMode,
+    required this.selectedCount,
+    required this.eligibleCount,
+    required this.idleLabel,
+    required this.emptySelectionLabel,
+    required this.selectedLabelPrefix,
+    required this.idleTooltip,
+    required this.selectionTooltip,
+    required this.idleIcon,
+    required this.selectionIcon,
+    required this.idleTone,
+    required this.selectionTone,
+    required this.onPressed,
+  });
+
+  final bool selectionMode;
+  final int selectedCount;
+  final int eligibleCount;
+  final String idleLabel;
+  final String emptySelectionLabel;
+  final String selectedLabelPrefix;
+  final String idleTooltip;
+  final String selectionTooltip;
+  final IconData idleIcon;
+  final IconData selectionIcon;
+  final Color idleTone;
+  final Color selectionTone;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = selectionMode
+        ? selectedCount == 0
+              ? emptySelectionLabel
+              : '$selectedLabelPrefix $selectedCount'
+        : idleLabel;
+    final tooltip = selectionMode ? selectionTooltip : idleTooltip;
+    final tone = selectionMode ? selectionTone : idleTone;
+    return Tooltip(
+      message: tooltip,
+      child: OutlinedButton(
+        onPressed: eligibleCount == 0 && !selectionMode ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: tone,
+          side: BorderSide(
+            color: selectionMode
+                ? tone.withValues(alpha: 0.45)
+                : tone.withValues(alpha: 0.42),
+            width: 1.4,
+          ),
+          backgroundColor: selectionMode
+              ? Color.alphaBlend(tone.withValues(alpha: 0.08), Colors.white)
+              : const Color(0xFFF1FBFD),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          minimumSize: const Size.fromHeight(54),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            Icon(selectionMode ? selectionIcon : idleIcon, size: 18),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

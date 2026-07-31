@@ -71,14 +71,19 @@ class EzqButton extends StatelessWidget {
             ),
             child: Center(
               child: Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: MainAxisSize.max,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: large ? 19 : 16,
-                      fontWeight: large ? FontWeight.w700 : FontWeight.w600,
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: large ? 19 : 16,
+                        fontWeight: large ? FontWeight.w700 : FontWeight.w600,
+                      ),
                     ),
                   ),
                   if (icon != null) ...[

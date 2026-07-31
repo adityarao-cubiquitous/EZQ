@@ -9,6 +9,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/utils/phone_utils.dart';
 
+class TemporaryOtpConfig {
+  const TemporaryOtpConfig._();
+
+  static const code = '123456';
+
+  /// Temporary MVP/test-flight behavior: require users/admins to enter an OTP,
+  /// but accept the shared demo code instead of sending Firebase SMS.
+  ///
+  /// The real Firebase phone verification code remains in place and can be
+  /// restored by building with:
+  /// `--dart-define=USE_REAL_FIREBASE_OTP=true`.
+  static const enabled = !bool.fromEnvironment('USE_REAL_FIREBASE_OTP');
+}
+
 abstract class AuthRepository {
   Future<void> signInAdmin({required String email, required String password});
 
@@ -382,8 +396,14 @@ class FirebaseAuthRepository implements AuthRepository {
   final FirebaseAuth _auth;
 
   @override
-  Future<void> signInAdmin({required String email, required String password}) {
-    return _auth.signInWithEmailAndPassword(
+  Future<void> signInAdmin({
+    required String email,
+    required String password,
+  }) async {
+    if (kIsWeb) {
+      await _auth.setPersistence(Persistence.SESSION);
+    }
+    await _auth.signInWithEmailAndPassword(
       email: email.trim(),
       password: password,
     );

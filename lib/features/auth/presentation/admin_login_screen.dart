@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -34,8 +33,7 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
 
   bool get _codeSent => _verificationId != null && _verificationId!.isNotEmpty;
   bool get _isBusy => _sendingCode || _verifyingCode;
-  bool get _temporaryOtpBypassEnabled =>
-      kDebugMode || const bool.fromEnvironment('ALLOW_ADMIN_OTP_BYPASS');
+  bool get _temporaryOtpEnabled => TemporaryOtpConfig.enabled;
 
   @override
   void dispose() {
@@ -53,7 +51,7 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
     });
 
     try {
-      if (_temporaryOtpBypassEnabled) {
+      if (_temporaryOtpEnabled) {
         final normalizedPhone = PhoneUtils.normalizeIndiaMobile(
           _phoneController.text,
         );
@@ -61,7 +59,7 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
           _verificationId = 'temporary-admin-otp-bypass';
           _normalizedPhone = normalizedPhone;
           _resendToken = 1;
-          _otpController.text = '123456';
+          _otpController.clear();
         });
         return;
       }
@@ -102,9 +100,9 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
     });
 
     try {
-      if (_temporaryOtpBypassEnabled &&
+      if (_temporaryOtpEnabled &&
           verificationId == 'temporary-admin-otp-bypass') {
-        if (_otpController.text.trim() != '123456') {
+        if (_otpController.text.trim() != TemporaryOtpConfig.code) {
           throw StateError('That code does not look right. Please try again.');
         }
         await _finishTemporaryOtpBypass();
@@ -263,10 +261,10 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
             'Admin access is created by EZQ platform support. Sign in with the mapped phone number.',
             style: TextStyle(color: AppColors.mutedText, fontSize: 14),
           ),
-          if (_temporaryOtpBypassEnabled) ...[
+          if (_temporaryOtpEnabled) ...[
             const SizedBox(height: 8),
             const Text(
-              'Temporary OTP for local validation: 123456',
+              'Temporary OTP for validation: 123456',
               style: TextStyle(color: AppColors.deepTeal, fontSize: 13),
             ),
           ],
@@ -306,7 +304,9 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
           _header(),
           const SizedBox(height: 28),
           Text(
-            'Enter the OTP sent to ${_normalizedPhone ?? 'your phone'}.',
+            _temporaryOtpEnabled
+                ? 'Enter 123456 for ${_normalizedPhone ?? 'your phone'} while OTP delivery is paused.'
+                : 'Enter the OTP sent to ${_normalizedPhone ?? 'your phone'}.',
             style: const TextStyle(color: AppColors.mutedText, fontSize: 14),
           ),
           const SizedBox(height: 24),

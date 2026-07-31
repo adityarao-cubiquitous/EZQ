@@ -92,7 +92,11 @@ class _SignedInHome extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _AccountHeader(title: title, subtitle: subtitle),
+        _AccountHeader(
+          title: title,
+          subtitle: subtitle,
+          onProfile: () => context.go('/app/account'),
+        ),
         const SizedBox(height: 18),
         _CurrentVisitPanel(phoneNumber: phoneNumber, customerId: customerId),
         const SizedBox(height: 14),
@@ -145,11 +149,11 @@ void _openNearbyRestaurants(BuildContext context, WidgetRef ref) {
   context.go('/app/nearby');
 }
 
-final _homeCustomerNameProfileProvider =
-    FutureProvider.family<
-      CustomerNameProfile?,
-      ({String? phoneNumber, String? customerId})
-    >((ref, args) {
+final _homeCustomerNameProfileProvider = FutureProvider.autoDispose
+    .family<CustomerNameProfile?, ({String? phoneNumber, String? customerId})>((
+      ref,
+      args,
+    ) {
       final user = ref.watch(customerAuthStateProvider).asData?.value;
       return ref
           .watch(customerProfileRepositoryProvider)
@@ -171,10 +175,15 @@ class _AppLoadingHome extends StatelessWidget {
 }
 
 class _AccountHeader extends StatelessWidget {
-  const _AccountHeader({required this.title, required this.subtitle});
+  const _AccountHeader({
+    required this.title,
+    required this.subtitle,
+    required this.onProfile,
+  });
 
   final String title;
   final String subtitle;
+  final VoidCallback onProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -204,6 +213,23 @@ class _AccountHeader extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Tooltip(
+          message: 'Edit profile',
+          child: IconButton.filledTonal(
+            onPressed: onProfile,
+            icon: const Icon(Icons.person_outline_rounded),
+            color: AppColors.deepTeal,
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white.withValues(alpha: 0.86),
+              fixedSize: const Size(42, 42),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: Color(0x33BDEAF8)),
+              ),
+            ),
           ),
         ),
       ],
@@ -330,9 +356,28 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
             if (!isCurrentCustomerVisitStatus(entry.status)) {
               return const _NoCurrentVisitPanel();
             }
+            final fallbackAheadCount = (entry.queuePosition - 1).clamp(
+              0,
+              999999,
+            );
+            final aheadCount = entry.status == QueueStatus.seated
+                ? 0
+                : ref
+                      .watch(
+                        queueAheadCountProvider((
+                          restaurantId: visit.restaurantId,
+                          branchId: visit.branchId,
+                          queueEntryId: visit.queueEntryId,
+                        )),
+                      )
+                      .maybeWhen(
+                        data: (ahead) => ahead,
+                        orElse: () => fallbackAheadCount,
+                      );
             return _ActiveVisitCard(
               visit: visit,
               entry: entry,
+              aheadCount: aheadCount,
               cancelling: _cancelling,
               onView: () => context.go(visit.statusRoute),
               onCancel: entry.status == QueueStatus.seated
@@ -401,6 +446,7 @@ class _ActiveVisitCard extends StatelessWidget {
   const _ActiveVisitCard({
     required this.visit,
     required this.entry,
+    required this.aheadCount,
     required this.cancelling,
     required this.onView,
     required this.onCancel,
@@ -408,6 +454,7 @@ class _ActiveVisitCard extends StatelessWidget {
 
   final CustomerQueueVisit visit;
   final QueueEntry entry;
+  final int aheadCount;
   final bool cancelling;
   final VoidCallback onView;
   final VoidCallback? onCancel;
@@ -487,10 +534,10 @@ class _ActiveVisitCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _VisitMetric(
-                    label: seated ? 'Table' : 'Queue position',
+                    label: seated ? 'Table' : 'Ahead',
                     value: seated
                         ? (entry.assignedTableNumber ?? 'Assigned')
-                        : '#${entry.queuePosition}',
+                        : '$aheadCount ${aheadCount == 1 ? 'person' : 'people'}',
                   ),
                 ),
                 const SizedBox(width: 10),

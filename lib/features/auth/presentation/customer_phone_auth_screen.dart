@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -35,9 +34,7 @@ class _CustomerPhoneAuthScreenState
   bool _verifyingCode = false;
 
   bool get _codeSent => _verificationId != null && _verificationId!.isNotEmpty;
-  bool get _debugOtpEnabled =>
-      !kIsWeb &&
-      (kDebugMode || const bool.fromEnvironment('ALLOW_CUSTOMER_OTP_BYPASS'));
+  bool get _temporaryOtpEnabled => TemporaryOtpConfig.enabled;
 
   @override
   void dispose() {
@@ -50,7 +47,7 @@ class _CustomerPhoneAuthScreenState
     if (!_phoneFormKey.currentState!.validate()) return;
     setState(() => _sendingCode = true);
     try {
-      if (_debugOtpEnabled) {
+      if (_temporaryOtpEnabled) {
         final normalizedPhone = PhoneUtils.normalizeIndiaMobile(
           _phoneController.text,
         );
@@ -58,10 +55,15 @@ class _CustomerPhoneAuthScreenState
         setState(() {
           _verificationId = 'debug-otp-bypass';
           _normalizedPhone = normalizedPhone;
-          _otpController.text = '123456';
+          _resendToken = 1;
+          _otpController.clear();
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Use 123456 as the OTP for now.')),
+          const SnackBar(
+            content: Text(
+              'OTP step enabled. Enter 123456 to continue for now.',
+            ),
+          ),
         );
         return;
       }
@@ -105,8 +107,8 @@ class _CustomerPhoneAuthScreenState
     if (verificationId == null || verificationId.isEmpty) return;
     setState(() => _verifyingCode = true);
     try {
-      if (_debugOtpEnabled && verificationId == 'debug-otp-bypass') {
-        if (_otpController.text.trim() != '123456') {
+      if (_temporaryOtpEnabled && verificationId == 'debug-otp-bypass') {
+        if (_otpController.text.trim() != TemporaryOtpConfig.code) {
           throw StateError('That code does not look right. Please try again.');
         }
         final phone = _normalizedPhone ?? _phoneController.text;
@@ -290,8 +292,8 @@ class _CustomerPhoneAuthScreenState
           ),
           const SizedBox(height: 8),
           Text(
-            _debugOtpEnabled
-                ? 'Use 123456 for ${_normalizedPhone ?? 'this phone number'}.'
+            _temporaryOtpEnabled
+                ? 'Enter 123456 for ${_normalizedPhone ?? 'this phone number'} while OTP delivery is paused.'
                 : 'We sent a 6-digit code to ${_normalizedPhone ?? 'your phone'}.',
             style: const TextStyle(
               color: AppColors.mutedText,
@@ -302,7 +304,7 @@ class _CustomerPhoneAuthScreenState
           const SizedBox(height: 24),
           EzqTextField(
             label: 'OTP Code',
-            hintText: '123456',
+            hintText: TemporaryOtpConfig.code,
             controller: _otpController,
             keyboardType: TextInputType.number,
             validator: (value) {

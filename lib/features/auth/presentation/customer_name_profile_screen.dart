@@ -11,7 +11,9 @@ import '../data/auth_repository.dart';
 import '../../customer/presentation/customer_shell.dart';
 
 class CustomerNameProfileScreen extends ConsumerStatefulWidget {
-  const CustomerNameProfileScreen({super.key});
+  const CustomerNameProfileScreen({super.key, this.editing = false});
+
+  final bool editing;
 
   @override
   ConsumerState<CustomerNameProfileScreen> createState() =>
@@ -54,11 +56,18 @@ class _CustomerNameProfileScreenState
     }
 
     try {
+      final existingProfile = await ref
+          .read(customerProfileRepositoryProvider)
+          .loadNameProfile(user, phoneNumber: debugPhone);
+      if (existingProfile != null) {
+        _firstNameController.text = existingProfile.firstName;
+        _lastNameController.text = existingProfile.lastName;
+      }
       final needsName = await ref
           .read(customerProfileRepositoryProvider)
           .needsNameProfile(user, phoneNumber: debugPhone);
       if (!mounted) return;
-      if (!needsName) {
+      if (!widget.editing && !needsName) {
         context.go('/app/home');
         return;
       }
@@ -91,6 +100,11 @@ class _CustomerNameProfileScreenState
             phoneNumber: debugPhone,
           );
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.editing ? 'Profile updated' : 'Profile saved'),
+        ),
+      );
       context.go('/app/home');
     } catch (error) {
       if (!mounted) return;
@@ -139,18 +153,20 @@ class _CustomerNameProfileScreenState
         children: [
           const Center(child: _ProfileBrandBadge()),
           const SizedBox(height: 20),
-          const Text(
-            'Tell us your name',
-            style: TextStyle(
+          Text(
+            widget.editing ? 'Your profile' : 'Tell us your name',
+            style: const TextStyle(
               color: AppColors.navyText,
               fontSize: 28,
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'We will use this when you join restaurant queues.',
-            style: TextStyle(
+          Text(
+            widget.editing
+                ? 'Keep your name current so restaurants can identify your queue entry quickly.'
+                : 'We will use this when you join restaurant queues.',
+            style: const TextStyle(
               color: AppColors.mutedText,
               fontSize: 15,
               height: 1.35,
@@ -172,8 +188,14 @@ class _CustomerNameProfileScreenState
           ),
           const SizedBox(height: 22),
           EzqButton(
-            label: _saving ? 'Saving...' : 'Continue',
-            icon: Icons.arrow_forward_rounded,
+            label: _saving
+                ? 'Saving...'
+                : widget.editing
+                ? 'Save changes'
+                : 'Continue',
+            icon: widget.editing
+                ? Icons.check_rounded
+                : Icons.arrow_forward_rounded,
             onPressed: _saving ? null : _saveProfile,
           ),
         ],

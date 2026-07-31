@@ -176,6 +176,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const CustomerNameProfileScreen(),
       ),
       GoRoute(
+        path: '/app/account',
+        builder: (context, state) =>
+            const CustomerNameProfileScreen(editing: true),
+      ),
+      GoRoute(
         path: '/app/home',
         builder: (context, state) => const CustomerAppHomeScreen(),
       ),
