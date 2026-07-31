@@ -154,6 +154,38 @@ void main() {
 
     expect(result.isEmpty, isTrue);
   });
+
+  for (final scenario
+      in <
+        ({int partySize, int firstCapacity, int secondCapacity, bool exactFit})
+      >[
+        (partySize: 7, firstCapacity: 4, secondCapacity: 4, exactFit: false),
+        (partySize: 8, firstCapacity: 4, secondCapacity: 4, exactFit: true),
+        (partySize: 9, firstCapacity: 4, secondCapacity: 6, exactFit: false),
+        (partySize: 10, firstCapacity: 4, secondCapacity: 6, exactFit: true),
+        (partySize: 12, firstCapacity: 6, secondCapacity: 6, exactFit: true),
+        (partySize: 14, firstCapacity: 6, secondCapacity: 8, exactFit: true),
+        (partySize: 16, firstCapacity: 8, secondCapacity: 8, exactFit: true),
+      ]) {
+    test(
+      'supports party ${scenario.partySize} with a two-table assignment',
+      () {
+        final result = recommendMultiTableCombination(
+          partySize: scenario.partySize,
+          tables: [
+            _table('A', capacity: scenario.firstCapacity),
+            _table('B', capacity: scenario.secondCapacity),
+          ],
+        );
+
+        final recommendations = scenario.exactFit
+            ? result.bestFits
+            : result.nextBestFits;
+        expect(recommendations, hasLength(1));
+        expect(_ids(recommendations.single), ['A', 'B']);
+      },
+    );
+  }
 }
 
 List<String> _ids(TableCombinationRecommendation recommendation) =>

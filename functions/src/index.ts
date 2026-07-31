@@ -70,6 +70,47 @@ function optionalRecord(data: Record<string, unknown>, key: string): Record<stri
   return value as Record<string, unknown>;
 }
 
+function optionalStringArray(data: Record<string, unknown>, key: string): string[] {
+  const value = data[key];
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+    throw new HttpsError("invalid-argument", `${key} must be an array of strings`);
+  }
+  const items = value
+    .map((item) => (item as string).trim())
+    .filter((item) => item.length > 0);
+  return items;
+}
+
+function assignedTableIds(queueSnapshot: {get(field: string): unknown}): string[] {
+  const storedIds = queueSnapshot.get("assignedTableIds");
+  if (Array.isArray(storedIds)) {
+    const ids = storedIds
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+    if (ids.length > 0) return [...new Set(ids)];
+  }
+  const singleId = queueSnapshot.get("assignedTableId");
+  return typeof singleId === "string" && singleId.trim().length > 0 ?
+    [singleId.trim()] :
+    [];
+}
+
+function isEmptyTableOnlyPreference(customerPreferences: unknown): boolean {
+  if (
+    customerPreferences == null ||
+    typeof customerPreferences !== "object" ||
+    Array.isArray(customerPreferences)
+  ) {
+    return false;
+  }
+  return (
+    (customerPreferences as Record<string, unknown>).seatingPreference ===
+    "EMPTY_TABLE_ONLY"
+  );
+}
+
 function requireGeoPoint(data: Record<string, unknown>): GeoPoint | null {
   const value = data.geoPoint;
   if (value == null) return null;
@@ -245,6 +286,8 @@ async function createQueueEntry(input: JoinQueueInput, sessionType: string) {
       status: "waiting" satisfies QueueStatus,
       assignedTableId: null,
       assignedTableNumber: null,
+      assignedTableIds: [],
+      assignedTableNumbers: [],
       estimatedWaitMinutes,
       queuePosition,
       extensionUsed: false,
@@ -325,6 +368,7 @@ export const createRestaurantBranch = onCall(async (request) => {
       qrSlug,
       isActive: true,
       onboardingCompleted: false,
+      provisioningStatus: "pending",
       floorCount: 0,
       totalTables: 0,
       totalSeats: 0,
@@ -368,6 +412,8 @@ export const assignRestaurantBranchAdmin = onCall(async (request) => {
         `restaurantBranches/${restaurantBranchId} must exist before assigning an admin`,
       );
     }
+    const branchOnboardingCompleted =
+      branchSnap.get("onboardingCompleted") === true;
 
     if (adminSnap.exists) {
       const currentRestaurantBranchId = adminSnap.get("restaurantBranchId") as string | undefined;
@@ -385,6 +431,7 @@ export const assignRestaurantBranchAdmin = onCall(async (request) => {
         ...(email ? {email} : {}),
         ...(phone ? {phone: normalizePhone(phone)} : {}),
         isActive,
+        onboardingCompleted: branchOnboardingCompleted,
         updatedAt: FieldValue.serverTimestamp(),
       });
       return;
@@ -398,6 +445,7 @@ export const assignRestaurantBranchAdmin = onCall(async (request) => {
       restaurantBranchId,
       role,
       isActive,
+      onboardingCompleted: branchOnboardingCompleted,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -464,6 +512,8 @@ export const provisionRestaurantBranchAdmin = onCall(async (request) => {
         `restaurantBranches/${restaurantBranchId} must exist before assigning an admin`,
       );
     }
+    const branchOnboardingCompleted =
+      branchSnap.get("onboardingCompleted") === true;
 
     if (adminSnap.exists) {
       const currentRestaurantBranchId = adminSnap.get("restaurantBranchId") as string | undefined;
@@ -481,6 +531,7 @@ export const provisionRestaurantBranchAdmin = onCall(async (request) => {
         restaurantBranchId,
         role,
         isActive,
+        onboardingCompleted: branchOnboardingCompleted,
         authProvider: "phone",
         updatedAt: FieldValue.serverTimestamp(),
       });
@@ -495,6 +546,7 @@ export const provisionRestaurantBranchAdmin = onCall(async (request) => {
       restaurantBranchId,
       role,
       isActive,
+      onboardingCompleted: branchOnboardingCompleted,
       authProvider: "phone",
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -615,13 +667,16 @@ export const cancelQueueEntry = onCall(async (request) => {
     if (!["waiting", "reserved", "on_the_way"].includes(status)) {
       throw new HttpsError("failed-precondition", "Queue entry cannot be cancelled");
     }
-    const tableId = queueSnap.get("assignedTableId") as string | null;
-    if (tableId) {
+    for (const tableId of assignedTableIds(queueSnap)) {
       transaction.update(db.doc(`${tablesPath(restaurantId, branchId)}/${tableId}`), {
         status: "available" satisfies TableStatus,
         currentQueueEntryId: null,
         currentTokenCode: null,
+        currentPartySize: null,
         reservedAt: null,
+        occupiedAt: null,
+        currentCycleStartAt: null,
+        currentCycleSource: null,
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
@@ -647,40 +702,106 @@ export const reserveTable = onCall(async (request) => {
   const restaurantId = requireString(data, "restaurantId");
   const branchId = requireString(data, "branchId");
   const queueEntryId = requireString(data, "queueEntryId");
-  const tableId = requireString(data, "tableId");
+  const requestedTableIds = optionalStringArray(data, "tableIds");
+  const tableIds = requestedTableIds.length > 0 ?
+    requestedTableIds :
+    [requireString(data, "tableId")];
+  if (new Set(tableIds).size !== tableIds.length) {
+    throw new HttpsError("invalid-argument", "tableIds cannot contain duplicates");
+  }
+  if (tableIds.length > 2) {
+    throw new HttpsError("invalid-argument", "At most two tables can be combined");
+  }
   await assertAdminAccess(request.auth?.uid, restaurantId, branchId);
   const queueRef = db.doc(`${queueEntriesPath(restaurantId, branchId)}/${queueEntryId}`);
-  const tableRef = db.doc(`${tablesPath(restaurantId, branchId)}/${tableId}`);
+  const tableRefs = tableIds.map(
+    (tableId) => db.doc(`${tablesPath(restaurantId, branchId)}/${tableId}`),
+  );
   const date = businessDate();
 
   await db.runTransaction(async (transaction) => {
-    const [queueSnap, tableSnap] = await Promise.all([
+    const [queueSnap, ...tableSnaps] = await Promise.all([
       transaction.get(queueRef),
-      transaction.get(tableRef),
+      ...tableRefs.map((tableRef) => transaction.get(tableRef)),
     ]);
     if (!queueSnap.exists || queueSnap.get("status") !== "waiting") {
       throw new HttpsError("failed-precondition", "Queue entry is not waiting");
     }
-    if (!tableSnap.exists || tableSnap.get("status") !== "available") {
-      throw new HttpsError("failed-precondition", "Table is not available");
+    if (tableSnaps.some(
+      (tableSnap) => !tableSnap.exists || tableSnap.get("status") !== "available",
+    )) {
+      throw new HttpsError("failed-precondition", "A selected table is not available");
+    }
+    if (tableIds.length > 1) {
+      const floorIds = new Set(tableSnaps.map(
+        (tableSnap) => (tableSnap.get("floorId") as string | undefined)?.trim() ?? "",
+      ));
+      if (floorIds.size !== 1 || floorIds.has("")) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Combined tables must belong to the same valid floor",
+        );
+      }
     }
     const assignedAt = FieldValue.serverTimestamp();
+    const tableNumbers = tableSnaps.map((tableSnap) => {
+      const displayTableName = tableSnap.get("displayTableName");
+      if (typeof displayTableName === "string" && displayTableName.trim().length > 0) {
+        return displayTableName.trim();
+      }
+      return (tableSnap.get("tableNumber") as string | undefined) ?? "";
+    });
+    const partySize = (queueSnap.get("partySize") as number | undefined) ?? 0;
+    const capacities = tableSnaps.map(
+      (tableSnap) => (tableSnap.get("capacity") as number | undefined) ?? 0,
+    );
+    if (partySize <= 0 || capacities.reduce((total, capacity) => total + capacity, 0) < partySize) {
+      throw new HttpsError("failed-precondition", "Selected tables cannot fit this party");
+    }
+    const cycleStarts: unknown[] = [];
+    const cycleSources: string[] = [];
+    const shouldFillAssignedTables = isEmptyTableOnlyPreference(
+      queueSnap.get("customerPreferences"),
+    );
+    let remainingPartySize = partySize;
+    for (const tableSnap of tableSnaps) {
+      const previousCycleEndAt =
+        tableSnap.get("lastCycleEndAt") ?? tableSnap.get("lastCompletedAt");
+      cycleStarts.push(previousCycleEndAt ?? assignedAt);
+      cycleSources.push(previousCycleEndAt == null ? "first_reservation" : "previous_completion");
+    }
     transaction.update(queueRef, {
       status: "seated" satisfies QueueStatus,
-      assignedTableId: tableId,
-      assignedTableNumber: tableSnap.get("tableNumber"),
+      assignedTableId: tableIds[0],
+      assignedTableNumber: tableNumbers.join(" + "),
+      assignedTableIds: tableIds,
+      assignedTableNumbers: tableNumbers,
       reservedAt: assignedAt,
       seatedAt: assignedAt,
+      tableCycleStartAt: cycleStarts[0],
+      tableCycleSource: tableIds.length === 1 ? cycleSources[0] : "combined_tables",
       updatedAt: assignedAt,
     });
-    transaction.update(tableRef, {
-      status: "occupied" satisfies TableStatus,
-      currentQueueEntryId: queueEntryId,
-      currentTokenCode: queueSnap.get("tokenCode"),
-      reservedAt: assignedAt,
-      occupiedAt: assignedAt,
-      updatedAt: assignedAt,
-    });
+    for (let index = 0; index < tableRefs.length; index++) {
+      const capacity = (tableSnaps[index].get("capacity") as number | undefined) ?? 0;
+      const occupiedSeatCount = shouldFillAssignedTables ?
+        capacity :
+        Math.max(0, Math.min(remainingPartySize, capacity));
+      if (!shouldFillAssignedTables) {
+        remainingPartySize -= occupiedSeatCount;
+      }
+      transaction.update(tableRefs[index], {
+        status: "occupied" satisfies TableStatus,
+        currentQueueEntryId: queueEntryId,
+        currentTokenCode: queueSnap.get("tokenCode"),
+        currentPartySize: occupiedSeatCount,
+        reservedAt: assignedAt,
+        occupiedAt: assignedAt,
+        currentCycleStartAt: cycleStarts[index],
+        currentCycleSource: cycleSources[index],
+        updatedAt: assignedAt,
+      });
+    }
     transaction.set(
       db.doc(dailyCounterPath(restaurantId, branchId, date)),
       {totalSeated: FieldValue.increment(1), updatedAt: assignedAt},
@@ -721,18 +842,22 @@ export const confirmSeated = onCall(async (request) => {
     if (!["reserved", "on_the_way"].includes(status)) {
       throw new HttpsError("failed-precondition", "Queue entry cannot be seated");
     }
-    const tableId = queueSnap.get("assignedTableId") as string | null;
-    if (!tableId) throw new HttpsError("failed-precondition", "No table assigned");
+    const tableIds = assignedTableIds(queueSnap);
+    if (tableIds.length === 0) {
+      throw new HttpsError("failed-precondition", "No table assigned");
+    }
     transaction.update(queueRef, {
       status: "seated" satisfies QueueStatus,
       seatedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    transaction.update(db.doc(`${tablesPath(restaurantId, branchId)}/${tableId}`), {
-      status: "occupied" satisfies TableStatus,
-      occupiedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    for (const tableId of tableIds) {
+      transaction.update(db.doc(`${tablesPath(restaurantId, branchId)}/${tableId}`), {
+        status: "occupied" satisfies TableStatus,
+        occupiedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
     transaction.set(
       db.doc(dailyCounterPath(restaurantId, branchId, date)),
       {totalSeated: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp()},
@@ -791,17 +916,21 @@ export const markNoShow = onCall(async (request) => {
   await db.runTransaction(async (transaction) => {
     const queueSnap = await transaction.get(queueRef);
     if (!queueSnap.exists) throw new HttpsError("not-found", "Queue entry not found");
-    const tableId = queueSnap.get("assignedTableId") as string | null;
     transaction.update(queueRef, {
       status: "no_show" satisfies QueueStatus,
       noShowAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    if (tableId) {
+    for (const tableId of assignedTableIds(queueSnap)) {
       transaction.update(db.doc(`${tablesPath(restaurantId, branchId)}/${tableId}`), {
         status: "available" satisfies TableStatus,
         currentQueueEntryId: null,
         currentTokenCode: null,
+        currentPartySize: null,
+        reservedAt: null,
+        occupiedAt: null,
+        currentCycleStartAt: null,
+        currentCycleSource: null,
         updatedAt: FieldValue.serverTimestamp(),
       });
     }

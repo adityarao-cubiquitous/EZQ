@@ -61,4 +61,53 @@ void main() {
     );
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
+
+  testWidgets('shared QR dialog exposes the complete management action set', (
+    tester,
+  ) async {
+    const args = (restaurantId: 'the-spice-house', branchId: 'indiranagar');
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          branchQrInfoProvider(args).overrideWith(
+            (ref) => Stream.value(
+              const BranchQrInfo(
+                restaurantId: 'the-spice-house',
+                restaurantBranchId: 'the-spice-house-indiranagar',
+                restaurantName: 'The Spice House',
+                branchName: 'Indiranagar',
+                queueUrl:
+                    'https://ezq-dev-cubiquitous.web.app/customer/the-spice-house-indiranagar',
+              ),
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => FilledButton(
+                onPressed: () => showQrManagementDialog(
+                  context: context,
+                  restaurantId: args.restaurantId,
+                  branchId: args.branchId,
+                ),
+                child: const Text('Open QR'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open QR'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(QrManagementDialog), findsOneWidget);
+    expect(find.byType(QrManagementPanel), findsOneWidget);
+    expect(find.text('PNG'), findsOneWidget);
+    expect(find.text('SVG'), findsOneWidget);
+    expect(find.text('Copy'), findsOneWidget);
+    expect(find.text('Share'), findsOneWidget);
+    expect(find.text('Print'), findsOneWidget);
+  });
 }

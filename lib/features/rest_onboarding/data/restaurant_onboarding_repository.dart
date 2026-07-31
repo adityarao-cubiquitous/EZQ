@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -71,6 +73,16 @@ class FirebaseRestaurantOnboardingRepository
         'restaurantBranchId.',
       );
     }
+    _debugStructured('Loaded Admin', <String, Object?>{
+      'document': adminPath,
+      'uid': user.uid,
+      'restaurantBranchId': restaurantBranchId,
+      'name': (adminData['name'] as String? ?? '').trim(),
+      'email': (adminData['email'] as String? ?? '').trim(),
+      'phone': (adminData['phone'] as String? ?? '').trim(),
+      'isActive': adminData['isActive'] as bool? ?? false,
+      'onboardingCompleted': adminData['onboardingCompleted'] as bool?,
+    });
 
     final outletPath = FirestorePaths.restaurantBranch(restaurantBranchId);
     _debugLog('[ONBOARDING_REPO] BEFORE await _readDocument path=$outletPath');
@@ -86,33 +98,11 @@ class FirebaseRestaurantOnboardingRepository
       'Document exists=${branchSnapshot.exists}',
     );
     if (!branchSnapshot.exists || branchData == null) {
-      _debugLog(
-        '[OUTLET]\n'
-        'path=$outletPath\n'
-        'Using default empty onboarding context because document is missing.',
+      throw AdminContextLoadException(
+        'Restaurant branch document is missing at $outletPath. '
+        'Onboarding cannot continue until the admin mapping points to an '
+        'existing branch.',
       );
-      final context = RestaurantBranchAdminContext(
-        uid: user.uid,
-        name: (adminData['name'] as String? ?? '').trim(),
-        email: (adminData['email'] as String? ?? '').trim(),
-        phone: (adminData['phone'] as String? ?? '').trim(),
-        restaurantBranchId: restaurantBranchId,
-        role: (adminData['role'] as String? ?? 'owner').trim(),
-        isActive: adminData['isActive'] as bool? ?? false,
-        onboardingCompleted: false,
-        provisioningStatus: 'pending',
-        branchActive: false,
-        restaurantName: _titleFromBranchId(restaurantBranchId),
-        branchName: 'Main',
-        area: '',
-        address: '',
-        slug: restaurantBranchId,
-        onboardingDraft: null,
-      );
-      _debugLog(
-        '[ONBOARDING_REPO] EXIT loadAdminContext missing branch default',
-      );
-      return context;
     }
     _debugLog(
       '[OUTLET]\n'
@@ -125,6 +115,37 @@ class FirebaseRestaurantOnboardingRepository
         branchData['onboardingCompleted'] as bool? ?? false;
     final provisioningStatus =
         (branchData['provisioningStatus'] as String? ?? '').trim();
+    final onboardingDraft = RestaurantOnboardingDraft.fromFirestore(
+      branchData['onboardingDraft'],
+    );
+    _debugStructured('Loaded Restaurant Branch', <String, Object?>{
+      'document': outletPath,
+      'restaurantBranchId': restaurantBranchId,
+      'restaurantName': (branchData['restaurantName'] as String? ?? '').trim(),
+      'branchName': (branchData['branchName'] as String? ?? '').trim(),
+      'area': (branchData['area'] as String? ?? '').trim(),
+      'address': (branchData['address'] as String? ?? '').trim(),
+      'isActive': branchData['isActive'] as bool? ?? false,
+      'onboardingCompleted': onboardingCompleted,
+      'provisioningStatus': provisioningStatus,
+      'draft': onboardingDraft == null
+          ? null
+          : <String, Object?>{
+              'restaurantName': onboardingDraft.restaurantName,
+              'branchName': onboardingDraft.branchName,
+              'area': onboardingDraft.area,
+              'address': onboardingDraft.address,
+              'currentStepIndex': onboardingDraft.currentStepIndex,
+            },
+    });
+    _debugStructured('Loaded Restaurant', <String, Object?>{
+      'document': null,
+      'applicable': false,
+      'reason':
+          'The canonical onboarding identity is stored in '
+          '$outletPath; legacy restaurants/{restaurantId} documents are not '
+          'part of the active onboarding read path.',
+    });
     final context = RestaurantBranchAdminContext(
       uid: user.uid,
       name: (adminData['name'] as String? ?? '').trim(),
@@ -134,6 +155,7 @@ class FirebaseRestaurantOnboardingRepository
       role: (adminData['role'] as String? ?? 'owner').trim(),
       isActive: adminData['isActive'] as bool? ?? false,
       onboardingCompleted: onboardingCompleted,
+      adminOnboardingCompleted: adminData['onboardingCompleted'] as bool?,
       provisioningStatus: provisioningStatus,
       branchActive: branchData['isActive'] as bool? ?? false,
       restaurantName: (branchData['restaurantName'] as String? ?? '').trim(),
@@ -143,9 +165,18 @@ class FirebaseRestaurantOnboardingRepository
       slug: (branchData['slug'] as String? ?? restaurantBranchId).trim().isEmpty
           ? restaurantBranchId
           : (branchData['slug'] as String? ?? restaurantBranchId).trim(),
-      onboardingDraft: RestaurantOnboardingDraft.fromFirestore(
-        branchData['onboardingDraft'],
+      onboardingDraft: onboardingDraft,
+      floorCount: _readInt(branchData['floorCount']).clamp(0, 15),
+      selectedTableCapacities: _readPositiveIntList(
+        branchData['capacityTypes'],
       ),
+      totalTables: _readInt(branchData['totalTables']),
+      totalSeats: _readInt(branchData['totalSeats']),
+      createdAt:
+          _readDateTime(branchData['onboardingCompletedAt']) ??
+          _readDateTime(adminData['onboardedAt']) ??
+          _readDateTime(branchData['createdAt']),
+      queueUrl: (branchData['queueUrl'] as String? ?? '').trim(),
     );
     _debugLog('[ONBOARDING_REPO] EXIT loadAdminContext success');
     return context;
@@ -208,35 +239,48 @@ class FirebaseRestaurantOnboardingRepository
     final branchRef = _firestore.doc(
       FirestorePaths.restaurantBranch(restaurantBranchId),
     );
+    final adminRef = _firestore.doc(FirestorePaths.rootAdmin(user.uid));
     try {
-      await _writeOnboardingDraft(branchRef, draft);
+      await _writeOnboardingDraft(adminRef, branchRef, draft);
     } on FirebaseException catch (error) {
       if (error.code != 'permission-denied') rethrow;
-      await _replaceOnboardingDraft(branchRef, draft);
+      await _replaceOnboardingDraft(adminRef, branchRef, draft);
     }
   }
 
   Future<void> _writeOnboardingDraft(
+    DocumentReference<Map<String, dynamic>> adminRef,
     DocumentReference<Map<String, dynamic>> branchRef,
     RestaurantOnboardingDraft draft,
-  ) {
-    return branchRef.update(<String, dynamic>{
+  ) async {
+    final batch = _firestore.batch();
+    batch.update(adminRef, <String, dynamic>{'onboardingCompleted': false});
+    batch.update(branchRef, <String, dynamic>{
+      'onboardingCompleted': false,
+      'provisioningStatus': 'pending',
       'onboardingDraft': draft.toFirestore(),
       'onboardingDraftUpdatedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    await batch.commit();
   }
 
   Future<void> _replaceOnboardingDraft(
+    DocumentReference<Map<String, dynamic>> adminRef,
     DocumentReference<Map<String, dynamic>> branchRef,
     RestaurantOnboardingDraft draft,
   ) async {
-    await branchRef.update(<String, dynamic>{
+    final batch = _firestore.batch();
+    batch.update(adminRef, <String, dynamic>{'onboardingCompleted': false});
+    batch.update(branchRef, <String, dynamic>{
+      'onboardingCompleted': false,
+      'provisioningStatus': 'pending',
       'onboardingDraft': FieldValue.delete(),
       'onboardingDraftUpdatedAt': FieldValue.delete(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
-    await _writeOnboardingDraft(branchRef, draft);
+    await batch.commit();
+    await _writeOnboardingDraft(adminRef, branchRef, draft);
   }
 
   @override
@@ -328,6 +372,7 @@ class FirebaseRestaurantOnboardingRepository
       'totalTables': request.totalTables,
       'totalSeats': request.totalSeats,
       'capacityTypes': request.selectedTableCapacities,
+      'onboardingCompletedAt': FieldValue.serverTimestamp(),
       'onboardingDraft': FieldValue.delete(),
       'onboardingDraftUpdatedAt': FieldValue.delete(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -412,6 +457,7 @@ class FirebaseRestaurantOnboardingRepository
 
     _markStarted(OnboardingProvisioningStep.updateAdmin, onStepStarted);
     batch.update(adminRef, <String, dynamic>{
+      'onboardingCompleted': true,
       'onboardedAt': FieldValue.serverTimestamp(),
     });
 
@@ -476,20 +522,36 @@ class FirebaseRestaurantOnboardingRepository
     }
   }
 
-  String _titleFromBranchId(String restaurantBranchId) {
-    final words = restaurantBranchId
-        .split(RegExp(r'[-_\s]+'))
-        .where((word) => word.trim().isNotEmpty)
-        .map((word) {
-          final lower = word.toLowerCase();
-          return lower[0].toUpperCase() + lower.substring(1);
-        });
-    final title = words.join(' ').trim();
-    return title.isEmpty ? restaurantBranchId : title;
+  int _readInt(Object? value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    if (value is String) return int.tryParse(value.trim()) ?? fallback;
+    return fallback;
+  }
+
+  List<int> _readPositiveIntList(Object? value) {
+    if (value is! Iterable) return const <int>[];
+    final values = <int>{
+      for (final item in value)
+        if (_readInt(item) > 0) _readInt(item),
+    }.toList()..sort();
+    return List<int>.unmodifiable(values);
+  }
+
+  DateTime? _readDateTime(Object? value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value.trim());
+    return null;
   }
 
   void _debugLog(String message) {
     debugPrint(message);
+  }
+
+  void _debugStructured(String label, Map<String, Object?> values) {
+    if (!kDebugMode) return;
+    debugPrint('[ONBOARDING_AUDIT] $label: ${jsonEncode(values)}');
   }
 }
 

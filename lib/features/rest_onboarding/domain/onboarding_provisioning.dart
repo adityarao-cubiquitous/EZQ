@@ -65,7 +65,7 @@ class RestaurantOnboardingResult {
   });
 
   final String restaurantBranchId;
-  final DateTime createdAt;
+  final DateTime? createdAt;
   final String adminEmail;
   final String qrUrl;
 
@@ -174,6 +174,7 @@ class RestaurantBranchAdminContext {
     required this.role,
     required this.isActive,
     required this.onboardingCompleted,
+    this.adminOnboardingCompleted,
     this.provisioningStatus = 'pending',
     this.branchActive = true,
     required this.restaurantName,
@@ -182,6 +183,12 @@ class RestaurantBranchAdminContext {
     required this.address,
     required this.slug,
     this.onboardingDraft,
+    this.floorCount = 1,
+    this.selectedTableCapacities = const <int>[],
+    this.totalTables = 0,
+    this.totalSeats = 0,
+    this.createdAt,
+    this.queueUrl = '',
   });
 
   final String uid;
@@ -192,6 +199,7 @@ class RestaurantBranchAdminContext {
   final String role;
   final bool isActive;
   final bool onboardingCompleted;
+  final bool? adminOnboardingCompleted;
   final String provisioningStatus;
   final bool branchActive;
   final String restaurantName;
@@ -200,10 +208,81 @@ class RestaurantBranchAdminContext {
   final String address;
   final String slug;
   final RestaurantOnboardingDraft? onboardingDraft;
+  final int floorCount;
+  final List<int> selectedTableCapacities;
+  final int totalTables;
+  final int totalSeats;
+  final DateTime? createdAt;
+  final String queueUrl;
 
   String get displayName => '$restaurantName - $branchName';
 
   bool get isProvisioningCompleted => onboardingCompleted && branchActive;
+
+  Map<String, String> get step1FieldIssues {
+    final adminPath = 'admins/$uid';
+    final branchPath = 'restaurantBranches/$restaurantBranchId';
+    return <String, String>{
+      if (name.trim().isEmpty) 'adminName': 'Missing $adminPath field "name".',
+      if (email.trim().isEmpty)
+        'adminEmail': 'Missing $adminPath field "email".',
+      if (phone.trim().isEmpty)
+        'adminPhone': 'Missing $adminPath field "phone".',
+      if (restaurantName.trim().isEmpty)
+        'restaurantName': 'Missing $branchPath field "restaurantName".',
+      if (branchName.trim().isEmpty)
+        'branchName': 'Missing $branchPath field "branchName".',
+      if (area.trim().isEmpty) 'area': 'Missing $branchPath field "area".',
+      if (address.trim().isEmpty)
+        'address': 'Missing $branchPath field "address".',
+    };
+  }
+
+  String? get completionStateError {
+    final normalizedStatus = provisioningStatus.trim().toLowerCase();
+    final statusIsCompleted = normalizedStatus == 'completed';
+    if (statusIsCompleted != onboardingCompleted) {
+      return 'Inconsistent onboarding state in '
+          'restaurantBranches/$restaurantBranchId: '
+          'provisioningStatus="${provisioningStatus.trim()}" and '
+          'onboardingCompleted=$onboardingCompleted must agree.';
+    }
+    final adminCompleted = adminOnboardingCompleted;
+    if (adminCompleted != null && adminCompleted != onboardingCompleted) {
+      return 'Inconsistent onboarding state between admins/$uid '
+          '(onboardingCompleted=$adminCompleted) and '
+          'restaurantBranches/$restaurantBranchId '
+          '(onboardingCompleted=$onboardingCompleted).';
+    }
+    return null;
+  }
+
+  String get completedQueueUrl {
+    final persistedQueueUrl = queueUrl.trim();
+    if (persistedQueueUrl.isNotEmpty) return persistedQueueUrl;
+    return '/customer/$restaurantBranchId';
+  }
+
+  String? get completedSummaryDataError {
+    if (!onboardingCompleted) return null;
+    if (!branchActive) {
+      return 'This completed restaurant branch is inactive. '
+          'Open the dashboard or contact your EZQ administrator.';
+    }
+
+    final missingFields = <String>[
+      if (restaurantName.trim().isEmpty) 'restaurant name',
+      if (branchName.trim().isEmpty) 'branch name',
+      if (floorCount < 1) 'floor count',
+      if (selectedTableCapacities.isEmpty) 'table capacity types',
+      if (totalTables < 1) 'total tables',
+      if (totalSeats < 1) 'total seats',
+      if (createdAt == null) 'completion timestamp',
+    ];
+    if (missingFields.isEmpty) return null;
+    return 'Completed onboarding data is incomplete in Firestore '
+        '(missing ${missingFields.join(', ')}).';
+  }
 }
 
 class RestaurantOnboardingFailure implements Exception {

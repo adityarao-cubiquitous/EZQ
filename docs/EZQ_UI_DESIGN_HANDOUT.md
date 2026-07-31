@@ -394,6 +394,7 @@ Recommendation behavior:
 - Multi-table best fit highlights every exact-capacity two-table combination available on each floor.
 - Multi-table next best fit highlights every higher-capacity two-table combination available on each floor.
 - Multi-table combinations use only completely available tables; partially occupied tables are excluded.
+- Selecting a multi-table recommendation atomically assigns and occupies every table in the combination, while undo and finish-meal actions release the full combination together.
 - Parties that accept shared seating may be recommended to compatible partially occupied tables or empty tables.
 - Parties that do not accept shared seating should be recommended only to empty tables.
 - When a non-sharing party is seated, the assigned table is treated as full even if physical seats remain.
@@ -436,6 +437,7 @@ Purpose: let branch staff and operators access the QR assets that route customer
 Entry point:
 
 - QR icon in the admin top bar.
+- Manage QR action on the completed onboarding summary.
 
 Current capabilities:
 
@@ -612,6 +614,22 @@ Manager:
 - `/admin/:restaurantBranchId/dashboard`
 - `/admin/:restaurantBranchId/reports`
 
+Completed onboarding route behavior:
+
+- Normal manager login continues directly to the branch dashboard.
+- Explicitly opening the branch onboarding URL after provisioning shows only the locked completion summary (Screen 4).
+- Screen 4 initializes after the first widget frame and reconstructs its summary from fresh Firestore admin and branch documents, independent of onboarding drafts, provider cache, navigation history, or prior in-memory state.
+- The completion summary exposes Setup Summary, Provisioning Checklist, Download Setup Summary, Manage QR, and Go to Dashboard without rebuilding Screens 1-3.
+- Failed Firestore loads replace the loading state with an error page offering Retry and Go to Dashboard, so the route cannot remain on an infinite spinner.
+
+Onboarding data and validation behavior:
+
+- `admins/{uid}.restaurantBranchId` resolves the canonical `restaurantBranches/{restaurantBranchId}` document used by Step 1; restaurant name, branch name, area, and address come from the canonical branch document rather than an onboarding draft.
+- Restoring a draft can recover wizard progress and floor/table configuration, but it cannot overwrite canonical branch identity or administrator profile fields.
+- Step 1 Continue is enabled only when the branch mapping, administrator name, email, phone, restaurant name, branch name, area, and address all pass validation.
+- Missing canonical values are identified by their Firestore document and field instead of being rendered as `Not specified`.
+- `onboardingCompleted` and `provisioningStatus` are written atomically. A completed provisioning status is valid only with `onboardingCompleted: true`; inconsistent persisted states stop restoration and surface an actionable error.
+
 ## 14. Design Decisions Already Made
 
 - Customer web app does not require email authentication.
@@ -626,10 +644,12 @@ Manager:
 - Finishing a meal captures completed party size and records table cycle timestamps.
 - Queue cards show how long the party has waited and what time they joined.
 - Queue recommendations should prefer the smallest fitting table and use green for best fit, yellow for next best fit. Oversized parties expose all same-floor, two-table exact and higher-capacity combinations using only fully available tables.
+- Multi-table recommendation actions store the combined display label plus `assignedTableIds` and `assignedTableNumbers` on the queue entry; singular assignment fields remain populated for backward compatibility.
 - Recent seating assignments should be undoable for a short recovery window.
 - Admin toasts are popup-style feedback, not bottom snackbars.
 - Walk-in queue entries support seating preference and live ETA context.
 - Branch QR management is available from the admin top bar.
+- Completed onboarding remains available as a read-only Screen 4 summary only when its branch URL is opened explicitly; login still routes completed managers directly to the dashboard.
 - Customer status includes ad space and hidden-object puzzle placeholder.
 - Admin and mobile customer auth both show the OTP verification step. For MVP/TestFlight validation the app accepts `123456`; the retained Firebase SMS verification path can be restored with `--dart-define=USE_REAL_FIREBASE_OTP=true`.
 - A customer with a `waiting`, `reserved`, or `on_the_way` queue entry cannot join another restaurant queue. Cancelling or being seated releases the customer to join again.
@@ -675,6 +695,12 @@ Customer features:
 Manager features:
 
 - Firebase email/password manager login.
+- One-time restaurant onboarding with a persistent, locked completion summary at the explicit branch onboarding URL.
+- Refresh- and deep-link-safe completed onboarding restoration from persisted Firestore data, with no dependency on onboarding drafts or provider cache.
+- Completed onboarding summary actions for downloading setup details, shared QR management, and dashboard navigation.
+- Recoverable onboarding-load failure state with Retry and Go to Dashboard actions.
+- Canonical Step 1 restoration from the mapped admin and branch documents, with field-specific missing-data warnings and validation diagnostics.
+- Atomic onboarding completion state across admin and branch records, guarded by Firestore rules.
 - Branch dashboard route for a selected `restaurantBranchId`.
 - Live table grid backed by Firestore streams.
 - Tables grouped and sorted by capacity.
@@ -757,6 +783,18 @@ Customer flow:
 Manager flow:
 
 - The system shall require manager login before accessing the admin dashboard.
+- The system shall route completed managers directly to the dashboard after login.
+- The system shall render only the locked completion summary when a completed branch onboarding URL is opened explicitly.
+- The system shall initialize onboarding data after widget construction and shall not mutate Riverpod providers during `initState`, `didChangeDependencies`, or `build`.
+- The system shall reconstruct completed Screen 4 from fresh persisted Firestore admin and branch data after refresh, deep link, new browser session, or logout/login.
+- The system shall prevent completed onboarding summaries from reopening restaurant details, floor/table configuration, or review steps.
+- The system shall reuse the dashboard QR-management dialog from the completed onboarding summary.
+- The system shall replace failed onboarding Firestore loads with an error page containing Retry and Go to Dashboard instead of leaving an infinite loading indicator.
+- The system shall source Step 1 identity from `restaurantBranches/{restaurantBranchId}` and administrator details from `admins/{uid}` after resolving the signed-in administrator's branch mapping.
+- The system shall restore draft progress and table configuration without allowing draft identity fields to replace canonical branch or administrator values.
+- The system shall enable Step 1 Continue only when branch mapping, administrator name, email, phone, restaurant name, branch name, area, and address are valid.
+- The system shall name the exact Firestore document and field when required onboarding data is missing instead of displaying `Not specified`.
+- The system shall keep admin and branch `onboardingCompleted` flags synchronized with branch `provisioningStatus`, and shall reject any persisted completed/incomplete mismatch.
 - The system shall show live waiting queue entries for the selected branch.
 - The system shall allow the Live Queue to be collapsed and reopened by touch, mouse, or keyboard on desktop, tablet, and mobile layouts.
 - The system shall expand the table dashboard into all released space when the Live Queue is closed.
@@ -768,11 +806,12 @@ Manager flow:
 - The system shall recommend multiple tables only when the waiting party exceeds the maximum capacity of every available single table.
 - The system shall keep every recommended table combination on one floor, restrict combinations to exactly two tables, show all exact pairs as best fit, and show all higher-capacity pairs as next best fit.
 - The system shall exclude partially occupied tables from multi-table combination recommendations.
+- The system shall atomically occupy every table selected in a multi-table recommendation and release the full combination on undo or meal completion.
 - The system shall recommend partially occupied tables only when the waiting party accepts shared seating and the table has enough spare seats.
 - The system shall allow a manager to reserve a waiting party by selecting a fitting table from recommendations or the table picker.
 - The system shall avoid free-text table assignment in the reserve flow.
-- The system shall immediately mark the selected queue entry as seated and the selected table as occupied.
-- The system shall treat a table assigned to a non-sharing party as fully occupied for remaining-seat display and future queue recommendations.
+- The system shall immediately mark the selected queue entry as seated and every selected table as occupied.
+- The system shall treat tables assigned to a non-sharing party as fully occupied for remaining-seat display and future queue recommendations.
 - The system shall allow a recent seating assignment to be undone during a short recovery window.
 - The system shall store assigned table details on the queue entry.
 - The system shall store current queue linkage on the occupied table.
@@ -829,6 +868,13 @@ Customer user stories:
 Manager user stories:
 
 - As a manager, I want to log in securely so only staff can manage the queue.
+- As a manager, I want login to return me directly to my dashboard after onboarding is complete.
+- As a manager, I want to revisit the completed onboarding summary by its explicit URL without being able to rerun setup.
+- As a manager, I want a completed setup summary to survive refreshes, deep links, and new sessions without relying on an old onboarding draft.
+- As a manager, I want the onboarding summary to offer the same QR management actions as the dashboard.
+- As a manager, I want a failed setup-summary load to offer Retry and dashboard access instead of spinning indefinitely.
+- As a manager, I want Step 1 to restore canonical restaurant, branch, area, address, and administrator details without a stale draft erasing them.
+- As a manager, I want Continue to explain every invalid required field so I can distinguish missing Firestore data from an application defect.
 - As a manager, I want to see all waiting parties live so I can decide who to seat next.
 - As a manager, I want to see tables grouped by capacity so I can quickly find a good fit.
 - As a manager, I want best-fit and next-best-fit suggestions so I can seat parties quickly without wasting capacity.

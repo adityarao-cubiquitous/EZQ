@@ -12,6 +12,7 @@ class RestaurantDetailsStep extends StatelessWidget {
     required this.branchName,
     required this.area,
     required this.address,
+    required this.fieldIssues,
     required this.canContinue,
     required this.onSaveDraft,
     required this.onContinue,
@@ -24,6 +25,7 @@ class RestaurantDetailsStep extends StatelessWidget {
   final String branchName;
   final String area;
   final String address;
+  final Map<String, String> fieldIssues;
   final bool canContinue;
   final VoidCallback onSaveDraft;
   final VoidCallback onContinue;
@@ -48,6 +50,10 @@ class RestaurantDetailsStep extends StatelessWidget {
                 ),
                 const SizedBox(height: 32),
                 const _InfoBanner(),
+                if (fieldIssues.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _MissingFieldsWarning(messages: fieldIssues.values.toList()),
+                ],
                 const _SectionDivider(),
                 _SectionCard(
                   child: _ReadOnlyDetailsGrid(
@@ -58,6 +64,7 @@ class RestaurantDetailsStep extends StatelessWidget {
                     branchName: branchName,
                     area: area,
                     address: address,
+                    fieldIssues: fieldIssues,
                   ),
                 ),
                 const _SectionDivider(),
@@ -150,6 +157,7 @@ class _ReadOnlyDetailsGrid extends StatelessWidget {
     required this.branchName,
     required this.area,
     required this.address,
+    required this.fieldIssues,
   });
 
   final String adminName;
@@ -159,6 +167,7 @@ class _ReadOnlyDetailsGrid extends StatelessWidget {
   final String branchName;
   final String area;
   final String address;
+  final Map<String, String> fieldIssues;
 
   @override
   Widget build(BuildContext context) {
@@ -170,36 +179,43 @@ class _ReadOnlyDetailsGrid extends StatelessWidget {
             icon: Icons.badge_outlined,
             label: 'Admin Name',
             value: adminName,
+            missingValueMessage: fieldIssues['adminName'],
           ),
           _ReadOnlyDetailItem(
             icon: Icons.mail_outline_rounded,
             label: 'Email',
             value: adminEmail,
+            missingValueMessage: fieldIssues['adminEmail'],
           ),
           _ReadOnlyDetailItem(
             icon: Icons.phone_outlined,
             label: 'Admin Phone',
             value: adminPhone,
+            missingValueMessage: fieldIssues['adminPhone'],
           ),
           _ReadOnlyDetailItem(
             icon: Icons.storefront_outlined,
             label: 'Restaurant',
             value: restaurantName,
+            missingValueMessage: fieldIssues['restaurantName'],
           ),
           _ReadOnlyDetailItem(
             icon: Icons.apartment_rounded,
             label: 'Branch',
             value: branchName,
+            missingValueMessage: fieldIssues['branchName'],
           ),
           _ReadOnlyDetailItem(
             icon: Icons.location_on_outlined,
             label: 'Area',
             value: area,
+            missingValueMessage: fieldIssues['area'],
           ),
           _ReadOnlyDetailItem(
             icon: Icons.map_outlined,
             label: 'Address',
             value: address,
+            missingValueMessage: fieldIssues['address'],
           ),
         ];
 
@@ -232,15 +248,21 @@ class _ReadOnlyDetailItem extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.missingValueMessage,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final String? missingValueMessage;
 
   @override
   Widget build(BuildContext context) {
-    final displayValue = value.trim().isEmpty ? 'Not specified' : value.trim();
+    final isMissing = value.trim().isEmpty;
+    final displayValue = isMissing
+        ? missingValueMessage ??
+              'Missing required Firestore value. Contact EZQ support.'
+        : value.trim();
 
     return Container(
       constraints: const BoxConstraints(minHeight: 72),
@@ -270,10 +292,66 @@ class _ReadOnlyDetailItem extends StatelessWidget {
                 Text(
                   displayValue,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.navyText,
+                    color: isMissing ? AppColors.errorRed : AppColors.navyText,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MissingFieldsWarning extends StatelessWidget {
+  const _MissingFieldsWarning({required this.messages});
+
+  final List<String> messages;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.errorRed.withValues(alpha: 0.07),
+        border: Border.all(color: AppColors.errorRed.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            color: AppColors.errorRed,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Required Firestore data is missing',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.errorRed,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                for (final message in messages)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '• $message',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.navyText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

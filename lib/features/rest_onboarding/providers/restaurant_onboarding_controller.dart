@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,8 +17,6 @@ final restaurantOnboardingControllerProvider =
       RestaurantOnboardingController.new,
     );
 
-RestaurantBranchAdminContext? temporaryAdminContext;
-
 bool duplicateRestaurantBranch(String restaurant, String branch) {
   return false;
 }
@@ -34,6 +33,7 @@ class RestaurantOnboardingState {
     required this.branchName,
     required this.area,
     required this.address,
+    required this.step1FieldIssues,
     required this.isLoadingAdminContext,
     required this.adminContextError,
     required this.showRestaurantError,
@@ -47,6 +47,8 @@ class RestaurantOnboardingState {
     required this.provisioningResult,
     required this.failedProvisioningStep,
     required this.provisioningErrorMessage,
+    required this.persistedTotalTables,
+    required this.persistedTotalSeats,
   });
 
   factory RestaurantOnboardingState.initial() {
@@ -61,6 +63,7 @@ class RestaurantOnboardingState {
       branchName: '',
       area: '',
       address: '',
+      step1FieldIssues: const <String, String>{},
       isLoadingAdminContext: false,
       adminContextError: null,
       showRestaurantError: false,
@@ -74,6 +77,8 @@ class RestaurantOnboardingState {
       provisioningResult: null,
       failedProvisioningStep: null,
       provisioningErrorMessage: null,
+      persistedTotalTables: null,
+      persistedTotalSeats: null,
     );
   }
 
@@ -87,6 +92,7 @@ class RestaurantOnboardingState {
   final String branchName;
   final String area;
   final String address;
+  final Map<String, String> step1FieldIssues;
   final bool isLoadingAdminContext;
   final String? adminContextError;
   final bool showRestaurantError;
@@ -100,6 +106,8 @@ class RestaurantOnboardingState {
   final RestaurantOnboardingResult? provisioningResult;
   final OnboardingProvisioningStep? failedProvisioningStep;
   final String? provisioningErrorMessage;
+  final int? persistedTotalTables;
+  final int? persistedTotalSeats;
 
   String get trimmedRestaurantName => restaurantName.trim();
 
@@ -120,14 +128,52 @@ class RestaurantOnboardingState {
     return duplicateRestaurantBranch(trimmedRestaurantName, trimmedBranchName);
   }
 
+  bool get adminNameIsValid => adminName.trim().isNotEmpty;
+
+  bool get adminEmailIsValid {
+    final value = adminEmail.trim();
+    final atIndex = value.indexOf('@');
+    return atIndex > 0 && atIndex < value.length - 1;
+  }
+
+  bool get adminPhoneIsValid {
+    final digits = adminPhone.replaceAll(RegExp(r'\D'), '');
+    return digits.length >= 10 && digits.length <= 15;
+  }
+
+  bool get areaIsValid => trimmedArea.isNotEmpty;
+
+  bool get addressIsValid => address.trim().isNotEmpty;
+
+  Map<String, bool> get step1ValidationRules => <String, bool>{
+    'Restaurant Branch ID': restaurantBranchId.trim().isNotEmpty,
+    'Admin Context Loaded': adminContextError == null && !isLoadingAdminContext,
+    'Admin Name': adminNameIsValid,
+    'Email': adminEmailIsValid,
+    'Phone': adminPhoneIsValid,
+    'Restaurant': restaurantHasValidLength,
+    'Branch': branchHasValidLength,
+    'Area': areaIsValid,
+    'Address': addressIsValid,
+  };
+
+  List<String> get step1ValidationReasons => <String>[
+    for (final rule in step1ValidationRules.entries)
+      if (!rule.value) rule.key,
+  ];
+
   bool get isStep1Valid =>
-      restaurantBranchId.trim().isNotEmpty &&
-      adminContextError == null &&
-      !isLoadingAdminContext &&
-      restaurantName.trim().isNotEmpty &&
-      branchName.trim().isNotEmpty;
+      step1ValidationRules.values.every((isValid) => isValid);
+
+  bool get isOnboardingComplete =>
+      currentStepIndex == 3 &&
+      provisioningResult != null &&
+      provisioningProgress.every(
+        (progress) => progress.status == ProvisioningStepStatus.complete,
+      );
 
   int get totalTables {
+    if (persistedTotalTables != null) return persistedTotalTables!;
     return tableCountsByFloor.fold<int>(
       0,
       (total, floorCounts) =>
@@ -136,6 +182,7 @@ class RestaurantOnboardingState {
   }
 
   int get totalSeats {
+    if (persistedTotalSeats != null) return persistedTotalSeats!;
     var seats = 0;
     for (final floorCounts in tableCountsByFloor) {
       for (var index = 0; index < selectedTableCapacities.length; index++) {
@@ -235,6 +282,7 @@ class RestaurantOnboardingState {
     String? branchName,
     String? area,
     String? address,
+    Map<String, String>? step1FieldIssues,
     bool? isLoadingAdminContext,
     String? adminContextError,
     bool clearAdminContextError = false,
@@ -252,6 +300,10 @@ class RestaurantOnboardingState {
     bool clearFailedProvisioningStep = false,
     String? provisioningErrorMessage,
     bool clearProvisioningErrorMessage = false,
+    int? persistedTotalTables,
+    bool clearPersistedTotalTables = false,
+    int? persistedTotalSeats,
+    bool clearPersistedTotalSeats = false,
   }) {
     return RestaurantOnboardingState(
       currentStepIndex: currentStepIndex ?? this.currentStepIndex,
@@ -264,6 +316,7 @@ class RestaurantOnboardingState {
       branchName: branchName ?? this.branchName,
       area: area ?? this.area,
       address: address ?? this.address,
+      step1FieldIssues: step1FieldIssues ?? this.step1FieldIssues,
       isLoadingAdminContext:
           isLoadingAdminContext ?? this.isLoadingAdminContext,
       adminContextError: clearAdminContextError
@@ -288,6 +341,12 @@ class RestaurantOnboardingState {
       provisioningErrorMessage: clearProvisioningErrorMessage
           ? null
           : provisioningErrorMessage ?? this.provisioningErrorMessage,
+      persistedTotalTables: clearPersistedTotalTables
+          ? null
+          : persistedTotalTables ?? this.persistedTotalTables,
+      persistedTotalSeats: clearPersistedTotalSeats
+          ? null
+          : persistedTotalSeats ?? this.persistedTotalSeats,
     );
   }
 
@@ -339,7 +398,7 @@ class RestaurantOnboardingState {
       'Capacity Types: ${selectedTableCapacities.map((capacity) => '$capacity Top').join(', ')}',
       'Tables: $totalTables',
       'Seats: $totalSeats',
-      'Creation Timestamp: ${result.createdAt.toIso8601String()}',
+      'Creation Timestamp: ${result.createdAt?.toIso8601String() ?? 'Not available'}',
       'QR URL: ${result.qrUrl}',
     ].join('\n');
   }
@@ -409,17 +468,9 @@ class RestaurantOnboardingController
       'expectedRestaurantBranchId=${expectedRestaurantBranchId ?? ''}',
     );
     debugPrint('[ONBOARDING_STATE] Loading=true');
-    state = state.copyWith(
+    state = RestaurantOnboardingState.initial().copyWith(
       isLoadingAdminContext: true,
-      restaurantBranchId: '',
-      adminName: '',
-      adminEmail: '',
-      adminPhone: '',
-      restaurantName: '',
-      branchName: '',
-      area: '',
-      address: '',
-      clearAdminContextError: true,
+      restaurantBranchId: expectedRestaurantBranchId?.trim(),
     );
 
     try {
@@ -484,21 +535,75 @@ class RestaurantOnboardingController
         branchName: context.branchName,
         area: context.area,
         address: context.address,
+        step1FieldIssues: context.step1FieldIssues,
         isLoadingAdminContext: false,
         clearAdminContextError: true,
       );
+      final completionStateError = context.completionStateError;
+      if (completionStateError != null) {
+        state = nextState.copyWith(adminContextError: completionStateError);
+        _debugLogStep1Validation(state);
+        debugPrint(
+          '[ONBOARDING_CONTROLLER] EXIT loadAdminContext '
+          'completion-state-invalid',
+        );
+        return;
+      }
+      if (context.onboardingCompleted) {
+        final summaryDataError = context.completedSummaryDataError;
+        if (summaryDataError != null) {
+          state = nextState.copyWith(adminContextError: summaryDataError);
+          _debugLogStep1Validation(state);
+          debugPrint(
+            '[ONBOARDING_CONTROLLER] EXIT loadAdminContext '
+            'completed-summary-invalid',
+          );
+          return;
+        }
+        nextState = _withSynchronizedTableConfiguration(
+          nextState.copyWith(
+            currentStepIndex: 3,
+            completedStepIndexes: const <int>{0, 1, 2},
+            floorCount: context.floorCount,
+            selectedTableCapacities: context.selectedTableCapacities,
+            tableCountsByFloor: const <List<int>>[],
+            persistedTotalTables: context.totalTables,
+            persistedTotalSeats: context.totalSeats,
+            provisioningProgress: [
+              for (final step in OnboardingProvisioningStep.values)
+                ProvisioningStepProgress(
+                  step: step,
+                  status: ProvisioningStepStatus.complete,
+                ),
+            ],
+            provisioningResult: RestaurantOnboardingResult(
+              restaurantBranchId: context.restaurantBranchId,
+              createdAt: context.createdAt,
+              adminEmail: context.email.isEmpty
+                  ? 'Not available'
+                  : context.email,
+              qrUrl: context.completedQueueUrl,
+            ),
+          ),
+        );
+        state = nextState;
+        _debugLogStep1Validation(state);
+        debugPrint(
+          '[ONBOARDING_CONTROLLER] EXIT loadAdminContext completed-summary',
+        );
+        return;
+      }
       final draft = context.onboardingDraft;
       if (draft != null &&
           draft.restaurantBranchId == context.restaurantBranchId &&
           !context.isProvisioningCompleted) {
+        final canRestoreLaterStep = nextState.isStep1Valid;
         nextState = _withSynchronizedTableConfiguration(
           nextState.copyWith(
-            currentStepIndex: draft.currentStepIndex,
-            completedStepIndexes: draft.completedStepIndexes,
-            restaurantName: draft.restaurantName,
-            branchName: draft.branchName,
-            area: draft.area,
-            address: draft.address,
+            currentStepIndex: canRestoreLaterStep ? draft.currentStepIndex : 0,
+            completedStepIndexes: canRestoreLaterStep
+                ? draft.completedStepIndexes
+                : const <int>{},
             floorCount: draft.floorCount,
             selectedTableCapacities: draft.selectedTableCapacities,
             tableCountsByFloor: draft.tableCountsByFloor,
@@ -506,6 +611,7 @@ class RestaurantOnboardingController
         );
       }
       state = nextState;
+      _debugLogStep1Validation(state);
       debugPrint('[ONBOARDING_CONTROLLER] EXIT loadAdminContext success');
     } catch (error, stackTrace) {
       debugPrint(
@@ -519,6 +625,22 @@ class RestaurantOnboardingController
       );
       debugPrint('[ONBOARDING_CONTROLLER] EXIT loadAdminContext error');
     }
+  }
+
+  void reportAdminContextLoadFailure(Object error) {
+    state = state.copyWith(
+      isLoadingAdminContext: false,
+      adminContextError: 'Unable to load onboarding details: $error',
+    );
+  }
+
+  void _debugLogStep1Validation(RestaurantOnboardingState value) {
+    if (!kDebugMode) return;
+    debugPrint(
+      '[ONBOARDING_AUDIT] Loaded Validation: '
+      '${jsonEncode(<String, Object?>{for (final rule in value.step1ValidationRules.entries) rule.key: rule.value, 'Continue Enabled': value.isStep1Valid, 'Reason': value.step1ValidationReasons.isEmpty ? 'All required fields are valid.' : 'Missing or invalid: '
+                '${value.step1ValidationReasons.join(', ')}', 'Field Issues': value.step1FieldIssues})}',
+    );
   }
 
   void updateRestaurantName(String value) {
@@ -581,7 +703,7 @@ class RestaurantOnboardingController
   }
 
   void backFromStep4() {
-    if (state.isProvisioning) return;
+    if (state.isProvisioning || state.provisioningResult != null) return;
     state = state.copyWith(currentStepIndex: 2);
     _queueDraftSave();
   }
@@ -740,8 +862,9 @@ class RestaurantOnboardingController
     }
   }
 
-  Future<void> saveDraft() {
-    return _saveDraftState(state);
+  Future<void> saveDraft() async {
+    if (state.isOnboardingComplete) return;
+    await _saveDraftState(state);
   }
 
   void _markProvisioningStepRunning(OnboardingProvisioningStep step) {

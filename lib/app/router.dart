@@ -24,6 +24,7 @@ import '../features/customer/presentation/seated_view.dart';
 import '../features/customer/presentation/table_ready_view.dart';
 import '../features/reports/presentation/daily_summary_screen.dart';
 import '../features/rest_onboarding/presentation/screens/restaurant_onboarding_screen.dart';
+import 'admin_branch_route_policy.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -138,6 +139,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         redirect: (context, state) => _redirectAdminBranchRoute(
           state,
           state.pathParameters['restaurantBranchId']!,
+          allowCompletedOnboardingSummary: true,
         ),
         builder: (context, state) => const RestaurantOnboardingScreen(),
       ),
@@ -222,8 +224,9 @@ Future<String> _redirectLegacyAdminOnboarding() async {
 
 Future<String?> _redirectAdminBranchRoute(
   GoRouterState state,
-  String restaurantBranchId,
-) async {
+  String restaurantBranchId, {
+  bool allowCompletedOnboardingSummary = false,
+}) async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return '/admin/login';
 
@@ -241,12 +244,24 @@ Future<String?> _redirectAdminBranchRoute(
     return _adminBranchDestination(mappedRestaurantBranchId);
   }
 
-  final destination = await _adminBranchDestination(mappedRestaurantBranchId);
-  if (state.uri.path == destination) return null;
-  return destination;
+  final branchReady = await _restaurantBranchIsReady(mappedRestaurantBranchId);
+  return resolveAdminBranchRouteRedirect(
+    currentPath: state.uri.path,
+    restaurantBranchId: mappedRestaurantBranchId,
+    branchReady: branchReady,
+    allowCompletedOnboardingSummary: allowCompletedOnboardingSummary,
+  );
 }
 
 Future<String> _adminBranchDestination(String restaurantBranchId) async {
+  final branchReady = await _restaurantBranchIsReady(restaurantBranchId);
+  if (branchReady) {
+    return '/admin/$restaurantBranchId/dashboard';
+  }
+  return '/admin/$restaurantBranchId/register/onboarding';
+}
+
+Future<bool> _restaurantBranchIsReady(String restaurantBranchId) async {
   final branchSnapshot = await FirebaseFirestore.instance
       .doc(FirestorePaths.restaurantBranch(restaurantBranchId))
       .get();
@@ -255,8 +270,5 @@ Future<String> _adminBranchDestination(String restaurantBranchId) async {
     branchExists: branchSnapshot.exists,
     branchData: branchData,
   );
-  if (readiness.isReady) {
-    return '/admin/$restaurantBranchId/dashboard';
-  }
-  return '/admin/$restaurantBranchId/register/onboarding';
+  return readiness.isReady;
 }

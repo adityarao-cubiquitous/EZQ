@@ -534,47 +534,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   Future<void> _showQrManagementDialog() {
-    return showDialog<void>(
+    return showQrManagementDialog(
       context: context,
-      builder: (context) {
-        final viewport = MediaQuery.sizeOf(context);
-        final compact = Responsive.isCompact(context);
-        final landscape = viewport.width > viewport.height;
-        final horizontalInset = compact ? 12.0 : 40.0;
-        final availableContentWidth =
-            viewport.width - (horizontalInset * 2) - 32;
-        return AlertDialog(
-          insetPadding: EdgeInsets.symmetric(
-            horizontal: horizontalInset,
-            vertical: landscape ? 12 : 24,
-          ),
-          scrollable: true,
-          titlePadding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
-          title: Row(
-            children: [
-              const Expanded(child: Text('QR Management')),
-              IconButton(
-                key: const ValueKey('qr-management-close'),
-                tooltip: 'Close QR Management',
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close_rounded),
-                style: IconButton.styleFrom(
-                  foregroundColor: AppColors.mutedText,
-                  backgroundColor: AppColors.softSurface,
-                ),
-              ),
-            ],
-          ),
-          contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          content: SizedBox(
-            width: math.min(availableContentWidth, 760.0),
-            child: QrManagementPanel(
-              restaurantId: widget.restaurantId,
-              branchId: widget.branchId,
-            ),
-          ),
-        );
-      },
+      restaurantId: widget.restaurantId,
+      branchId: widget.branchId,
     );
   }
 
@@ -748,6 +711,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                           onUndoReservation: (table) => _undoSeatFromTableTile(
                             context: context,
                             table: table,
+                            queueEntry: queueById[table.currentQueueEntryId],
                           ),
                           offlineReserveSelectionMode:
                               _offlineReserveSelectionMode,
@@ -1080,25 +1044,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required QueueTableRecommendation recommendation,
     required List<RestaurantTable> tables,
   }) async {
-    if (recommendation.isMultiTable) {
-      _showAdminPopup(
-        context,
-        message:
-            '${recommendation.tableNumber} is the recommended same-floor table combination for ${entry.tokenCode}.',
-      );
-      return;
-    }
-    final table = _tableById(tables, recommendation.tableId);
-    if (table == null) {
-      _showAdminPopup(
-        context,
-        message:
-            '${recommendation.tableNumber} is no longer available in this view.',
-        tone: _AdminPopupTone.warning,
-      );
-      return;
-    }
-
     if (recommendation.isShared) {
       _clearTableGridSelection();
       _showAdminPopup(
@@ -1110,7 +1055,26 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       return;
     }
 
-    await _seatQueueEntryAtTable(context: context, entry: entry, table: table);
+    final selectedTables = <RestaurantTable>[];
+    for (final tableId in recommendation.tableIds) {
+      final table = _tableById(tables, tableId);
+      if (table == null) {
+        _showAdminPopup(
+          context,
+          message:
+              '${recommendation.tableNumber} is no longer available in this view.',
+          tone: _AdminPopupTone.warning,
+        );
+        return;
+      }
+      selectedTables.add(table);
+    }
+
+    await _seatQueueEntryAtTables(
+      context: context,
+      entry: entry,
+      tables: selectedTables,
+    );
   }
 
   RestaurantTable? _tableById(List<RestaurantTable> tables, String tableId) {
@@ -1124,15 +1088,34 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required BuildContext context,
     required QueueEntry entry,
     required RestaurantTable table,
+  }) {
+    return _seatQueueEntryAtTables(
+      context: context,
+      entry: entry,
+      tables: [table],
+    );
+  }
+
+  Future<void> _seatQueueEntryAtTables({
+    required BuildContext context,
+    required QueueEntry entry,
+    required List<RestaurantTable> tables,
   }) async {
+    if (tables.isEmpty) return;
+    final tableNumbers = [
+      for (final table in tables)
+        _dashboardTableDisplayName(table, surface: 'seating_assignment'),
+    ];
+    final tableLabel = tableNumbers.join(' + ');
+    final isCombination = tables.length > 1;
     try {
       await ref
           .read(tableRepositoryProvider)
-          .reserveTable(
+          .reserveTables(
             restaurantId: widget.restaurantId,
             branchId: widget.branchId,
             queueEntryId: entry.id,
-            tableId: table.id,
+            tableIds: [for (final table in tables) table.id],
           );
       if (!context.mounted) return;
       await showGeneralDialog<void>(
@@ -1145,10 +1128,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           return _SeatingTransitionOverlay(
             tokenCode: entry.tokenCode,
             customerName: entry.customerName,
-            tableNumber: _dashboardTableDisplayName(
-              table,
-              surface: 'seating_overlay',
-            ),
+            tableNumber: tableLabel,
           );
         },
         transitionBuilder: (context, animation, secondaryAnimation, child) {
@@ -1168,7 +1148,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _showAdminPopup(
         context,
         message:
-            '${entry.tokenCode} seated at ${_dashboardTableDisplayName(table, surface: 'seat_snackbar')}. Table is now occupied.',
+            '${entry.tokenCode} seated at $tableLabel. ${isCombination ? 'All tables are' : 'Table is'} now occupied.',
         tone: _AdminPopupTone.success,
         actionLabel: 'Undo',
         duration: const Duration(seconds: 7),
@@ -1177,7 +1157,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             _undoSeatQueueEntryAtTable(
               context: context,
               entry: entry,
-              table: table,
+              table: tables.first,
+              assignedTableLabel: tableLabel,
+              assignedTableCount: tables.length,
             ),
           );
         },
@@ -1196,6 +1178,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     required BuildContext context,
     required QueueEntry entry,
     required RestaurantTable table,
+    String? assignedTableLabel,
+    int assignedTableCount = 1,
   }) async {
     try {
       await ref
@@ -1208,10 +1192,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           );
       if (!context.mounted) return;
       _clearTableGridSelection();
+      final label =
+          assignedTableLabel ??
+          _dashboardTableDisplayName(table, surface: 'undo_snackbar');
       _showAdminPopup(
         context,
         message:
-            '${entry.tokenCode} moved back to waiting. ${_dashboardTableDisplayName(table, surface: 'undo_snackbar')} is available again.',
+            '${entry.tokenCode} moved back to waiting. $label ${assignedTableCount > 1 ? 'are' : 'is'} available again.',
         tone: _AdminPopupTone.success,
       );
     } catch (error) {
@@ -1227,6 +1214,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   Future<void> _undoSeatFromTableTile({
     required BuildContext context,
     required RestaurantTable table,
+    required QueueEntry? queueEntry,
   }) async {
     final queueEntryId = table.currentQueueEntryId;
     if (queueEntryId == null) return;
@@ -1242,10 +1230,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           );
       if (!context.mounted) return;
       _clearTableGridSelection();
+      final assignedTableLabel =
+          queueEntry?.assignedTableNumber ??
+          _dashboardTableDisplayName(table, surface: 'tile_undo_snackbar');
+      final isCombination = (queueEntry?.assignedTableIds.length ?? 0) > 1;
       _showAdminPopup(
         context,
         message:
-            '$tokenCode moved back to waiting. ${_dashboardTableDisplayName(table, surface: 'tile_undo_snackbar')} is available again.',
+            '$tokenCode moved back to waiting. $assignedTableLabel ${isCombination ? 'are' : 'is'} available again.',
         tone: _AdminPopupTone.success,
       );
     } catch (error) {
@@ -1322,10 +1314,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final completedPartySize = await showDialog<int>(
       context: context,
       builder: (context) => _MealFinishedDialog(
-        tableNumber: _dashboardTableDisplayName(
-          table,
-          surface: 'finish_meal_dialog',
-        ),
+        tableNumber:
+            queueEntry?.assignedTableNumber ??
+            _dashboardTableDisplayName(table, surface: 'finish_meal_dialog'),
         tokenCode: table.currentTokenCode ?? queueEntry?.tokenCode ?? 'Token',
         initialPartySize: initialPartySize,
         maxPartySize: [
@@ -1364,10 +1355,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       return;
     }
     if (!context.mounted) return;
+    final assignedTableLabel =
+        queueEntry?.assignedTableNumber ??
+        _dashboardTableDisplayName(table, surface: 'finish_meal_snackbar');
     _showAdminPopup(
       context,
       message:
-          '${_dashboardTableDisplayName(table, surface: 'finish_meal_snackbar')} marked available. $completedPartySize guests finished.',
+          '$assignedTableLabel marked available. $completedPartySize guests finished.',
       tone: _AdminPopupTone.success,
     );
   }

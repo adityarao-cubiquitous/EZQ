@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -9,7 +10,6 @@ import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../rest_onboarding/providers/restaurant_onboarding_controller.dart';
 import '../data/auth_repository.dart';
-import '../../rest_onboarding/domain/onboarding_provisioning.dart';
 
 class AdminLoginScreen extends ConsumerStatefulWidget {
   const AdminLoginScreen({super.key});
@@ -145,12 +145,13 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
           password: session.adminPassword,
         );
     if (!mounted) return;
-    if (session.onboardingCompleted) {
-      context.go('/admin/${session.restaurantBranchId}/dashboard');
-      return;
+    if (kDebugMode) {
+      debugPrint(
+        '[ADMIN_LOGIN] Temporary credential mapping: '
+        '${session.onboardingQuery}',
+      );
     }
-    temporaryAdminContext = session.context;
-    context.go('/admin/register/onboarding?${session.onboardingQuery}');
+    await _finishAdminLogin();
   }
 
   Future<void> _finishAdminLogin() async {
@@ -398,7 +399,6 @@ class _TemporaryAdminSession {
     required this.area,
     required this.address,
     required this.slug,
-    required this.onboardingCompleted,
   });
 
   final String adminUid;
@@ -412,7 +412,6 @@ class _TemporaryAdminSession {
   final String area;
   final String address;
   final String slug;
-  final bool onboardingCompleted;
 
   String get onboardingQuery {
     return Uri(
@@ -430,24 +429,6 @@ class _TemporaryAdminSession {
       },
     ).query;
   }
-
-  RestaurantBranchAdminContext get context {
-    return RestaurantBranchAdminContext(
-      uid: adminUid,
-      name: adminName,
-      email: adminEmail,
-      phone: adminPhone,
-      restaurantBranchId: restaurantBranchId,
-      role: 'owner',
-      isActive: true,
-      onboardingCompleted: onboardingCompleted,
-      restaurantName: restaurantName,
-      branchName: branchName,
-      area: area,
-      address: address,
-      slug: slug,
-    );
-  }
 }
 
 const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
@@ -463,7 +444,6 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     area: 'Domlur',
     address: 'Domlur Edge, Bengaluru',
     slug: 'biryani-bay-domlur-edge',
-    onboardingCompleted: true,
   ),
   '+919999001001': _TemporaryAdminSession(
     adminUid: 'aN9Xx70ZY5fL3udQDxddQezjYED2',
@@ -478,7 +458,6 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     area: 'Bilekahalli',
     address: 'Bilekahalli Main Road near IIM Bangalore, Bengaluru',
     slug: 'codex-rule-sync-cafe-00wh77-main',
-    onboardingCompleted: true,
   ),
   '+919999001002': _TemporaryAdminSession(
     adminUid: 'A78jcHkH7wMZkHgmVnWDqS6CwPQ2',
@@ -492,7 +471,6 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     area: 'Arekere',
     address: 'Arekere Gate near Bannerghatta Road, Bengaluru',
     slug: 'cubbon-curry-indiranagar',
-    onboardingCompleted: true,
   ),
   '+919999001003': _TemporaryAdminSession(
     adminUid: 'qHyEuqkzG7SRRKcdnh036yZL5R73',
@@ -506,7 +484,6 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     area: 'JP Nagar 7th Phase',
     address: 'JP Nagar 7th Phase near IIM Bangalore, Bengaluru',
     slug: 'dosa-lab-indiranagar',
-    onboardingCompleted: true,
   ),
   '+919999001004': _TemporaryAdminSession(
     adminUid: 'e63yLHy0PhYO7KtmdCxzKUiNZkE2',
@@ -520,7 +497,6 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     area: 'Hulimavu',
     address: 'Hulimavu Main Road near IIM Bangalore, Bengaluru',
     slug: 'grill-garden-old-airport-road',
-    onboardingCompleted: true,
   ),
   '+919999001005': _TemporaryAdminSession(
     adminUid: 'fg5aGSKR8ad4kdSBAes5van1NJK2',
@@ -534,7 +510,6 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     area: 'Bannerghatta Road',
     address: 'Bannerghatta Road, Bengaluru',
     slug: 'momo-mill-indiranagar-metro',
-    onboardingCompleted: true,
   ),
   '+919999001006': _TemporaryAdminSession(
     adminUid: 'SyFKT8CDYSgAttPuscL80GuJgtE3',
@@ -548,7 +523,6 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     area: 'Panduranga Nagar',
     address: 'Panduranga Nagar near IIM Bangalore, Bengaluru',
     slug: 'noodle-yard-indiranagar',
-    onboardingCompleted: true,
   ),
   '+919999001007': _TemporaryAdminSession(
     adminUid: 'iL2xWHftWwMmBLRWJMLp4n6EbHR2',
@@ -562,7 +536,6 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     area: 'BTM 2nd Stage',
     address: 'BTM 2nd Stage near Bannerghatta Road, Bengaluru',
     slug: 'pasta-pepper-hal-2nd-stage',
-    onboardingCompleted: true,
   ),
   '+919999001008': _TemporaryAdminSession(
     adminUid: 'qcYCxNc0rRhmI5DC4p8sCWTXhSr1',
@@ -576,7 +549,6 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     area: 'Dollars Colony',
     address: 'Dollars Colony JP Nagar near IIM Bangalore, Bengaluru',
     slug: 'salad-studio-12th-main',
-    onboardingCompleted: true,
   ),
   '+919999001009': _TemporaryAdminSession(
     adminUid: 'UKE83urkjFU9fLZCz1kOjBsjdel1',
@@ -590,7 +562,6 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     area: 'Arakere Mico Layout',
     address: 'Arakere Mico Layout near Bannerghatta Road, Bengaluru',
     slug: 'taco-tawa-indiranagar',
-    onboardingCompleted: true,
   ),
   '+919999001010': _TemporaryAdminSession(
     adminUid: '5QdD9TeOu7avdfHh9gUPkiweiIE3',
@@ -604,7 +575,6 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     area: 'Vijaya Bank Layout',
     address: 'Vijaya Bank Layout near IIM Bangalore, Bengaluru',
     slug: 'the-spice-house-indiranagar',
-    onboardingCompleted: true,
   ),
 };
 

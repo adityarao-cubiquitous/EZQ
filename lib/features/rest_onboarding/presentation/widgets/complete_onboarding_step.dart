@@ -31,6 +31,7 @@ class CompleteOnboardingStep extends StatelessWidget {
     required this.onRetry,
     required this.onBackToReview,
     required this.onViewSummary,
+    required this.onManageQr,
     required this.onGoToDashboard,
   });
 
@@ -57,6 +58,7 @@ class CompleteOnboardingStep extends StatelessWidget {
   final VoidCallback onRetry;
   final VoidCallback onBackToReview;
   final VoidCallback onViewSummary;
+  final VoidCallback onManageQr;
   final VoidCallback onGoToDashboard;
 
   @override
@@ -97,6 +99,7 @@ class CompleteOnboardingStep extends StatelessWidget {
                 totalSeats: totalSeats,
                 isMobile: isMobile,
                 onDownloadSetupSummary: onViewSummary,
+                onManageQr: onManageQr,
                 onGoToDashboard: onGoToDashboard,
               ),
             },
@@ -449,6 +452,7 @@ class _ProvisioningSuccessView extends StatelessWidget {
     required this.totalSeats,
     required this.isMobile,
     required this.onDownloadSetupSummary,
+    required this.onManageQr,
     required this.onGoToDashboard,
   });
 
@@ -465,6 +469,7 @@ class _ProvisioningSuccessView extends StatelessWidget {
   final int totalSeats;
   final bool isMobile;
   final VoidCallback onDownloadSetupSummary;
+  final VoidCallback onManageQr;
   final VoidCallback onGoToDashboard;
 
   @override
@@ -537,7 +542,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                     children: [
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Restaurant Name',
                           value: restaurantName,
@@ -545,7 +549,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Branch Name',
                           value: branchName,
@@ -553,7 +556,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Restaurant ID',
                           value: restaurantId ?? 'Pending',
@@ -561,7 +563,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Branch ID',
                           value: branchId ?? 'Pending',
@@ -569,7 +570,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Date Created',
                           value: createdAt?.toIso8601String() ?? 'Pending',
@@ -577,7 +577,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Admin Email',
                           value: adminEmail ?? 'Not available',
@@ -585,7 +584,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'QR URL',
                           value: qrUrl ?? 'Pending',
@@ -593,7 +591,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Floors',
                           value: '$floorCount',
@@ -601,7 +598,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Capacity Types',
                           value: '${selectedTableCapacities.length}',
@@ -609,7 +605,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Tables',
                           value: '$totalTables',
@@ -617,7 +612,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       ),
                       SizedBox(
                         width: tileWidth,
-                        height: 98,
                         child: _SummaryTile(
                           label: 'Seats',
                           value: '$totalSeats',
@@ -657,6 +651,7 @@ class _ProvisioningSuccessView extends StatelessWidget {
         _FooterActions(
           isMobile: isMobile,
           onDownloadSetupSummary: onDownloadSetupSummary,
+          onManageQr: onManageQr,
           onGoToDashboard: onGoToDashboard,
         ),
       ],
@@ -857,11 +852,13 @@ class _FooterActions extends StatelessWidget {
   const _FooterActions({
     required this.isMobile,
     required this.onDownloadSetupSummary,
+    required this.onManageQr,
     required this.onGoToDashboard,
   });
 
   final bool isMobile;
   final VoidCallback onDownloadSetupSummary;
+  final VoidCallback onManageQr;
   final VoidCallback onGoToDashboard;
 
   @override
@@ -875,10 +872,7 @@ class _FooterActions extends StatelessWidget {
             onPressed: onDownloadSetupSummary,
           ),
           const SizedBox(height: 12),
-          _SecondaryButton(
-            label: 'Manage QR',
-            onPressed: () => _showComingSoon(context, 'QR management'),
-          ),
+          _SecondaryButton(label: 'Manage QR', onPressed: onManageQr),
           const SizedBox(height: 12),
           _GradientButton(label: 'Go to Dashboard', onPressed: onGoToDashboard),
         ],
@@ -896,10 +890,7 @@ class _FooterActions extends StatelessWidget {
         ),
         const SizedBox(width: 16),
         Flexible(
-          child: _SecondaryButton(
-            label: 'Manage QR',
-            onPressed: () => _showComingSoon(context, 'QR management'),
-          ),
+          child: _SecondaryButton(label: 'Manage QR', onPressed: onManageQr),
         ),
         const SizedBox(width: 16),
         Flexible(
@@ -909,12 +900,6 @@ class _FooterActions extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  void _showComingSoon(BuildContext context, String label) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label will be available after integration.')),
     );
   }
 }
