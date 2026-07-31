@@ -101,7 +101,7 @@
 4. Queue Status screen must show: token, name, party size, queue position, **live countdown** remaining wait (not a static estimate), and progress indicator.
 5. Customer-facing menu must be a **scrollable PDF-style page**, sourced from a backend-configured URL (`menuPdfUrl`) — not hardcoded.
 6. Hidden-object puzzle / wait-engagement image must be **backend-driven** with a clean placeholder shown until an image is uploaded — never a broken or empty state.
-7. "Powered by Cubiquitous" branding must appear below the Cancel Reservation action on the status screen.
+7. "Powered by Cubiquitous" branding must appear below the Exit Queue action on the status screen.
 8. App install must be **offered, never forced**, and must never interrupt the queue-joining flow.
 9. Table-ready alert must clearly warn the customer that failing to arrive in time may move them back in the queue.
 

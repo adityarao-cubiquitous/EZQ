@@ -63,7 +63,7 @@ void main() {
     ),
     QueueStatus.cancelled: (
       key: 'queue-status-cancelled',
-      text: 'Reservation Cancelled',
+      text: 'Queue Exited',
     ),
     QueueStatus.skipped: (
       key: 'queue-status-skipped',
@@ -149,11 +149,26 @@ void main() {
   });
 
   testWidgets('waiting changes to cancelled without a refresh', (tester) async {
+    final semantics = tester.ensureSemantics();
     final repository = ControlledCustomerQueueRepository(QueueStatus.waiting);
     addTearDown(repository.close);
     await pumpStatusScreen(tester, repository);
 
-    await tester.tap(find.text('Cancel Reservation'));
+    expect(
+      tester
+          .getSemantics(
+            find.descendant(
+              of: find.byKey(
+                const ValueKey('queue-status-cancel-action'),
+              ),
+              matching: find.byType(OutlinedButton),
+            ),
+          )
+          .label,
+      'Exit Queue',
+    );
+    semantics.dispose();
+    await tester.tap(find.text('Exit Queue'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -162,7 +177,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('queue-status-waiting')), findsNothing);
-    expect(find.text('Reservation cancelled'), findsOneWidget);
+    expect(find.text('You have exited the queue.'), findsOneWidget);
   });
 
   testWidgets('manager completion updates the customer in realtime', (

@@ -396,9 +396,9 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         icon: const Icon(Icons.event_busy_rounded, color: Color(0xFFBA1A1A)),
-        title: const Text('Leave this queue?'),
+        title: const Text('Exit Queue?'),
         content: Text(
-          'Token ${entry.tokenCode} will be cancelled and your place in the queue will be released.',
+          'Token ${entry.tokenCode} will exit the queue and your place will be released.',
         ),
         actions: [
           TextButton(
@@ -407,7 +407,7 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Cancel queue'),
+            child: const Text('Exit Queue'),
           ),
         ],
       ),
@@ -428,13 +428,13 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
       if (args != null) ref.invalidate(currentCustomerVisitProvider(args));
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Your queue entry has been cancelled.')),
+        const SnackBar(content: Text('You have exited the queue.')),
       );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('We could not cancel the queue. Please try again.'),
+          content: Text('We could not exit the queue. Please try again.'),
         ),
       );
     } finally {
@@ -561,7 +561,7 @@ class _ActiveVisitCard extends StatelessWidget {
             if (onCancel != null) ...[
               const SizedBox(height: 10),
               EzqButton(
-                label: cancelling ? 'Cancelling…' : 'Cancel queue',
+                label: cancelling ? 'Exiting…' : 'Exit Queue',
                 destructive: true,
                 onPressed: cancelling ? null : onCancel,
               ),
