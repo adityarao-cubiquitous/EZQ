@@ -12,7 +12,6 @@ class CompleteOnboardingStep extends StatelessWidget {
     required this.restaurantName,
     required this.branchName,
     required this.restaurantId,
-    required this.branchId,
     required this.createdAt,
     required this.adminEmail,
     required this.qrUrl,
@@ -30,8 +29,6 @@ class CompleteOnboardingStep extends StatelessWidget {
     required this.onBack,
     required this.onRetry,
     required this.onBackToReview,
-    required this.onViewSummary,
-    required this.onManageQr,
     required this.onGoToDashboard,
   });
 
@@ -39,7 +36,6 @@ class CompleteOnboardingStep extends StatelessWidget {
   final String restaurantName;
   final String branchName;
   final String? restaurantId;
-  final String? branchId;
   final DateTime? createdAt;
   final String? adminEmail;
   final String? qrUrl;
@@ -57,8 +53,6 @@ class CompleteOnboardingStep extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onRetry;
   final VoidCallback onBackToReview;
-  final VoidCallback onViewSummary;
-  final VoidCallback onManageQr;
   final VoidCallback onGoToDashboard;
 
   @override
@@ -89,7 +83,6 @@ class CompleteOnboardingStep extends StatelessWidget {
                 restaurantName: restaurantName,
                 branchName: branchName,
                 restaurantId: restaurantId,
-                branchId: branchId,
                 createdAt: createdAt,
                 adminEmail: adminEmail,
                 qrUrl: qrUrl,
@@ -98,8 +91,6 @@ class CompleteOnboardingStep extends StatelessWidget {
                 totalTables: totalTables,
                 totalSeats: totalSeats,
                 isMobile: isMobile,
-                onDownloadSetupSummary: onViewSummary,
-                onManageQr: onManageQr,
                 onGoToDashboard: onGoToDashboard,
               ),
             },
@@ -442,7 +433,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
     required this.restaurantName,
     required this.branchName,
     required this.restaurantId,
-    required this.branchId,
     required this.createdAt,
     required this.adminEmail,
     required this.qrUrl,
@@ -451,15 +441,12 @@ class _ProvisioningSuccessView extends StatelessWidget {
     required this.totalTables,
     required this.totalSeats,
     required this.isMobile,
-    required this.onDownloadSetupSummary,
-    required this.onManageQr,
     required this.onGoToDashboard,
   });
 
   final String restaurantName;
   final String branchName;
   final String? restaurantId;
-  final String? branchId;
   final DateTime? createdAt;
   final String? adminEmail;
   final String? qrUrl;
@@ -468,8 +455,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
   final int totalTables;
   final int totalSeats;
   final bool isMobile;
-  final VoidCallback onDownloadSetupSummary;
-  final VoidCallback onManageQr;
   final VoidCallback onGoToDashboard;
 
   @override
@@ -543,36 +528,19 @@ class _ProvisioningSuccessView extends StatelessWidget {
                       SizedBox(
                         width: tileWidth,
                         child: _SummaryTile(
-                          label: 'Restaurant Name',
+                          label: 'Restaurant',
                           value: restaurantName,
                         ),
                       ),
                       SizedBox(
                         width: tileWidth,
-                        child: _SummaryTile(
-                          label: 'Branch Name',
-                          value: branchName,
-                        ),
+                        child: _SummaryTile(label: 'Branch', value: branchName),
                       ),
                       SizedBox(
                         width: tileWidth,
                         child: _SummaryTile(
-                          label: 'Restaurant ID',
+                          label: 'Restaurant Branch ID',
                           value: restaurantId ?? 'Pending',
-                        ),
-                      ),
-                      SizedBox(
-                        width: tileWidth,
-                        child: _SummaryTile(
-                          label: 'Branch ID',
-                          value: branchId ?? 'Pending',
-                        ),
-                      ),
-                      SizedBox(
-                        width: tileWidth,
-                        child: _SummaryTile(
-                          label: 'Date Created',
-                          value: createdAt?.toIso8601String() ?? 'Pending',
                         ),
                       ),
                       SizedBox(
@@ -580,13 +548,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
                         child: _SummaryTile(
                           label: 'Admin Email',
                           value: adminEmail ?? 'Not available',
-                        ),
-                      ),
-                      SizedBox(
-                        width: tileWidth,
-                        child: _SummaryTile(
-                          label: 'QR URL',
-                          value: qrUrl ?? 'Pending',
                         ),
                       ),
                       SizedBox(
@@ -600,7 +561,11 @@ class _ProvisioningSuccessView extends StatelessWidget {
                         width: tileWidth,
                         child: _SummaryTile(
                           label: 'Capacity Types',
-                          value: '${selectedTableCapacities.length}',
+                          value: selectedTableCapacities.isEmpty
+                              ? 'None'
+                              : selectedTableCapacities
+                                    .map((capacity) => '$capacity Top')
+                                    .join(', '),
                         ),
                       ),
                       SizedBox(
@@ -617,6 +582,21 @@ class _ProvisioningSuccessView extends StatelessWidget {
                           value: '$totalSeats',
                         ),
                       ),
+                      SizedBox(
+                        width: tileWidth,
+                        child: _SummaryTile(
+                          label: 'Creation Timestamp',
+                          value:
+                              createdAt?.toIso8601String() ?? 'Not available',
+                        ),
+                      ),
+                      SizedBox(
+                        width: tileWidth,
+                        child: _SummaryTile(
+                          label: 'QR URL',
+                          value: qrUrl ?? 'Pending',
+                        ),
+                      ),
                     ],
                   );
                 },
@@ -624,8 +604,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 24),
-        _SectionPanel(child: const _CompletionChecklist()),
         const SizedBox(height: 24),
         _SectionPanel(
           child: Column(
@@ -648,107 +626,8 @@ class _ProvisioningSuccessView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 32),
-        _FooterActions(
-          isMobile: isMobile,
-          onDownloadSetupSummary: onDownloadSetupSummary,
-          onManageQr: onManageQr,
-          onGoToDashboard: onGoToDashboard,
-        ),
+        _FooterActions(isMobile: isMobile, onGoToDashboard: onGoToDashboard),
       ],
-    );
-  }
-}
-
-class _CompletionChecklist extends StatelessWidget {
-  const _CompletionChecklist();
-
-  @override
-  Widget build(BuildContext context) {
-    const items = [
-      'Admin Account Created',
-      'Restaurant Created',
-      'Branch Created',
-      'Restaurant Settings Created',
-      'Branch Settings Created',
-      'Floors Configured',
-      'Tables Generated',
-      'QR Configuration Ready',
-      'Configuration Finalized',
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Provisioning Checklist',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: AppColors.navyText,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 14),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final itemWidth = constraints.maxWidth >= 960
-                ? (constraints.maxWidth - 32) / 3
-                : constraints.maxWidth >= 680
-                ? (constraints.maxWidth - 16) / 2
-                : constraints.maxWidth;
-            return Wrap(
-              spacing: 16,
-              runSpacing: 12,
-              children: [
-                for (final item in items)
-                  SizedBox(
-                    width: itemWidth,
-                    child: _CompletionCheckLine(text: item),
-                  ),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _CompletionCheckLine extends StatelessWidget {
-  const _CompletionCheckLine({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: '$text complete',
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 52),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.softSurface,
-          border: Border.all(color: AppColors.line),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.check_circle_rounded,
-              color: AppColors.primaryTeal,
-              size: 22,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                text,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.navyText,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -849,16 +728,9 @@ class _NextStepLine extends StatelessWidget {
 }
 
 class _FooterActions extends StatelessWidget {
-  const _FooterActions({
-    required this.isMobile,
-    required this.onDownloadSetupSummary,
-    required this.onManageQr,
-    required this.onGoToDashboard,
-  });
+  const _FooterActions({required this.isMobile, required this.onGoToDashboard});
 
   final bool isMobile;
-  final VoidCallback onDownloadSetupSummary;
-  final VoidCallback onManageQr;
   final VoidCallback onGoToDashboard;
 
   @override
@@ -867,13 +739,6 @@ class _FooterActions extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SecondaryButton(
-            label: 'View Setup Summary',
-            onPressed: onDownloadSetupSummary,
-          ),
-          const SizedBox(height: 12),
-          _SecondaryButton(label: 'Manage QR', onPressed: onManageQr),
-          const SizedBox(height: 12),
           _GradientButton(label: 'Go to Dashboard', onPressed: onGoToDashboard),
         ],
       );
@@ -882,17 +747,6 @@ class _FooterActions extends StatelessWidget {
     return Row(
       children: [
         const Spacer(),
-        Flexible(
-          child: _SecondaryButton(
-            label: 'View Setup Summary',
-            onPressed: onDownloadSetupSummary,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Flexible(
-          child: _SecondaryButton(label: 'Manage QR', onPressed: onManageQr),
-        ),
-        const SizedBox(width: 16),
         Flexible(
           child: _GradientButton(
             label: 'Go to Dashboard',

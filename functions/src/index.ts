@@ -11,6 +11,7 @@ initializeApp();
 
 const db = getFirestore();
 const auth = getAuth();
+const temporaryAdminOtp = "123456";
 
 type QueueStatus =
   | "waiting"
@@ -310,6 +311,55 @@ async function createQueueEntry(input: JoinQueueInput, sessionType: string) {
     };
   });
 }
+
+export const signInAdminWithTemporaryOtp = onCall(async (request) => {
+  const data = request.data as Record<string, unknown>;
+  const phone = normalizePhone(requireString(data, "phone"));
+  const code = requireString(data, "code");
+  if (code !== temporaryAdminOtp) {
+    throw new HttpsError("permission-denied", "Invalid temporary OTP");
+  }
+
+  const adminQuery = await db
+    .collection("admins")
+    .where("phone", "==", phone)
+    .limit(2)
+    .get();
+  if (adminQuery.empty) {
+    throw new HttpsError("not-found", "No active admin mapping was found");
+  }
+  if (adminQuery.size != 1) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Multiple admin mappings use this phone number",
+    );
+  }
+
+  const adminSnapshot = adminQuery.docs[0];
+  const restaurantBranchId = adminSnapshot.get("restaurantBranchId");
+  if (
+    adminSnapshot.get("isActive") !== true ||
+    typeof restaurantBranchId !== "string" ||
+    restaurantBranchId.trim().length === 0
+  ) {
+    throw new HttpsError("permission-denied", "No active admin access");
+  }
+
+  const [adminUser, branchSnapshot] = await Promise.all([
+    auth.getUser(adminSnapshot.id),
+    db.doc(`restaurantBranches/${restaurantBranchId}`).get(),
+  ]);
+  if (adminUser.disabled) {
+    throw new HttpsError("permission-denied", "Admin account is disabled");
+  }
+  if (!branchSnapshot.exists || branchSnapshot.get("isActive") !== true) {
+    throw new HttpsError("failed-precondition", "Restaurant branch is inactive");
+  }
+
+  return {
+    customToken: await auth.createCustomToken(adminSnapshot.id),
+  };
+});
 
 export const createRestaurantBranch = onCall(async (request) => {
   assertPlatformProvisioner(request.auth?.uid, request.auth?.token);

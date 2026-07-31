@@ -25,7 +25,7 @@ The customer entry screen is phone-first, QR-friendly, and optimized for fast qu
 
 ![Customer queue status screen](screenshots/customer_status.png)
 
-The status screen shows token, party details, a reload-stable live count of waiting parties ahead, remaining wait, menu access, cancellation, powered-by branding, sponsored ad space, and the waiting puzzle module. Firestore updates remain live and the screen also refreshes its queue subscriptions every 15 seconds.
+The status screen shows token, party details, a reload-stable live count of waiting parties ahead, remaining wait, menu access, an Exit Queue action, powered-by branding, sponsored ad space, and the waiting puzzle module. Firestore updates remain live and the screen also refreshes its queue subscriptions every 15 seconds.
 
 ### Customer Menu
 
@@ -215,7 +215,7 @@ Waiting state content:
 - Progress indicator.
 - Status message.
 - View menu action.
-- Cancel reservation action.
+- Exit Queue action.
 - Powered by Cubiquitous.
 - Sponsored ad slot.
 - Hidden-object puzzle placeholder.
@@ -650,16 +650,19 @@ Onboarding data and validation behavior:
 - Walk-in queue entries support seating preference and live ETA context.
 - Branch QR management is available from the admin top bar.
 - Completed onboarding remains available as a read-only Screen 4 summary only when its branch URL is opened explicitly; login still routes completed managers directly to the dashboard.
+- Admin login, dashboard, and reports routes use the same canonical onboarding readiness validation so a branch cannot be rejected at login and accepted by a direct route.
+- Operational legacy branches reconstruct deterministic queue URLs and missing capacity types in memory after their persisted floors, tables, settings equivalents, and completion state pass strict validation.
 - Restaurant onboarding completes the admin, branch, floors, tables, settings, and QR configuration in one atomic Firestore batch with deterministic document IDs.
 - Failed onboarding can be retried safely without duplicate or orphan floors, tables, settings, or QR metadata.
 - Completed onboarding deep links restore a read-only setup summary from Firestore; they never reopen editable wizard steps.
 - Customer status includes ad space and hidden-object puzzle placeholder.
 - Admin and mobile customer auth both show the OTP verification step. For MVP/TestFlight validation the app accepts `123456`; the retained Firebase SMS verification path can be restored with `--dart-define=USE_REAL_FIREBASE_OTP=true`.
-- A customer with a `waiting`, `reserved`, or `on_the_way` queue entry cannot join another restaurant queue. Cancelling or being seated releases the customer to join again.
+- Temporary admin authentication covers every configured demo restaurant, falls back to canonical backend phone resolution when no local compatibility entry exists, and verifies the authenticated UID, phone, and restaurant branch against the canonical `admins/{uid}` document before routing.
+- A customer with a `waiting`, `reserved`, or `on_the_way` queue entry cannot join another restaurant queue. Exiting the queue or being seated releases the customer to join again.
 - The native QR scanner shows explicit camera-denied and camera-unavailable states with retry, Open Settings, and manual-code fallback actions on both iOS and Android.
 - Nearby restaurants distinguishes location services off, permission denied, and permission permanently denied. Customers can retry, open the appropriate Settings page, or continue using the demo location without a dead end.
 - Native QR joins and nearby-list joins require a fresh location check before the join form opens; customers must be within 2 km of the restaurant branch GPS point.
-- The signed-in app home restores the customer's current visit, follows queue changes live through seating, and offers direct view and cancellation actions while waiting.
+- The signed-in app home restores the customer's current visit, follows queue changes live through seating, and offers direct view and Exit Queue actions while waiting.
 - Mobile app first-time customer profile captures first and last name and stores the signed-in customer profile.
 - Signed-in mobile customers can reopen their account profile from app home and update their first and last name.
 - Mobile app `/app/scan` opens the Camera Lens QR scanner and resolves direct customer links or active branch QR slugs.
@@ -685,9 +688,9 @@ Customer features:
 - Live shared and non-shared wait estimates in the mobile customer join flow.
 - Live customer status screen with token, party size, waiting parties ahead, and remaining wait.
 - Customer seated/table-assigned state after manager seating.
-- Customer cancellation action while waiting.
-- Single-active-queue protection for signed-in mobile customers until the user cancels or the visit is completed.
-- Live active-visit card on the signed-in app home with restaurant branch, token, live ahead count, estimated wait, seated table, resume, and cancellation actions.
+- Customer Exit Queue action while waiting.
+- Single-active-queue protection for signed-in mobile customers until the user exits the queue or the visit is completed.
+- Live active-visit card on the signed-in app home with restaurant branch, token, live ahead count, estimated wait, seated table, resume, and Exit Queue actions.
 - Uploaded menu PDF viewing from branch configuration.
 - Customer support screen.
 - Customer shell with EZQ header, app install shortcut, and bottom tabs after queue entry exists.
@@ -774,10 +777,10 @@ Customer flow:
 - The system shall create a queue entry with waiting status and a token code.
 - The system shall prevent a signed-in mobile customer from joining another restaurant queue while they have an active queue or seated visit.
 - The system shall restore a signed-in customer's current visit on app home after the app is closed and reopened.
-- The system shall update the app-home visit card live from waiting through seating, show the same live ahead-count pattern used by the customer status screen, and allow cancellation before seating.
+- The system shall update the app-home visit card live from waiting through seating, show the same live ahead-count pattern used by the customer status screen, and allow customers to exit the queue before seating.
 - The system shall show the customer a reload-stable live FIFO count of waiting parties ahead, refresh queue subscriptions every 15 seconds, and show the estimated remaining wait.
 - The system shall keep the active queue entry available across status, menu, and support navigation.
-- The system shall allow a waiting customer to cancel their queue entry.
+- The system shall allow a waiting customer to exit the queue.
 - The system shall show the assigned table once the manager seats the party.
 - The system shall show the restaurant menu PDF when the branch has a menu URL configured.
 - The system shall show a pending menu state when no menu PDF is configured.
@@ -798,6 +801,8 @@ Manager flow:
 - The system shall enable Step 1 Continue only when branch mapping, administrator name, email, phone, restaurant name, branch name, area, and address are valid.
 - The system shall name the exact Firestore document and field when required onboarding data is missing instead of displaying `Not specified`.
 - The system shall keep admin and branch `onboardingCompleted` flags synchronized with branch `provisioningStatus`, and shall reject any persisted completed/incomplete mismatch.
+- The system shall preserve strict completed-onboarding validation while reconstructing deterministic legacy metadata only when the persisted operational floor, table, settings-equivalent, admin, and branch data is internally consistent.
+- The system shall use one canonical admin-branch readiness result for login, dashboard, onboarding, and reports routing.
 - The system shall show live waiting queue entries for the selected branch.
 - The system shall allow the Live Queue to be collapsed and reopened by touch, mouse, or keyboard on desktop, tablet, and mobile layouts.
 - The system shall expand the table dashboard into all released space when the Live Queue is closed.

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:ezq/features/customer/data/branch_identity_repository.dart';
 import 'package:ezq/features/customer/data/customer_queue_repository.dart';
+import 'package:ezq/features/customer/domain/party_ahead_copy.dart';
 import 'package:ezq/features/customer/presentation/customer_queue_status_screen.dart';
 import 'package:ezq/features/queue/domain/queue_entry.dart';
 import 'package:ezq/features/queue/domain/queue_status.dart';
@@ -62,7 +63,7 @@ void main() {
     ),
     QueueStatus.cancelled: (
       key: 'queue-status-cancelled',
-      text: 'Reservation Cancelled',
+      text: 'Queue Exited',
     ),
     QueueStatus.skipped: (
       key: 'queue-status-skipped',
@@ -109,6 +110,30 @@ void main() {
     });
   }
 
+  testWidgets('waiting uses Party and Parties for the live ahead count', (
+    tester,
+  ) async {
+    for (final (count, noun) in <(int, String)>[(1, 'Party'), (5, 'Parties')]) {
+      final repository = ControlledCustomerQueueRepository(
+        QueueStatus.waiting,
+        aheadCount: count,
+      );
+      await pumpStatusScreen(tester, repository);
+
+      expect(find.text('$count'), findsOneWidget);
+      expect(find.text(noun), findsOneWidget);
+      expect(find.text('person'), findsNothing);
+      expect(find.text('people'), findsNothing);
+      await repository.close();
+    }
+  });
+
+  test('party-ahead copy uses correct singular and plural grammar', () {
+    expect(partiesAheadLabel(1), '1 Party Ahead');
+    expect(partiesAheadLabel(5), '5 Parties Ahead');
+    expect(partiesAheadLabel(0), '0 Parties Ahead');
+  });
+
   testWidgets('completed and cancelled states offer restaurant browsing', (
     tester,
   ) async {
@@ -124,11 +149,26 @@ void main() {
   });
 
   testWidgets('waiting changes to cancelled without a refresh', (tester) async {
+    final semantics = tester.ensureSemantics();
     final repository = ControlledCustomerQueueRepository(QueueStatus.waiting);
     addTearDown(repository.close);
     await pumpStatusScreen(tester, repository);
 
-    await tester.tap(find.text('Cancel Reservation'));
+    expect(
+      tester
+          .getSemantics(
+            find.descendant(
+              of: find.byKey(
+                const ValueKey('queue-status-cancel-action'),
+              ),
+              matching: find.byType(OutlinedButton),
+            ),
+          )
+          .label,
+      'Exit Queue',
+    );
+    semantics.dispose();
+    await tester.tap(find.text('Exit Queue'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -137,7 +177,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('queue-status-waiting')), findsNothing);
-    expect(find.text('Reservation cancelled'), findsOneWidget);
+    expect(find.text('You have exited the queue.'), findsOneWidget);
   });
 
   testWidgets('manager completion updates the customer in realtime', (
@@ -261,9 +301,11 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
   ControlledCustomerQueueRepository(
     QueueStatus initialStatus, {
     this.streamError,
+    this.aheadCount = 2,
   }) : _entry = _entryFor(initialStatus);
 
   final Object? streamError;
+  final int aheadCount;
   final StreamController<QueueEntry> _controller =
       StreamController<QueueEntry>.broadcast();
   QueueEntry _entry;
@@ -333,7 +375,7 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
     required String branchId,
     required String queueEntryId,
   }) async* {
-    yield 2;
+    yield aheadCount;
   }
 
   @override

@@ -16,6 +16,7 @@ import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
 import '../data/branch_identity_repository.dart';
 import '../data/customer_queue_repository.dart';
+import '../domain/party_ahead_copy.dart';
 import 'customer_shell.dart';
 import 'restaurant_logo.dart';
 
@@ -229,8 +230,8 @@ class _StatusContent extends ConsumerWidget {
       ),
       QueueStatus.cancelled => const _TerminalStatusCard(
         status: QueueStatus.cancelled,
-        title: 'Reservation Cancelled',
-        message: 'Your reservation has been cancelled successfully.',
+        title: 'Queue Exited',
+        message: 'You have exited this queue.',
         icon: Icons.cancel_rounded,
         iconColor: Color(0xFFBA1A1A),
       ),
@@ -337,17 +338,17 @@ class _StatusActions extends ConsumerWidget {
                       );
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Reservation cancelled')),
+                    const SnackBar(content: Text('You have exited the queue.')),
                   );
                 } catch (error) {
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Could not cancel: $error')),
+                    SnackBar(content: Text('Could not exit the queue: $error')),
                   );
                 }
               },
               icon: const Icon(Icons.close_rounded, size: 18),
-              label: const Text('Cancel Reservation'),
+              label: const Text('Exit Queue'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFFBA1A1A),
                 side: const BorderSide(color: Color(0x33BA1A1A)),
@@ -1366,7 +1367,7 @@ class _QueueStatusCard extends StatelessWidget {
                   child: _MetricBlock(
                     label: 'Ahead',
                     value: '$aheadCount',
-                    suffix: aheadCount == 1 ? 'person' : 'people',
+                    suffix: partyNounForCount(aheadCount),
                   ),
                 ),
                 Container(width: 1, height: 46, color: const Color(0x1A006687)),

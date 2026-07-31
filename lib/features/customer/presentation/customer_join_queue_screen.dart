@@ -166,7 +166,7 @@ class _CustomerJoinQueueScreenState
         title: const Text('You’re already in a queue'),
         content: Text(
           'Your token ${activeQueue.tokenCode} is still active. '
-          'To join another restaurant, cancel your current queue or wait until you are seated.',
+          'To join another restaurant, exit your current queue or wait until you are seated.',
           textAlign: TextAlign.center,
         ),
         actionsAlignment: MainAxisAlignment.center,
