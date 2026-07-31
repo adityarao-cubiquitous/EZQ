@@ -1,11 +1,10 @@
-import 'dart:convert';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/constants/firestore_paths.dart';
 import '../domain/onboarding_provisioning.dart';
+import 'provisioning_stage_runner.dart';
 
 typedef ProvisioningStepCallback =
     void Function(OnboardingProvisioningStep step);
@@ -29,11 +28,30 @@ class FirebaseRestaurantOnboardingRepository
   FirebaseRestaurantOnboardingRepository({
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
+    ProvisioningFailureInjector? failureInjector,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _auth = auth ?? FirebaseAuth.instance;
+       _auth = auth ?? FirebaseAuth.instance,
+       _failureInjector = failureInjector ?? _debugFailureInjector();
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final ProvisioningFailureInjector? _failureInjector;
+
+  static ProvisioningFailureInjector? _debugFailureInjector() {
+    if (!kDebugMode) return null;
+    const requestedStage = String.fromEnvironment(
+      'ONBOARDING_FAIL_AFTER_STAGE',
+    );
+    if (requestedStage.isEmpty) return null;
+    var hasInjectedFailure = false;
+    return (stage) {
+      if (hasInjectedFailure || stage.logName != requestedStage) return;
+      hasInjectedFailure = true;
+      throw StateError(
+        'Forced onboarding failure after ${stage.logName} stage.',
+      );
+    };
+  }
 
   @override
   Future<RestaurantBranchAdminContext?> loadAdminContext() async {
@@ -66,23 +84,22 @@ class FirebaseRestaurantOnboardingRepository
 
     final restaurantBranchId =
         (adminData['restaurantBranchId'] as String? ?? '').trim();
-    _debugLog('[ADMIN]\nrestaurantBranchId=$restaurantBranchId');
+    _debugLog(
+      '[ONBOARDING_CONTEXT] loadedAdmin '
+      'path=$adminPath uid=${user.uid} '
+      'restaurantBranchId=$restaurantBranchId '
+      'name=${(adminData['name'] as String? ?? '').trim()} '
+      'email=${(adminData['email'] as String? ?? '').trim()} '
+      'phone=${(adminData['phone'] as String? ?? '').trim()} '
+      'isActive=${adminData['isActive']} '
+      'onboardingCompleted=${adminData['onboardingCompleted']}',
+    );
     if (restaurantBranchId.isEmpty) {
       throw AdminContextLoadException(
         'Admin document $adminPath is missing required field '
         'restaurantBranchId.',
       );
     }
-    _debugStructured('Loaded Admin', <String, Object?>{
-      'document': adminPath,
-      'uid': user.uid,
-      'restaurantBranchId': restaurantBranchId,
-      'name': (adminData['name'] as String? ?? '').trim(),
-      'email': (adminData['email'] as String? ?? '').trim(),
-      'phone': (adminData['phone'] as String? ?? '').trim(),
-      'isActive': adminData['isActive'] as bool? ?? false,
-      'onboardingCompleted': adminData['onboardingCompleted'] as bool?,
-    });
 
     final outletPath = FirestorePaths.restaurantBranch(restaurantBranchId);
     _debugLog('[ONBOARDING_REPO] BEFORE await _readDocument path=$outletPath');
@@ -98,16 +115,45 @@ class FirebaseRestaurantOnboardingRepository
       'Document exists=${branchSnapshot.exists}',
     );
     if (!branchSnapshot.exists || branchData == null) {
-      throw AdminContextLoadException(
-        'Restaurant branch document is missing at $outletPath. '
-        'Onboarding cannot continue until the admin mapping points to an '
-        'existing branch.',
+      _debugLog(
+        '[OUTLET]\n'
+        'path=$outletPath\n'
+        'Using default empty onboarding context because document is missing.',
       );
+      final context = RestaurantBranchAdminContext(
+        uid: user.uid,
+        name: (adminData['name'] as String? ?? '').trim(),
+        email: (adminData['email'] as String? ?? '').trim(),
+        phone: (adminData['phone'] as String? ?? '').trim(),
+        restaurantBranchId: restaurantBranchId,
+        role: (adminData['role'] as String? ?? 'owner').trim(),
+        isActive: adminData['isActive'] as bool? ?? false,
+        onboardingCompleted: false,
+        adminOnboardingCompleted:
+            adminData['onboardingCompleted'] as bool? ?? false,
+        provisioningStatus: 'pending',
+        branchActive: false,
+        restaurantName: _titleFromBranchId(restaurantBranchId),
+        branchName: 'Main',
+        area: '',
+        address: '',
+        slug: restaurantBranchId,
+        onboardingDraft: null,
+      );
+      _debugLog(
+        '[ONBOARDING_REPO] EXIT loadAdminContext missing branch default',
+      );
+      return context;
     }
     _debugLog(
-      '[OUTLET]\n'
-      'slug=${(branchData['slug'] as String? ?? '').trim()}\n'
-      'onboardingCompleted=${branchData['onboardingCompleted'] as bool? ?? false}\n'
+      '[ONBOARDING_CONTEXT] loadedRestaurantBranch '
+      'path=$outletPath '
+      'restaurantName=${(branchData['restaurantName'] as String? ?? '').trim()} '
+      'branchName=${(branchData['branchName'] as String? ?? '').trim()} '
+      'area=${(branchData['area'] as String? ?? '').trim()} '
+      'address=${(branchData['address'] as String? ?? '').trim()} '
+      'slug=${(branchData['slug'] as String? ?? '').trim()} '
+      'onboardingCompleted=${branchData['onboardingCompleted'] as bool? ?? false} '
       'provisioningStatus=${branchData['provisioningStatus'] as String? ?? ''}',
     );
 
@@ -115,37 +161,31 @@ class FirebaseRestaurantOnboardingRepository
         branchData['onboardingCompleted'] as bool? ?? false;
     final provisioningStatus =
         (branchData['provisioningStatus'] as String? ?? '').trim();
-    final onboardingDraft = RestaurantOnboardingDraft.fromFirestore(
-      branchData['onboardingDraft'],
-    );
-    _debugStructured('Loaded Restaurant Branch', <String, Object?>{
-      'document': outletPath,
-      'restaurantBranchId': restaurantBranchId,
-      'restaurantName': (branchData['restaurantName'] as String? ?? '').trim(),
-      'branchName': (branchData['branchName'] as String? ?? '').trim(),
-      'area': (branchData['area'] as String? ?? '').trim(),
-      'address': (branchData['address'] as String? ?? '').trim(),
-      'isActive': branchData['isActive'] as bool? ?? false,
-      'onboardingCompleted': onboardingCompleted,
-      'provisioningStatus': provisioningStatus,
-      'draft': onboardingDraft == null
-          ? null
-          : <String, Object?>{
-              'restaurantName': onboardingDraft.restaurantName,
-              'branchName': onboardingDraft.branchName,
-              'area': onboardingDraft.area,
-              'address': onboardingDraft.address,
-              'currentStepIndex': onboardingDraft.currentStepIndex,
-            },
-    });
-    _debugStructured('Loaded Restaurant', <String, Object?>{
-      'document': null,
-      'applicable': false,
-      'reason':
-          'The canonical onboarding identity is stored in '
-          '$outletPath; legacy restaurants/{restaurantId} documents are not '
-          'part of the active onboarding read path.',
-    });
+    final adminOnboardingCompleted =
+        adminData['onboardingCompleted'] as bool? ?? false;
+    final expectedProvisioningStatus = onboardingCompleted
+        ? 'completed'
+        : 'pending';
+    if (adminOnboardingCompleted != onboardingCompleted ||
+        provisioningStatus != expectedProvisioningStatus) {
+      throw AdminContextLoadException(
+        'Onboarding state is inconsistent. $adminPath.onboardingCompleted='
+        '$adminOnboardingCompleted, $outletPath.onboardingCompleted='
+        '$onboardingCompleted, and $outletPath.provisioningStatus='
+        '${provisioningStatus.isEmpty ? '(missing)' : provisioningStatus}.',
+      );
+    }
+    final completedConfiguration = onboardingCompleted
+        ? await _loadCompletedConfiguration(
+            restaurantBranchId: restaurantBranchId,
+            branchData: branchData,
+          )
+        : null;
+    final capacityTypes = _intListFromValue(branchData['capacityTypes']);
+    final completedAt =
+        _dateTimeFromValue(branchData['onboardingCompletedAt']) ??
+        _dateTimeFromValue(adminData['onboardedAt']) ??
+        _dateTimeFromValue(branchData['createdAt']);
     final context = RestaurantBranchAdminContext(
       uid: user.uid,
       name: (adminData['name'] as String? ?? '').trim(),
@@ -155,7 +195,7 @@ class FirebaseRestaurantOnboardingRepository
       role: (adminData['role'] as String? ?? 'owner').trim(),
       isActive: adminData['isActive'] as bool? ?? false,
       onboardingCompleted: onboardingCompleted,
-      adminOnboardingCompleted: adminData['onboardingCompleted'] as bool?,
+      adminOnboardingCompleted: adminOnboardingCompleted,
       provisioningStatus: provisioningStatus,
       branchActive: branchData['isActive'] as bool? ?? false,
       restaurantName: (branchData['restaurantName'] as String? ?? '').trim(),
@@ -165,18 +205,24 @@ class FirebaseRestaurantOnboardingRepository
       slug: (branchData['slug'] as String? ?? restaurantBranchId).trim().isEmpty
           ? restaurantBranchId
           : (branchData['slug'] as String? ?? restaurantBranchId).trim(),
-      onboardingDraft: onboardingDraft,
-      floorCount: _readInt(branchData['floorCount']).clamp(0, 15),
-      selectedTableCapacities: _readPositiveIntList(
-        branchData['capacityTypes'],
+      floorCount: _intFromValue(branchData['floorCount']),
+      totalTables: _intFromValue(branchData['totalTables']),
+      totalSeats: _intFromValue(branchData['totalSeats']),
+      capacityTypes: capacityTypes,
+      selectedTableCapacities: capacityTypes,
+      tableCountsByFloor:
+          completedConfiguration?.tableCountsByFloor ?? const <List<int>>[],
+      onboardingCompletedAt: _dateTimeFromValue(
+        branchData['onboardingCompletedAt'],
       ),
-      totalTables: _readInt(branchData['totalTables']),
-      totalSeats: _readInt(branchData['totalSeats']),
-      createdAt:
-          _readDateTime(branchData['onboardingCompletedAt']) ??
-          _readDateTime(adminData['onboardedAt']) ??
-          _readDateTime(branchData['createdAt']),
+      onboardedAt: _dateTimeFromValue(adminData['onboardedAt']),
+      createdAt: completedAt,
       queueUrl: (branchData['queueUrl'] as String? ?? '').trim(),
+      provisioningFingerprint:
+          (branchData['provisioningFingerprint'] as String? ?? '').trim(),
+      onboardingDraft: RestaurantOnboardingDraft.fromFirestore(
+        branchData['onboardingDraft'],
+      ),
     );
     _debugLog('[ONBOARDING_REPO] EXIT loadAdminContext success');
     return context;
@@ -239,48 +285,35 @@ class FirebaseRestaurantOnboardingRepository
     final branchRef = _firestore.doc(
       FirestorePaths.restaurantBranch(restaurantBranchId),
     );
-    final adminRef = _firestore.doc(FirestorePaths.rootAdmin(user.uid));
     try {
-      await _writeOnboardingDraft(adminRef, branchRef, draft);
+      await _writeOnboardingDraft(branchRef, draft);
     } on FirebaseException catch (error) {
       if (error.code != 'permission-denied') rethrow;
-      await _replaceOnboardingDraft(adminRef, branchRef, draft);
+      await _replaceOnboardingDraft(branchRef, draft);
     }
   }
 
   Future<void> _writeOnboardingDraft(
-    DocumentReference<Map<String, dynamic>> adminRef,
     DocumentReference<Map<String, dynamic>> branchRef,
     RestaurantOnboardingDraft draft,
-  ) async {
-    final batch = _firestore.batch();
-    batch.update(adminRef, <String, dynamic>{'onboardingCompleted': false});
-    batch.update(branchRef, <String, dynamic>{
-      'onboardingCompleted': false,
-      'provisioningStatus': 'pending',
+  ) {
+    return branchRef.update(<String, dynamic>{
       'onboardingDraft': draft.toFirestore(),
       'onboardingDraftUpdatedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
-    await batch.commit();
   }
 
   Future<void> _replaceOnboardingDraft(
-    DocumentReference<Map<String, dynamic>> adminRef,
     DocumentReference<Map<String, dynamic>> branchRef,
     RestaurantOnboardingDraft draft,
   ) async {
-    final batch = _firestore.batch();
-    batch.update(adminRef, <String, dynamic>{'onboardingCompleted': false});
-    batch.update(branchRef, <String, dynamic>{
-      'onboardingCompleted': false,
-      'provisioningStatus': 'pending',
+    await branchRef.update(<String, dynamic>{
       'onboardingDraft': FieldValue.delete(),
       'onboardingDraftUpdatedAt': FieldValue.delete(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
-    await batch.commit();
-    await _writeOnboardingDraft(adminRef, branchRef, draft);
+    await _writeOnboardingDraft(branchRef, draft);
   }
 
   @override
@@ -317,19 +350,67 @@ class FirebaseRestaurantOnboardingRepository
       );
     }
 
-    final createdAt = DateTime.now();
+    if ((adminContext.onboardingCompleted ||
+            adminContext.adminOnboardingCompleted == true ||
+            adminContext.provisioningStatus == 'completed') &&
+        !adminContext.isProvisioningCompleted) {
+      throw const RestaurantOnboardingFailure(
+        step: OnboardingProvisioningStep.updateAdmin,
+        message:
+            'Persisted onboarding completion is inconsistent between the '
+            'admin and restaurant branch. Provisioning was stopped.',
+      );
+    }
+
     final qrUrl = '/customer/${request.restaurantBranchId}';
     final hostedQrUrl = 'https://ezq-dev-cubiquitous.web.app$qrUrl';
     final qrAssetBase =
         'assets/qr/${request.restaurantBranchId}/${request.restaurantBranchId}';
-    final result = RestaurantOnboardingResult(
-      restaurantBranchId: request.restaurantBranchId,
-      createdAt: createdAt,
-      adminEmail: adminContext.email.isEmpty
-          ? 'Not available'
-          : adminContext.email,
-      qrUrl: qrUrl,
-    );
+    RestaurantOnboardingResult resultFor(DateTime completionTime) {
+      return RestaurantOnboardingResult(
+        restaurantBranchId: request.restaurantBranchId,
+        createdAt: completionTime,
+        adminEmail: adminContext.email.isEmpty
+            ? 'Not available'
+            : adminContext.email,
+        qrUrl: qrUrl,
+      );
+    }
+
+    if (adminContext.isProvisioningCompleted) {
+      final persistedFingerprint = adminContext.provisioningFingerprint;
+      if (persistedFingerprint.isNotEmpty &&
+          persistedFingerprint != request.provisioningFingerprint) {
+        throw const RestaurantOnboardingFailure(
+          step: OnboardingProvisioningStep.updateRestaurantBranch,
+          message:
+              'This branch is already provisioned with a different table '
+              'configuration. Existing production setup was not changed.',
+        );
+      }
+      final completionTime =
+          adminContext.onboardingCompletedAt ?? adminContext.onboardedAt;
+      if (completionTime == null) {
+        throw const RestaurantOnboardingFailure(
+          step: OnboardingProvisioningStep.commitProvisioning,
+          message:
+              'Completed onboarding is missing its persisted completion '
+              'timestamp. Existing production setup was not changed.',
+        );
+      }
+      _debugLog(
+        '[ONBOARDING_PROVISIONING] replay=idempotent '
+        'authenticatedUid=${user.uid} '
+        'restaurantId=${request.restaurantBranchId} '
+        'branchId=${request.restaurantBranchId} '
+        'batchWriteCount=0 commit=not_required',
+      );
+      for (final step in OnboardingProvisioningStep.values) {
+        onStepStarted(step);
+        onStepCompleted(step);
+      }
+      return resultFor(completionTime);
+    }
 
     final branchRef = _firestore.doc(
       FirestorePaths.restaurantBranch(request.restaurantBranchId),
@@ -342,6 +423,7 @@ class FirebaseRestaurantOnboardingRepository
         message: 'Restaurant branch was not found.',
       );
     }
+    await _assertNoPartialProvisioningData(branchRef);
 
     final batchWriteCount = 3 + request.floorCount + request.totalTables;
     if (batchWriteCount > 500) {
@@ -355,133 +437,214 @@ class FirebaseRestaurantOnboardingRepository
     }
 
     final batch = _firestore.batch();
-
-    _markStarted(
-      OnboardingProvisioningStep.updateRestaurantBranch,
-      onStepStarted,
+    final completionUpdates = buildOnboardingCompletionUpdates(
+      request: request,
+      hostedQrUrl: hostedQrUrl,
+      qrAssetBase: qrAssetBase,
     );
-    batch.update(branchRef, <String, dynamic>{
-      'onboardingCompleted': true,
-      'provisioningStatus': 'completed',
-      'qrEnabled': true,
-      'qrSlug': request.restaurantBranchId,
-      'queueUrl': hostedQrUrl,
-      'qrPngLocalPath': '$qrAssetBase.png',
-      'qrSvgLocalPath': '$qrAssetBase.svg',
-      'floorCount': request.floorCount,
-      'totalTables': request.totalTables,
-      'totalSeats': request.totalSeats,
-      'capacityTypes': request.selectedTableCapacities,
-      'onboardingCompletedAt': FieldValue.serverTimestamp(),
-      'onboardingDraft': FieldValue.delete(),
-      'onboardingDraftUpdatedAt': FieldValue.delete(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    final startedUiSteps = <OnboardingProvisioningStep>{};
+    var currentStage = RestaurantProvisioningStage.branch;
+    var commitAttempted = false;
+    final attemptId =
+        '${user.uid}-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
 
-    _markStarted(OnboardingProvisioningStep.createFloors, onStepStarted);
-    for (var floorIndex = 0; floorIndex < request.floorCount; floorIndex++) {
-      final floorNumber = floorIndex + 1;
-      final floorId = 'F$floorNumber';
-      final counts = request.tableCountsByFloor[floorIndex];
-      final tableCount = counts.fold<int>(
-        0,
-        (runningTotal, tableQuantity) => runningTotal + tableQuantity,
-      );
-      var seatCount = 0;
-      for (
-        var capacityIndex = 0;
-        capacityIndex < request.selectedTableCapacities.length;
-        capacityIndex++
-      ) {
-        seatCount +=
-            counts[capacityIndex] *
-            request.selectedTableCapacities[capacityIndex];
-      }
-      batch.set(branchRef.collection('floors').doc(floorId), <String, dynamic>{
-        'floorId': floorId,
-        'floorName': 'Floor $floorNumber',
-        'displayOrder': floorNumber,
-        'tableCount': tableCount,
-        'seatCount': seatCount,
-      });
-    }
-
-    _markStarted(OnboardingProvisioningStep.createTables, onStepStarted);
-    var tableNumber = 1;
-    for (
-      var floorIndex = 0;
-      floorIndex < request.tableCountsByFloor.length;
-      floorIndex++
-    ) {
-      final floorId = 'F${floorIndex + 1}';
-      final counts = request.tableCountsByFloor[floorIndex];
-      for (
-        var capacityIndex = 0;
-        capacityIndex < request.selectedTableCapacities.length;
-        capacityIndex++
-      ) {
-        final capacity = request.selectedTableCapacities[capacityIndex];
-        final count = counts[capacityIndex];
-        for (var index = 0; index < count; index++) {
-          final tableId = 'T$tableNumber';
-          final displayTableName = '$floorId-$tableId';
+    final actions = <RestaurantProvisioningStage, ProvisioningStageAction>{
+      RestaurantProvisioningStage.branch: () async {},
+      RestaurantProvisioningStage.qr: () async {
+        batch.update(branchRef, completionUpdates.branch);
+      },
+      RestaurantProvisioningStage.floors: () async {
+        for (
+          var floorIndex = 0;
+          floorIndex < request.floorCount;
+          floorIndex++
+        ) {
+          final floorNumber = floorIndex + 1;
+          final floorId = 'F$floorNumber';
+          final counts = request.tableCountsByFloor[floorIndex];
+          final tableCount = counts.fold<int>(
+            0,
+            (runningTotal, tableQuantity) => runningTotal + tableQuantity,
+          );
+          var seatCount = 0;
+          for (
+            var capacityIndex = 0;
+            capacityIndex < request.selectedTableCapacities.length;
+            capacityIndex++
+          ) {
+            seatCount +=
+                counts[capacityIndex] *
+                request.selectedTableCapacities[capacityIndex];
+          }
           batch.set(
-            branchRef.collection('tables').doc(tableId),
+            branchRef.collection('floors').doc(floorId),
             <String, dynamic>{
-              'tableId': tableId,
-              'tableNumber': tableId,
-              'displayTableName': displayTableName,
               'floorId': floorId,
-              'capacity': capacity,
-              'tableType': '$capacity-top',
-              'status': 'available',
-              'section': 'default',
-              'sortOrder': tableNumber,
-              'isCombinable': false,
-              'currentQueueEntryId': null,
-              'createdAt': FieldValue.serverTimestamp(),
+              'floorName': 'Floor $floorNumber',
+              'displayOrder': floorNumber,
+              'tableCount': tableCount,
+              'seatCount': seatCount,
             },
           );
-          tableNumber++;
         }
-      }
-    }
+      },
+      RestaurantProvisioningStage.tables: () async {
+        var tableNumber = 1;
+        for (
+          var floorIndex = 0;
+          floorIndex < request.tableCountsByFloor.length;
+          floorIndex++
+        ) {
+          final floorId = 'F${floorIndex + 1}';
+          final counts = request.tableCountsByFloor[floorIndex];
+          for (
+            var capacityIndex = 0;
+            capacityIndex < request.selectedTableCapacities.length;
+            capacityIndex++
+          ) {
+            final capacity = request.selectedTableCapacities[capacityIndex];
+            final count = counts[capacityIndex];
+            for (var index = 0; index < count; index++) {
+              final tableId = 'T$tableNumber';
+              batch.set(
+                branchRef.collection('tables').doc(tableId),
+                <String, dynamic>{
+                  'tableId': tableId,
+                  'tableNumber': tableId,
+                  'displayTableName': '$floorId-$tableId',
+                  'floorId': floorId,
+                  'capacity': capacity,
+                  'tableType': '$capacity-top',
+                  'status': 'available',
+                  'section': 'default',
+                  'sortOrder': tableNumber,
+                  'isCombinable': false,
+                  'currentQueueEntryId': null,
+                  'createdAt': FieldValue.serverTimestamp(),
+                },
+              );
+              tableNumber++;
+            }
+          }
+        }
+      },
+      RestaurantProvisioningStage.settings: () async {
+        batch.set(
+          branchRef.collection('settings').doc('general'),
+          <String, dynamic>{
+            'averageDiningMinutes': 35,
+            'averageCleaningMinutes': 5,
+            'reservationHoldMinutes': 5,
+          },
+        );
+      },
+      RestaurantProvisioningStage.admin: () async {
+        batch.update(adminRef, completionUpdates.admin);
+      },
+    };
 
-    _markStarted(OnboardingProvisioningStep.createSettings, onStepStarted);
-    batch
-        .set(branchRef.collection('settings').doc('general'), <String, dynamic>{
-          'averageDiningMinutes': 35,
-          'averageCleaningMinutes': 5,
-          'reservationHoldMinutes': 5,
-        });
-
-    _markStarted(OnboardingProvisioningStep.updateAdmin, onStepStarted);
-    batch.update(adminRef, <String, dynamic>{
-      'onboardingCompleted': true,
-      'onboardedAt': FieldValue.serverTimestamp(),
-    });
-
+    _debugLog(
+      '[ONBOARDING_PROVISIONING] attempt=$attemptId '
+      'authenticatedUid=${user.uid} expectedUid=${adminContext.uid} '
+      'restaurantId=${request.restaurantBranchId} '
+      'branchId=${request.restaurantBranchId} '
+      'adminPath=${adminRef.path} branchPath=${branchRef.path} '
+      'batchWriteCount=$batchWriteCount stage=starting',
+    );
     try {
-      await batch.commit();
+      await runAtomicProvisioningStages(
+        actions: actions,
+        failureInjector: _failureInjector,
+        onStageStarted: (stage) {
+          currentStage = stage;
+          if (startedUiSteps.add(stage.uiStep)) {
+            onStepStarted(stage.uiStep);
+          }
+          _debugLog(
+            '[ONBOARDING_PROVISIONING] attempt=$attemptId '
+            'stage=${stage.logName} status=started '
+            'authenticatedUid=${user.uid} '
+            'restaurantId=${request.restaurantBranchId} '
+            'branchId=${request.restaurantBranchId} '
+            'batchWriteCount=$batchWriteCount',
+          );
+        },
+        onStagePrepared: (stage) {
+          _debugLog(
+            '[ONBOARDING_PROVISIONING] attempt=$attemptId '
+            'stage=${stage.logName} status='
+            '${stage == RestaurantProvisioningStage.commit ? 'committed' : 'prepared'}',
+          );
+        },
+        commit: () async {
+          commitAttempted = true;
+          _debugLog(
+            '[ONBOARDING_PROVISIONING] attempt=$attemptId '
+            'commit=started batchWriteCount=$batchWriteCount',
+          );
+          await batch.commit();
+        },
+      );
       for (final step in OnboardingProvisioningStep.values) {
         onStepCompleted(step);
       }
-    } catch (error) {
+      _debugLog(
+        '[ONBOARDING_PROVISIONING] attempt=$attemptId commit=success '
+        'rollback=not_required authenticatedUid=${user.uid} '
+        'restaurantId=${request.restaurantBranchId} '
+        'branchId=${request.restaurantBranchId} '
+        'batchWriteCount=$batchWriteCount',
+      );
+    } catch (error, stackTrace) {
+      _debugLog(
+        '[ONBOARDING_PROVISIONING] attempt=$attemptId '
+        'commit=${commitAttempted ? 'failed' : 'not_attempted'} '
+        'stage=${currentStage.logName} '
+        'rollback=${commitAttempted ? 'confirmed_atomic_batch' : 'not_required_no_commit'} '
+        'authenticatedUid=${user.uid} '
+        'restaurantId=${request.restaurantBranchId} '
+        'branchId=${request.restaurantBranchId} '
+        'batchWriteCount=$batchWriteCount error=$error '
+        'stackTrace=$stackTrace',
+      );
       throw RestaurantOnboardingFailure(
-        step: OnboardingProvisioningStep.updateAdmin,
+        step: currentStage.uiStep,
         message: 'Provisioning failed: $error',
         cause: error,
       );
     }
 
-    return result;
-  }
-
-  void _markStarted(
-    OnboardingProvisioningStep step,
-    ProvisioningStepCallback onStepStarted,
-  ) {
-    onStepStarted(step);
+    try {
+      final persistedContext = await loadAdminContext();
+      final persistedCompletionTime =
+          persistedContext?.onboardingCompletedAt ??
+          persistedContext?.onboardedAt;
+      if (persistedContext == null ||
+          !persistedContext.isProvisioningCompleted ||
+          persistedCompletionTime == null) {
+        throw const AdminContextLoadException(
+          'Committed onboarding could not be reconstructed from Firestore.',
+        );
+      }
+      _debugLog(
+        '[ONBOARDING_PROVISIONING] attempt=$attemptId '
+        'restoration=success source=firestore',
+      );
+      return resultFor(persistedCompletionTime);
+    } catch (error, stackTrace) {
+      _debugLog(
+        '[ONBOARDING_PROVISIONING] attempt=$attemptId commit=success '
+        'restoration=failed retry=safe error=$error '
+        'stackTrace=$stackTrace',
+      );
+      throw RestaurantOnboardingFailure(
+        step: OnboardingProvisioningStep.commitProvisioning,
+        message:
+            'Provisioning was committed, but Firestore confirmation could not '
+            'be loaded. Press Retry to restore the completed setup safely.',
+        cause: error,
+      );
+    }
   }
 
   Future<DocumentSnapshot<Map<String, dynamic>>> _readDocument({
@@ -522,37 +685,183 @@ class FirebaseRestaurantOnboardingRepository
     }
   }
 
-  int _readInt(Object? value, {int fallback = 0}) {
-    if (value is int) return value;
-    if (value is num) return value.round();
-    if (value is String) return int.tryParse(value.trim()) ?? fallback;
-    return fallback;
+  Future<_PersistedProvisioningConfiguration> _loadCompletedConfiguration({
+    required String restaurantBranchId,
+    required Map<String, dynamic> branchData,
+  }) async {
+    final branchRef = _firestore.doc(
+      FirestorePaths.restaurantBranch(restaurantBranchId),
+    );
+    final results = await Future.wait<Object>([
+      branchRef
+          .collection('floors')
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 10)),
+      branchRef
+          .collection('tables')
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 10)),
+      branchRef
+          .collection('settings')
+          .doc('general')
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 10)),
+    ]);
+    final floors = results[0] as QuerySnapshot<Map<String, dynamic>>;
+    final tables = results[1] as QuerySnapshot<Map<String, dynamic>>;
+    final settings = results[2] as DocumentSnapshot<Map<String, dynamic>>;
+    final floorCount = _intFromValue(branchData['floorCount']);
+    final totalTables = _intFromValue(branchData['totalTables']);
+    final capacityTypes = _intListFromValue(branchData['capacityTypes']);
+    final queueUrl = (branchData['queueUrl'] as String? ?? '').trim();
+
+    if (floorCount <= 0 ||
+        floors.docs.length != floorCount ||
+        tables.docs.length != totalTables ||
+        !settings.exists ||
+        capacityTypes.isEmpty ||
+        queueUrl.isEmpty) {
+      throw AdminContextLoadException(
+        'Completed onboarding data is inconsistent for '
+        'restaurantBranches/$restaurantBranchId. Expected $floorCount floors, '
+        '$totalTables tables, settings/general, capacityTypes, and queueUrl; '
+        'found ${floors.docs.length} floors, ${tables.docs.length} tables, '
+        'settings=${settings.exists}, capacities=${capacityTypes.length}, '
+        'queueUrl=${queueUrl.isNotEmpty}.',
+      );
+    }
+
+    final counts = List<List<int>>.generate(
+      floorCount,
+      (_) => List<int>.filled(capacityTypes.length, 0),
+    );
+    for (final table in tables.docs) {
+      final data = table.data();
+      final floorId = (data['floorId'] as String? ?? '').trim();
+      final floorNumber = int.tryParse(floorId.replaceFirst('F', ''));
+      final capacity = _intFromValue(data['capacity']);
+      final capacityIndex = capacityTypes.indexOf(capacity);
+      if (floorNumber == null ||
+          floorNumber < 1 ||
+          floorNumber > floorCount ||
+          capacityIndex < 0) {
+        throw AdminContextLoadException(
+          'Completed onboarding table ${table.reference.path} has an invalid '
+          'floorId or capacity.',
+        );
+      }
+      counts[floorNumber - 1][capacityIndex]++;
+    }
+    return _PersistedProvisioningConfiguration(tableCountsByFloor: counts);
   }
 
-  List<int> _readPositiveIntList(Object? value) {
-    if (value is! Iterable) return const <int>[];
-    final values = <int>{
-      for (final item in value)
-        if (_readInt(item) > 0) _readInt(item),
-    }.toList()..sort();
-    return List<int>.unmodifiable(values);
+  Future<void> _assertNoPartialProvisioningData(
+    DocumentReference<Map<String, dynamic>> branchRef,
+  ) async {
+    final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
+      branchRef
+          .collection('floors')
+          .limit(1)
+          .get(const GetOptions(source: Source.server)),
+      branchRef
+          .collection('tables')
+          .limit(1)
+          .get(const GetOptions(source: Source.server)),
+      branchRef
+          .collection('settings')
+          .limit(1)
+          .get(const GetOptions(source: Source.server)),
+    ]);
+    if (results.every((snapshot) => snapshot.docs.isEmpty)) return;
+    throw const RestaurantOnboardingFailure(
+      step: OnboardingProvisioningStep.updateRestaurantBranch,
+      message:
+          'Pending onboarding contains partial floors, tables, or settings. '
+          'Provisioning was stopped to avoid duplicate or orphan data.',
+    );
   }
 
-  DateTime? _readDateTime(Object? value) {
-    if (value is Timestamp) return value.toDate();
-    if (value is DateTime) return value;
-    if (value is String) return DateTime.tryParse(value.trim());
-    return null;
+  String _titleFromBranchId(String restaurantBranchId) {
+    final words = restaurantBranchId
+        .split(RegExp(r'[-_\s]+'))
+        .where((word) => word.trim().isNotEmpty)
+        .map((word) {
+          final lower = word.toLowerCase();
+          return lower[0].toUpperCase() + lower.substring(1);
+        });
+    final title = words.join(' ').trim();
+    return title.isEmpty ? restaurantBranchId : title;
   }
 
   void _debugLog(String message) {
     debugPrint(message);
   }
+}
 
-  void _debugStructured(String label, Map<String, Object?> values) {
-    if (!kDebugMode) return;
-    debugPrint('[ONBOARDING_AUDIT] $label: ${jsonEncode(values)}');
-  }
+@visibleForTesting
+OnboardingCompletionUpdates buildOnboardingCompletionUpdates({
+  required RestaurantOnboardingRequest request,
+  required String hostedQrUrl,
+  required String qrAssetBase,
+}) {
+  return OnboardingCompletionUpdates(
+    branch: <String, dynamic>{
+      'onboardingCompleted': true,
+      'provisioningStatus': 'completed',
+      'onboardingCompletedAt': FieldValue.serverTimestamp(),
+      'provisioningFingerprint': request.provisioningFingerprint,
+      'qrEnabled': true,
+      'qrSlug': request.restaurantBranchId,
+      'queueUrl': hostedQrUrl,
+      'qrPngLocalPath': '$qrAssetBase.png',
+      'qrSvgLocalPath': '$qrAssetBase.svg',
+      'floorCount': request.floorCount,
+      'totalTables': request.totalTables,
+      'totalSeats': request.totalSeats,
+      'capacityTypes': request.selectedTableCapacities,
+      'onboardingDraft': FieldValue.delete(),
+      'onboardingDraftUpdatedAt': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    },
+    admin: <String, dynamic>{
+      'onboardingCompleted': true,
+      'onboardedAt': FieldValue.serverTimestamp(),
+    },
+  );
+}
+
+class OnboardingCompletionUpdates {
+  const OnboardingCompletionUpdates({
+    required this.branch,
+    required this.admin,
+  });
+
+  final Map<String, dynamic> branch;
+  final Map<String, dynamic> admin;
+}
+
+class _PersistedProvisioningConfiguration {
+  const _PersistedProvisioningConfiguration({required this.tableCountsByFloor});
+
+  final List<List<int>> tableCountsByFloor;
+}
+
+int _intFromValue(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+List<int> _intListFromValue(Object? value) {
+  if (value is! Iterable) return const <int>[];
+  return value.map(_intFromValue).where((item) => item > 0).toList();
+}
+
+DateTime? _dateTimeFromValue(Object? value) {
+  if (value is Timestamp) return value.toDate();
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value);
+  return null;
 }
 
 class AdminContextLoadException implements Exception {

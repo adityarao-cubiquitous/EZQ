@@ -52,6 +52,11 @@ RestaurantBranchReadiness evaluateRestaurantBranchReadiness({
       RestaurantBranchReadinessBlockReason.setupIncomplete,
     );
   }
+  if (branchData['provisioningStatus'] != 'completed') {
+    return const RestaurantBranchReadiness.blocked(
+      RestaurantBranchReadinessBlockReason.setupIncomplete,
+    );
+  }
   if (branchData['qrEnabled'] == false) {
     return const RestaurantBranchReadiness.blocked(
       RestaurantBranchReadinessBlockReason.qrDisabled,

@@ -33,12 +33,12 @@ class CustomerSupportScreen extends StatelessWidget {
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(child: RestaurantLogo()),
-              SizedBox(height: 20),
-              Text(
+              Center(child: RestaurantLogo(restaurantBranchId: restaurantId)),
+              const SizedBox(height: 20),
+              const Text(
                 'Support',
                 style: TextStyle(
                   color: AppColors.navyText,
@@ -46,16 +46,16 @@ class CustomerSupportScreen extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              SizedBox(height: 16),
-              Text('Need help with your queue token?'),
-              SizedBox(height: 12),
-              ListTile(
+              const SizedBox(height: 16),
+              const Text('Need help with your queue token?'),
+              const SizedBox(height: 12),
+              const ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.support_agent, color: AppColors.deepTeal),
                 title: Text('Ask the hostess at the entrance desk'),
                 subtitle: Text('Show your token code if you need assistance.'),
               ),
-              ListTile(
+              const ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.phone, color: AppColors.deepTeal),
                 title: Text('Restaurant phone'),

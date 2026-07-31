@@ -165,6 +165,11 @@ class RestaurantOnboardingState {
   bool get isStep1Valid =>
       step1ValidationRules.values.every((isValid) => isValid);
 
+  List<String> get step1ValidationFailures => <String>[
+    for (final rule in step1ValidationRules.entries)
+      if (!rule.value) rule.key,
+  ];
+
   bool get isOnboardingComplete =>
       currentStepIndex == 3 &&
       provisioningResult != null &&
@@ -565,8 +570,8 @@ class RestaurantOnboardingController
             currentStepIndex: 3,
             completedStepIndexes: const <int>{0, 1, 2},
             floorCount: context.floorCount,
-            selectedTableCapacities: context.selectedTableCapacities,
-            tableCountsByFloor: const <List<int>>[],
+            selectedTableCapacities: context.effectiveSelectedTableCapacities,
+            tableCountsByFloor: context.tableCountsByFloor,
             persistedTotalTables: context.totalTables,
             persistedTotalSeats: context.totalSeats,
             provisioningProgress: [
@@ -578,12 +583,14 @@ class RestaurantOnboardingController
             ],
             provisioningResult: RestaurantOnboardingResult(
               restaurantBranchId: context.restaurantBranchId,
-              createdAt: context.createdAt,
+              createdAt: context.effectiveCreatedAt,
               adminEmail: context.email.isEmpty
                   ? 'Not available'
                   : context.email,
               qrUrl: context.completedQueueUrl,
             ),
+            clearFailedProvisioningStep: true,
+            clearProvisioningErrorMessage: true,
           ),
         );
         state = nextState;
@@ -848,7 +855,7 @@ class RestaurantOnboardingController
         ),
       );
     } catch (error) {
-      const fallbackStep = OnboardingProvisioningStep.updateAdmin;
+      const fallbackStep = OnboardingProvisioningStep.commitProvisioning;
       state = state.copyWith(
         isProvisioning: false,
         failedProvisioningStep: fallbackStep,

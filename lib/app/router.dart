@@ -218,6 +218,9 @@ Future<String> _redirectLegacyAdminOnboarding() async {
   final restaurantBranchId = (adminData?['restaurantBranchId'] as String? ?? '')
       .trim();
   if (restaurantBranchId.isEmpty) return '/admin/login';
+  if (adminData?['onboardingCompleted'] != true) {
+    return '/admin/$restaurantBranchId/register/onboarding';
+  }
 
   return _adminBranchDestination(restaurantBranchId);
 }
@@ -242,6 +245,10 @@ Future<String?> _redirectAdminBranchRoute(
   }
   if (mappedRestaurantBranchId != restaurantBranchId) {
     return _adminBranchDestination(mappedRestaurantBranchId);
+  }
+  if (adminData?['onboardingCompleted'] != true) {
+    final onboardingPath = '/admin/$restaurantBranchId/register/onboarding';
+    return state.uri.path == onboardingPath ? null : onboardingPath;
   }
 
   final branchReady = await _restaurantBranchIsReady(mappedRestaurantBranchId);

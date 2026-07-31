@@ -115,51 +115,41 @@ class _CustomerQueueStatusBody extends ConsumerWidget {
       child: branchLink.when(
         data: (branchLink) => queueEntry.when(
           data: (entry) {
-            if (entry.status == QueueStatus.expired) {
-              return _StatusContent(
-                restaurantId: restaurantId,
-                branchId: branchId,
-                queueEntryId: queueEntryId,
-                branchLink: branchLink,
-                entry: entry,
-                expired: true,
-              );
-            }
-            if (entry.status == QueueStatus.reserved ||
-                entry.status == QueueStatus.onTheWay) {
-              return _StatusContent(
-                restaurantId: restaurantId,
-                branchId: branchId,
-                queueEntryId: queueEntryId,
-                branchLink: branchLink,
-                entry: entry,
-                ready: true,
-              );
-            }
-            if (entry.status == QueueStatus.seated) {
-              return _StatusContent(
-                restaurantId: restaurantId,
-                branchId: branchId,
-                queueEntryId: queueEntryId,
-                branchLink: branchLink,
-                entry: entry,
-                seated: true,
-              );
-            }
-            return queueAheadCount.when(
-              data: (ahead) => _StatusContent(
-                restaurantId: restaurantId,
-                branchId: branchId,
-                queueEntryId: queueEntryId,
-                branchLink: branchLink,
-                entry: entry,
-                aheadCount: ahead,
+            return switch (entry.status) {
+              QueueStatus.waiting => queueAheadCount.when(
+                data: (ahead) => _StatusContent(
+                  restaurantId: restaurantId,
+                  branchId: branchId,
+                  queueEntryId: queueEntryId,
+                  branchLink: branchLink,
+                  entry: entry,
+                  aheadCount: ahead,
+                ),
+                error: (error, _) =>
+                    ErrorView(message: _statusErrorMessage(error)),
+                loading: () =>
+                    const SizedBox(height: 700, child: LoadingView()),
               ),
-              error: (error, _) => ErrorView(message: error.toString()),
-              loading: () => const SizedBox(height: 700, child: LoadingView()),
-            );
+              QueueStatus.reserved ||
+              QueueStatus.onTheWay ||
+              QueueStatus.seated ||
+              QueueStatus.completed ||
+              QueueStatus.cancelled ||
+              QueueStatus.skipped ||
+              QueueStatus.noShow ||
+              QueueStatus.expired => _StatusContent(
+                restaurantId: restaurantId,
+                branchId: branchId,
+                queueEntryId: queueEntryId,
+                branchLink: branchLink,
+                entry: entry,
+              ),
+            };
           },
-          error: (error, _) => ErrorView(message: error.toString()),
+          error: (error, _) => ErrorView(
+            key: const ValueKey('queue-status-error'),
+            message: _statusErrorMessage(error),
+          ),
           loading: () => const SizedBox(height: 700, child: LoadingView()),
         ),
         error: (error, _) => ErrorView(message: error.toString()),
@@ -167,6 +157,11 @@ class _CustomerQueueStatusBody extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _statusErrorMessage(Object error) {
+  if (kDebugMode) return 'Queue status error: $error';
+  return 'We could not load this queue status. Please try again.';
 }
 
 typedef CustomerStatusBranchArgs = ({String restaurantSlug, String branchSlug});
@@ -182,7 +177,7 @@ final customerStatusBranchProvider =
             restaurantSlug: args.restaurantSlug,
             branchSlug: args.branchSlug,
           );
-    });
+    }, retry: (_, _) => null);
 
 class _StatusContent extends ConsumerWidget {
   const _StatusContent({
@@ -192,9 +187,6 @@ class _StatusContent extends ConsumerWidget {
     required this.branchLink,
     required this.entry,
     this.aheadCount = 0,
-    this.ready = false,
-    this.seated = false,
-    this.expired = false,
   });
 
   final String restaurantId;
@@ -203,52 +195,92 @@ class _StatusContent extends ConsumerWidget {
   final CustomerBranchLink branchLink;
   final QueueEntry entry;
   final int aheadCount;
-  final bool ready;
-  final bool seated;
-  final bool expired;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final statusCard = switch (entry.status) {
+      QueueStatus.waiting => _QueueStatusCard(
+        entry: entry,
+        branchLink: branchLink,
+        aheadCount: aheadCount,
+      ),
+      QueueStatus.reserved => _InlineReadyCard(
+        restaurantId: restaurantId,
+        branchId: branchId,
+        entry: entry,
+        onTheWay: false,
+      ),
+      QueueStatus.onTheWay => _InlineReadyCard(
+        restaurantId: restaurantId,
+        branchId: branchId,
+        entry: entry,
+        onTheWay: true,
+      ),
+      QueueStatus.seated => _InlineSeatedCard(
+        entry: entry,
+        branchLink: branchLink,
+      ),
+      QueueStatus.completed => const _TerminalStatusCard(
+        status: QueueStatus.completed,
+        title: '✓ Meal Completed',
+        message: 'Thank you for dining with us.',
+        icon: Icons.check_circle_rounded,
+        iconColor: AppColors.successGreen,
+      ),
+      QueueStatus.cancelled => const _TerminalStatusCard(
+        status: QueueStatus.cancelled,
+        title: 'Reservation Cancelled',
+        message: 'Your reservation has been cancelled successfully.',
+        icon: Icons.cancel_rounded,
+        iconColor: Color(0xFFBA1A1A),
+      ),
+      QueueStatus.skipped => const _TerminalStatusCard(
+        status: QueueStatus.skipped,
+        title: 'Reservation Skipped',
+        message: 'Please contact the host if you still wish to dine.',
+        icon: Icons.skip_next_rounded,
+        iconColor: AppColors.warningOrange,
+      ),
+      QueueStatus.noShow => const _TerminalStatusCard(
+        status: QueueStatus.noShow,
+        title: 'Reservation Closed',
+        message: 'You did not arrive before your reservation expired.',
+        icon: Icons.person_off_rounded,
+        iconColor: Color(0xFFBA1A1A),
+      ),
+      QueueStatus.expired => _AutoExpiredCard(entry: entry),
+    };
+    final actions = switch (entry.status) {
+      QueueStatus.waiting ||
+      QueueStatus.reserved ||
+      QueueStatus.onTheWay ||
+      QueueStatus.seated => _StatusActions(
+        restaurantId: restaurantId,
+        branchId: branchId,
+        queueEntryId: queueEntryId,
+        entry: entry,
+        showCancel: entry.status.canBeCancelledByCustomer,
+      ),
+      QueueStatus.completed || QueueStatus.cancelled => _TerminalStatusActions(
+        restaurantId: restaurantId,
+        branchId: branchId,
+        showBrowseRestaurants: true,
+      ),
+      QueueStatus.skipped ||
+      QueueStatus.noShow ||
+      QueueStatus.expired => _TerminalStatusActions(
+        restaurantId: restaurantId,
+        branchId: branchId,
+        showBrowseRestaurants: false,
+      ),
+    };
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Column(
         children: [
-          if (ready)
-            _InlineReadyCard(
-              restaurantId: restaurantId,
-              branchId: branchId,
-              entry: entry,
-            )
-          else if (seated)
-            _InlineSeatedCard(entry: entry, branchLink: branchLink)
-          else if (expired)
-            _AutoExpiredCard(entry: entry)
-          else
-            _QueueStatusCard(
-              entry: entry,
-              branchLink: branchLink,
-              aheadCount: aheadCount,
-            ),
-          if (!expired) ...[
-            const SizedBox(height: 14),
-            _StatusActions(
-              restaurantId: restaurantId,
-              branchId: branchId,
-              queueEntryId: queueEntryId,
-              entry: entry,
-            ),
-          ] else ...[
-            const SizedBox(height: 14),
-            EzqButton(
-              label: 'Join Queue Again',
-              icon: Icons.refresh_rounded,
-              onPressed: () => context.go(
-                FirestorePaths.customerRoute(restaurantId, branchId),
-              ),
-            ),
-            const SizedBox(height: 14),
-            const _InlinePoweredBy(),
-          ],
+          statusCard,
+          const SizedBox(height: 14),
+          actions,
           const SizedBox(height: 116),
         ],
       ),
@@ -262,12 +294,14 @@ class _StatusActions extends ConsumerWidget {
     required this.branchId,
     required this.queueEntryId,
     required this.entry,
+    required this.showCancel,
   });
 
   final String restaurantId;
   final String branchId;
   final String queueEntryId;
   final QueueEntry entry;
+  final bool showCancel;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -284,37 +318,47 @@ class _StatusActions extends ConsumerWidget {
             ).toString(),
           ),
         ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          height: 50,
-          child: OutlinedButton.icon(
-            onPressed: () async {
-              await ref
-                  .read(customerQueueRepositoryProvider)
-                  .cancelQueueEntry(
-                    restaurantId: restaurantId,
-                    branchId: branchId,
-                    queueEntryId: queueEntryId,
-                    phone: entry.phone,
+        if (showCancel) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            key: const ValueKey('queue-status-cancel-action'),
+            width: double.infinity,
+            height: 50,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                try {
+                  await ref
+                      .read(customerQueueRepositoryProvider)
+                      .cancelQueueEntry(
+                        restaurantId: restaurantId,
+                        branchId: branchId,
+                        queueEntryId: queueEntryId,
+                        phone: entry.phone,
+                      );
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Reservation cancelled')),
                   );
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Reservation cancelled')),
-              );
-            },
-            icon: const Icon(Icons.close_rounded, size: 18),
-            label: const Text('Cancel Reservation'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFBA1A1A),
-              side: const BorderSide(color: Color(0x33BA1A1A)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
+                } catch (error) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not cancel: $error')),
+                  );
+                }
+              },
+              icon: const Icon(Icons.close_rounded, size: 18),
+              label: const Text('Cancel Reservation'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFBA1A1A),
+                side: const BorderSide(color: Color(0x33BA1A1A)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                textStyle: const TextStyle(fontWeight: FontWeight.w700),
               ),
-              textStyle: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
-        ),
+        ],
         const SizedBox(height: 14),
         const _InlinePoweredBy(),
         const SizedBox(height: 14),
@@ -322,6 +366,105 @@ class _StatusActions extends ConsumerWidget {
         const SizedBox(height: 14),
         _HiddenObjectImageCard(restaurantId: restaurantId, branchId: branchId),
       ],
+    );
+  }
+}
+
+class _TerminalStatusActions extends StatelessWidget {
+  const _TerminalStatusActions({
+    required this.restaurantId,
+    required this.branchId,
+    required this.showBrowseRestaurants,
+  });
+
+  final String restaurantId;
+  final String branchId;
+  final bool showBrowseRestaurants;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        EzqButton(
+          key: const ValueKey('queue-status-join-again'),
+          label: 'Join Queue Again',
+          icon: Icons.refresh_rounded,
+          onPressed: () =>
+              context.go(FirestorePaths.customerRoute(restaurantId, branchId)),
+        ),
+        if (showBrowseRestaurants) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            key: const ValueKey('queue-status-browse-restaurants'),
+            width: double.infinity,
+            height: 50,
+            child: OutlinedButton.icon(
+              onPressed: () => context.go('/'),
+              icon: const Icon(Icons.storefront_rounded, size: 18),
+              label: const Text('Browse Restaurants'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.deepTeal,
+                side: const BorderSide(color: AppColors.line),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                textStyle: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 14),
+        const _InlinePoweredBy(),
+      ],
+    );
+  }
+}
+
+class _TerminalStatusCard extends StatelessWidget {
+  const _TerminalStatusCard({
+    required this.status,
+    required this.title,
+    required this.message,
+    required this.icon,
+    required this.iconColor,
+  });
+
+  final QueueStatus status;
+  final String title;
+  final String message;
+  final IconData icon;
+  final Color iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Card(
+      key: ValueKey('queue-status-${status.wireName}'),
+      child: Column(
+        children: [
+          Icon(icon, color: iconColor, size: 88),
+          const SizedBox(height: 20),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.navyText,
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF3E484F),
+              fontSize: 16,
+              height: 1.45,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -335,6 +478,7 @@ class _AutoExpiredCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final waitedMinutes = entry.waitingMinutesSince(DateTime.now());
     return Container(
+      key: const ValueKey('queue-status-expired'),
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1152,13 +1296,17 @@ class _QueueStatusCard extends StatelessWidget {
     final restaurantName = branchLink.restaurantName;
     final branchName = branchLink.branch.name;
     return _Card(
+      key: const ValueKey('queue-status-waiting'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const RestaurantLogo(size: 42),
+              RestaurantLogo(
+                restaurantBranchId: branchLink.branch.id,
+                size: 42,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1651,15 +1799,20 @@ class _InlineReadyCard extends ConsumerWidget {
     required this.restaurantId,
     required this.branchId,
     required this.entry,
+    required this.onTheWay,
   });
 
   final String restaurantId;
   final String branchId;
   final QueueEntry entry;
+  final bool onTheWay;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return _Card(
+      key: ValueKey(
+        onTheWay ? 'queue-status-on_the_way' : 'queue-status-reserved',
+      ),
       child: Column(
         children: [
           Container(
@@ -1683,10 +1836,10 @@ class _InlineReadyCard extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          const Text(
-            'Your table is ready!',
+          Text(
+            onTheWay ? "We'll see you soon!" : 'Your table is ready!',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.deepTeal,
               fontSize: 28,
               fontWeight: FontWeight.w800,
@@ -1717,26 +1870,50 @@ class _InlineReadyCard extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          EzqButton(
-            label: "I'm on my way",
-            onPressed: () async {
-              await ref
-                  .read(customerQueueRepositoryProvider)
-                  .markOnTheWay(
-                    restaurantId: restaurantId,
-                    branchId: branchId,
-                    queueEntryId: entry.id,
-                    phone: entry.phone,
-                  );
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("Hostess notified you're on the way"),
+          if (!onTheWay) ...[
+            EzqButton(
+              label: "I'm on my way",
+              onPressed: () async {
+                await ref
+                    .read(customerQueueRepositoryProvider)
+                    .markOnTheWay(
+                      restaurantId: restaurantId,
+                      branchId: branchId,
+                      queueEntryId: entry.id,
+                      phone: entry.phone,
+                    );
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Hostess notified you're on the way"),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+          ] else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.primaryTeal.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.primaryTeal.withValues(alpha: 0.24),
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
+              ),
+              child: const Text(
+                "The host knows you're on the way.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.deepTeal,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           SizedBox(
             width: double.infinity,
             height: 52,
@@ -1837,6 +2014,7 @@ class _InlineSeatedCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final restaurantName = branchLink.restaurantName;
     return _Card(
+      key: const ValueKey('queue-status-seated'),
       child: Column(
         children: [
           const Icon(
@@ -1866,7 +2044,7 @@ class _InlineSeatedCard extends StatelessWidget {
 }
 
 class _Card extends StatelessWidget {
-  const _Card({required this.child});
+  const _Card({super.key, required this.child});
 
   final Widget child;
 

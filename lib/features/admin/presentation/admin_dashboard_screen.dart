@@ -348,6 +348,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     super.initState();
     _uiPreferences = SharedPreferencesAsync();
     unawaited(_restoreLiveQueuePreference());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final openQr =
+          GoRouterState.of(context).uri.queryParameters['openQr'] == 'true';
+      if (openQr) unawaited(_showQrManagementDialog());
+    });
   }
 
   Future<void> _restoreLiveQueuePreference() async {
@@ -2726,6 +2732,11 @@ class _AdminTopBar extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: AdminBranchIdentityPill(
+                        restaurantBranchId:
+                            FirestorePaths.restaurantBranchIdFromRoute(
+                              restaurantId,
+                              branchId,
+                            ),
                         restaurantName: restaurantName,
                         compact: true,
                       ),
@@ -2855,6 +2866,11 @@ class _AdminTopBar extends StatelessWidget {
                   BrandMark(size: tightDesktop ? 58 : 70),
                   SizedBox(width: tightDesktop ? 14 : 30),
                   AdminBranchIdentityPill(
+                    restaurantBranchId:
+                        FirestorePaths.restaurantBranchIdFromRoute(
+                          restaurantId,
+                          branchId,
+                        ),
                     restaurantName: restaurantName,
                     compact: tightDesktop,
                   ),

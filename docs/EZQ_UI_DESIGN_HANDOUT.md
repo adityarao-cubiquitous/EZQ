@@ -650,6 +650,9 @@ Onboarding data and validation behavior:
 - Walk-in queue entries support seating preference and live ETA context.
 - Branch QR management is available from the admin top bar.
 - Completed onboarding remains available as a read-only Screen 4 summary only when its branch URL is opened explicitly; login still routes completed managers directly to the dashboard.
+- Restaurant onboarding completes the admin, branch, floors, tables, settings, and QR configuration in one atomic Firestore batch with deterministic document IDs.
+- Failed onboarding can be retried safely without duplicate or orphan floors, tables, settings, or QR metadata.
+- Completed onboarding deep links restore a read-only setup summary from Firestore; they never reopen editable wizard steps.
 - Customer status includes ad space and hidden-object puzzle placeholder.
 - Admin and mobile customer auth both show the OTP verification step. For MVP/TestFlight validation the app accepts `123456`; the retained Firebase SMS verification path can be restored with `--dart-define=USE_REAL_FIREBASE_OTP=true`.
 - A customer with a `waiting`, `reserved`, or `on_the_way` queue entry cannot join another restaurant queue. Cancelling or being seated releases the customer to join again.
@@ -900,6 +903,8 @@ Manager user stories:
 
 Admin and operator user stories:
 
+- As a restaurant admin, I want onboarding Retry to be safe after a network or provisioning failure so setup never creates duplicate operational data.
+- As a restaurant admin, I want the completed setup summary to restore after refresh, login, or a direct link so I can verify the persisted configuration at any time.
 - As an operator, I want seeded demo data so I can test the app without manually building a restaurant branch.
 - As an operator, I want realistic queue seed data so I can test table recommendation behavior under pressure.
 - As an operator, I want an audited fail-safe to clear a branch queue during demos, closing, or recovery scenarios so staff can reset operations without losing queue history.

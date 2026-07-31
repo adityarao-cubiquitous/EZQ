@@ -231,6 +231,7 @@ for (const branchDoc of branchSnap.docs) {
           restaurantBranchId,
           role,
           isActive,
+          onboardingCompleted: branchDoc.data().onboardingCompleted === true,
           authProvider: 'phone',
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           createdAt:

@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/restaurant_logo.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../auth/data/auth_repository.dart';
@@ -277,18 +278,10 @@ class _NearbyRestaurantCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE9FBFF),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0x5534D5ED)),
-                ),
-                child: const Icon(
-                  Icons.restaurant_rounded,
-                  color: AppColors.deepTeal,
-                ),
+              RestaurantLogo(
+                restaurantBranchId: branch.id,
+                size: 46,
+                showShadow: false,
               ),
               const SizedBox(width: 12),
               Expanded(

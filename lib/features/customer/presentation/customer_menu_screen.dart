@@ -35,9 +35,13 @@ class CustomerMenuScreen extends ConsumerWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: menu.when(
-          data: (document) => _MenuPdfCard(document: document),
-          loading: () => const _MenuLoadingCard(),
-          error: (_, _) => const _MenuUnavailableCard(
+          data: (document) => _MenuPdfCard(
+            restaurantBranchId: restaurantId,
+            document: document,
+          ),
+          loading: () => _MenuLoadingCard(restaurantBranchId: restaurantId),
+          error: (_, _) => _MenuUnavailableCard(
+            restaurantBranchId: restaurantId,
             title: 'Menu is unavailable',
             message: 'Please ask the host for the menu while we reconnect.',
           ),
@@ -48,8 +52,12 @@ class CustomerMenuScreen extends ConsumerWidget {
 }
 
 class _MenuPdfCard extends StatelessWidget {
-  const _MenuPdfCard({required this.document});
+  const _MenuPdfCard({
+    required this.restaurantBranchId,
+    required this.document,
+  });
 
+  final String restaurantBranchId;
   final MenuDocument document;
 
   @override
@@ -67,7 +75,7 @@ class _MenuPdfCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Center(child: RestaurantLogo()),
+          Center(child: RestaurantLogo(restaurantBranchId: restaurantBranchId)),
           const SizedBox(height: 18),
           Text(
             '${document.restaurantName} Menu',
@@ -88,7 +96,8 @@ class _MenuPdfCard extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           if (pdfUrl == null || pdfUrl.isEmpty)
-            const _MenuUnavailableCard(
+            _MenuUnavailableCard(
+              restaurantBranchId: restaurantBranchId,
               title: 'Menu PDF pending',
               message: 'The restaurant has not uploaded a menu PDF yet.',
               nested: true,
@@ -136,7 +145,9 @@ class _MenuPdfCard extends StatelessWidget {
 }
 
 class _MenuLoadingCard extends StatelessWidget {
-  const _MenuLoadingCard();
+  const _MenuLoadingCard({required this.restaurantBranchId});
+
+  final String restaurantBranchId;
 
   @override
   Widget build(BuildContext context) {
@@ -147,11 +158,11 @@ class _MenuLoadingCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Column(
+      child: Column(
         children: [
-          RestaurantLogo(),
-          SizedBox(height: 24),
-          CircularProgressIndicator(),
+          RestaurantLogo(restaurantBranchId: restaurantBranchId),
+          const SizedBox(height: 24),
+          const CircularProgressIndicator(),
         ],
       ),
     );
@@ -160,11 +171,13 @@ class _MenuLoadingCard extends StatelessWidget {
 
 class _MenuUnavailableCard extends StatelessWidget {
   const _MenuUnavailableCard({
+    required this.restaurantBranchId,
     required this.title,
     required this.message,
     this.nested = false,
   });
 
+  final String restaurantBranchId;
   final String title;
   final String message;
   final bool nested;
@@ -219,7 +232,11 @@ class _MenuUnavailableCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
-        children: [const RestaurantLogo(), const SizedBox(height: 24), child],
+        children: [
+          RestaurantLogo(restaurantBranchId: restaurantBranchId),
+          const SizedBox(height: 24),
+          child,
+        ],
       ),
     );
   }

@@ -3,7 +3,8 @@ enum OnboardingProvisioningStep {
   createFloors,
   createTables,
   createSettings,
-  updateAdmin;
+  updateAdmin,
+  commitProvisioning;
 
   String get label {
     return switch (this) {
@@ -13,6 +14,36 @@ enum OnboardingProvisioningStep {
       OnboardingProvisioningStep.createTables => 'Create Tables',
       OnboardingProvisioningStep.createSettings => 'Create Settings',
       OnboardingProvisioningStep.updateAdmin => 'Update Admin',
+      OnboardingProvisioningStep.commitProvisioning => 'Commit Provisioning',
+    };
+  }
+}
+
+enum RestaurantProvisioningStage {
+  branch,
+  qr,
+  floors,
+  tables,
+  settings,
+  admin,
+  commit;
+
+  String get logName => name;
+
+  OnboardingProvisioningStep get uiStep {
+    return switch (this) {
+      RestaurantProvisioningStage.branch || RestaurantProvisioningStage.qr =>
+        OnboardingProvisioningStep.updateRestaurantBranch,
+      RestaurantProvisioningStage.floors =>
+        OnboardingProvisioningStep.createFloors,
+      RestaurantProvisioningStage.tables =>
+        OnboardingProvisioningStep.createTables,
+      RestaurantProvisioningStage.settings =>
+        OnboardingProvisioningStep.createSettings,
+      RestaurantProvisioningStage.admin =>
+        OnboardingProvisioningStep.updateAdmin,
+      RestaurantProvisioningStage.commit =>
+        OnboardingProvisioningStep.commitProvisioning,
     };
   }
 }
@@ -54,6 +85,15 @@ class RestaurantOnboardingRequest {
   final List<List<int>> tableCountsByFloor;
   final int totalTables;
   final int totalSeats;
+
+  String get provisioningFingerprint {
+    final capacityKey = selectedTableCapacities.join(',');
+    final tableKey = tableCountsByFloor
+        .map((counts) => counts.join(','))
+        .join(';');
+    return 'v1|$restaurantBranchId|$floorCount|$capacityKey|$tableKey|'
+        '$totalTables|$totalSeats';
+  }
 }
 
 class RestaurantOnboardingResult {
@@ -182,6 +222,11 @@ class RestaurantBranchAdminContext {
     required this.area,
     required this.address,
     required this.slug,
+    this.capacityTypes = const <int>[],
+    this.tableCountsByFloor = const <List<int>>[],
+    this.onboardingCompletedAt,
+    this.onboardedAt,
+    this.provisioningFingerprint = '',
     this.onboardingDraft,
     this.floorCount = 1,
     this.selectedTableCapacities = const <int>[],
@@ -207,17 +252,36 @@ class RestaurantBranchAdminContext {
   final String area;
   final String address;
   final String slug;
+  final List<int> capacityTypes;
+  final List<List<int>> tableCountsByFloor;
+  final DateTime? onboardingCompletedAt;
+  final DateTime? onboardedAt;
+  final String queueUrl;
+  final String provisioningFingerprint;
   final RestaurantOnboardingDraft? onboardingDraft;
   final int floorCount;
   final List<int> selectedTableCapacities;
   final int totalTables;
   final int totalSeats;
   final DateTime? createdAt;
-  final String queueUrl;
 
   String get displayName => '$restaurantName - $branchName';
 
-  bool get isProvisioningCompleted => onboardingCompleted && branchActive;
+  List<int> get effectiveSelectedTableCapacities =>
+      selectedTableCapacities.isNotEmpty
+      ? selectedTableCapacities
+      : capacityTypes;
+
+  DateTime? get effectiveCreatedAt =>
+      createdAt ?? onboardingCompletedAt ?? onboardedAt;
+
+  bool get isProvisioningCompleted {
+    final adminCompleted = adminOnboardingCompleted;
+    return onboardingCompleted &&
+        branchActive &&
+        provisioningStatus.trim().toLowerCase() == 'completed' &&
+        (adminCompleted == null || adminCompleted);
+  }
 
   Map<String, String> get step1FieldIssues {
     final adminPath = 'admins/$uid';
@@ -274,10 +338,10 @@ class RestaurantBranchAdminContext {
       if (restaurantName.trim().isEmpty) 'restaurant name',
       if (branchName.trim().isEmpty) 'branch name',
       if (floorCount < 1) 'floor count',
-      if (selectedTableCapacities.isEmpty) 'table capacity types',
+      if (effectiveSelectedTableCapacities.isEmpty) 'table capacity types',
       if (totalTables < 1) 'total tables',
       if (totalSeats < 1) 'total seats',
-      if (createdAt == null) 'completion timestamp',
+      if (effectiveCreatedAt == null) 'completion timestamp',
     ];
     if (missingFields.isEmpty) return null;
     return 'Completed onboarding data is incomplete in Firestore '

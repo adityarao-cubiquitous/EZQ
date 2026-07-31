@@ -31,6 +31,16 @@ service cloud.firestore {
         );
     }
 
+    function isAtomicOnboardingChildCreate(restaurantBranchId) {
+      return isRootRestaurantBranchAdmin(restaurantBranchId)
+        && get(
+          /databases/$(database)/documents/restaurantBranches/$(restaurantBranchId)
+        ).data.onboardingCompleted == false
+        && getAfter(
+          /databases/$(database)/documents/restaurantBranches/$(restaurantBranchId)
+        ).data.onboardingCompleted == true;
+    }
+
     function isCustomerJoinCounterCreate(businessDate) {
       return request.resource.data.keys().hasOnly([
           'businessDate',
@@ -121,6 +131,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && request.auth.uid == adminUserId;
       allow update: if isSignedIn()
         && request.auth.uid == adminUserId
+        && resource.data.onboardingCompleted == false
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
           'onboardingCompleted',
           'onboardedAt'
@@ -137,6 +148,7 @@ service cloud.firestore {
       allow read: if resource.data.isActive == true
         || isRootRestaurantBranchAdmin(restaurantBranchId);
       allow update: if isRootRestaurantBranchAdmin(restaurantBranchId)
+        && resource.data.onboardingCompleted == false
         && hasConsistentOnboardingState()
         && request.resource.data.onboardingCompleted
           == getAfter(
@@ -155,6 +167,7 @@ service cloud.firestore {
           'totalSeats',
           'capacityTypes',
           'onboardingCompletedAt',
+          'provisioningFingerprint',
           'onboardingDraft',
           'onboardingDraftUpdatedAt',
           'updatedAt'
@@ -163,19 +176,31 @@ service cloud.firestore {
 
       match /floors/{floorId} {
         allow read: if isRootRestaurantBranchAdmin(restaurantBranchId);
-        allow create, update: if isRootRestaurantBranchAdmin(restaurantBranchId);
+        allow create: if isAtomicOnboardingChildCreate(restaurantBranchId);
+        allow update: if isRootRestaurantBranchAdmin(restaurantBranchId)
+          && get(
+            /databases/$(database)/documents/restaurantBranches/$(restaurantBranchId)
+          ).data.onboardingCompleted == true;
         allow delete: if false;
       }
 
       match /tables/{tableId} {
         allow read: if true;
-        allow create, update: if isRootRestaurantBranchAdmin(restaurantBranchId);
+        allow create: if isAtomicOnboardingChildCreate(restaurantBranchId);
+        allow update: if isRootRestaurantBranchAdmin(restaurantBranchId)
+          && get(
+            /databases/$(database)/documents/restaurantBranches/$(restaurantBranchId)
+          ).data.onboardingCompleted == true;
         allow delete: if false;
       }
 
       match /settings/{settingsId} {
         allow read: if isRootRestaurantBranchAdmin(restaurantBranchId);
-        allow create, update: if isRootRestaurantBranchAdmin(restaurantBranchId);
+        allow create: if isAtomicOnboardingChildCreate(restaurantBranchId);
+        allow update: if isRootRestaurantBranchAdmin(restaurantBranchId)
+          && get(
+            /databases/$(database)/documents/restaurantBranches/$(restaurantBranchId)
+          ).data.onboardingCompleted == true;
         allow delete: if false;
       }
 

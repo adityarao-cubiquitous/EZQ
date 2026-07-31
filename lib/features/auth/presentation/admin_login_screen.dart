@@ -171,7 +171,7 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
       setState(() => _errorText = 'This admin account is inactive.');
       return;
     }
-    if (adminContext.onboardingCompleted) {
+    if (adminContext.isProvisioningCompleted) {
       context.go('/admin/${adminContext.restaurantBranchId}/dashboard');
     } else {
       context.go('/admin/register/onboarding');

@@ -11,6 +11,7 @@ import '../../../core/utils/qr_generation.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/utils/web_file_actions.dart' as file_actions;
 import '../../../core/widgets/dialog_close_button.dart';
+import '../../../core/widgets/restaurant_logo.dart';
 import '../data/qr_management_repository.dart';
 
 typedef BranchQrArgs = ({String restaurantId, String branchId});
@@ -313,22 +314,40 @@ class _QrDetails extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'QR Management',
-          style: TextStyle(
-            color: AppColors.navyText,
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          info.branchName,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: AppColors.deepTeal,
-            fontWeight: FontWeight.w700,
-          ),
+        Row(
+          children: [
+            RestaurantLogo(
+              restaurantBranchId: info.restaurantBranchId,
+              size: 48,
+              shape: RestaurantLogoShape.circle,
+              showShadow: false,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'QR Management',
+                    style: TextStyle(
+                      color: AppColors.navyText,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    info.branchName,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.deepTeal,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         SelectableText(

@@ -173,13 +173,13 @@ class FirebaseQueueRepository implements QueueRepository {
     required String branchId,
     required String queueEntryId,
   }) async {
-    await _firestore
-        .doc(FirestorePaths.queueEntry(restaurantId, branchId, queueEntryId))
-        .update({
-          'status': QueueStatus.skipped.wireName,
-          'skippedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+    await _transitionQueueEntry(
+      restaurantId: restaurantId,
+      branchId: branchId,
+      queueEntryId: queueEntryId,
+      nextStatus: QueueStatus.skipped,
+      timestampField: 'skippedAt',
+    );
   }
 
   @override
@@ -188,13 +188,46 @@ class FirebaseQueueRepository implements QueueRepository {
     required String branchId,
     required String queueEntryId,
   }) async {
-    await _firestore
-        .doc(FirestorePaths.queueEntry(restaurantId, branchId, queueEntryId))
-        .update({
-          'status': QueueStatus.noShow.wireName,
-          'noShowAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+    await _transitionQueueEntry(
+      restaurantId: restaurantId,
+      branchId: branchId,
+      queueEntryId: queueEntryId,
+      nextStatus: QueueStatus.noShow,
+      timestampField: 'noShowAt',
+    );
+  }
+
+  Future<void> _transitionQueueEntry({
+    required String restaurantId,
+    required String branchId,
+    required String queueEntryId,
+    required QueueStatus nextStatus,
+    required String timestampField,
+  }) async {
+    final entryRef = _firestore.doc(
+      FirestorePaths.queueEntry(restaurantId, branchId, queueEntryId),
+    );
+    await _firestore.runTransaction<void>((transaction) async {
+      final snapshot = await transaction.get(entryRef);
+      if (!snapshot.exists) {
+        throw StateError('Queue entry not found.');
+      }
+      final currentStatus = QueueStatus.fromWireName(
+        snapshot.data()?['status'] as String?,
+      );
+      if (!currentStatus.canTransitionTo(nextStatus)) {
+        throw StateError(
+          'Queue entry cannot transition from '
+          '${currentStatus.wireName} to ${nextStatus.wireName}.',
+        );
+      }
+      final transitionedAt = FieldValue.serverTimestamp();
+      transaction.update(entryRef, {
+        'status': nextStatus.wireName,
+        timestampField: transitionedAt,
+        'updatedAt': transitionedAt,
+      });
+    });
   }
 }
 

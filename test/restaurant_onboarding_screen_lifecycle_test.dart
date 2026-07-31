@@ -52,7 +52,7 @@ void main() {
       expect(repository.loadCount, 1);
       expect(find.text('Setup Summary'), findsOneWidget);
       expect(find.text('Provisioning Checklist'), findsOneWidget);
-      expect(find.text('Download Setup Summary'), findsOneWidget);
+      expect(find.text('View Setup Summary'), findsOneWidget);
       expect(find.text('Manage QR'), findsOneWidget);
       expect(find.text('Go to Dashboard'), findsOneWidget);
       expect(find.text('Persisted Restaurant'), findsWidgets);

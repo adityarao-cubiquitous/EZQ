@@ -412,8 +412,7 @@ export const assignRestaurantBranchAdmin = onCall(async (request) => {
         `restaurantBranches/${restaurantBranchId} must exist before assigning an admin`,
       );
     }
-    const branchOnboardingCompleted =
-      branchSnap.get("onboardingCompleted") === true;
+    const onboardingCompleted = branchSnap.get("onboardingCompleted") === true;
 
     if (adminSnap.exists) {
       const currentRestaurantBranchId = adminSnap.get("restaurantBranchId") as string | undefined;
@@ -431,7 +430,10 @@ export const assignRestaurantBranchAdmin = onCall(async (request) => {
         ...(email ? {email} : {}),
         ...(phone ? {phone: normalizePhone(phone)} : {}),
         isActive,
-        onboardingCompleted: branchOnboardingCompleted,
+        onboardingCompleted,
+        ...(onboardingCompleted
+          ? {onboardedAt: branchSnap.get("onboardingCompletedAt") ?? FieldValue.serverTimestamp()}
+          : {}),
         updatedAt: FieldValue.serverTimestamp(),
       });
       return;
@@ -445,7 +447,10 @@ export const assignRestaurantBranchAdmin = onCall(async (request) => {
       restaurantBranchId,
       role,
       isActive,
-      onboardingCompleted: branchOnboardingCompleted,
+      onboardingCompleted,
+      ...(onboardingCompleted
+        ? {onboardedAt: branchSnap.get("onboardingCompletedAt") ?? FieldValue.serverTimestamp()}
+        : {}),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -512,8 +517,7 @@ export const provisionRestaurantBranchAdmin = onCall(async (request) => {
         `restaurantBranches/${restaurantBranchId} must exist before assigning an admin`,
       );
     }
-    const branchOnboardingCompleted =
-      branchSnap.get("onboardingCompleted") === true;
+    const onboardingCompleted = branchSnap.get("onboardingCompleted") === true;
 
     if (adminSnap.exists) {
       const currentRestaurantBranchId = adminSnap.get("restaurantBranchId") as string | undefined;
@@ -531,8 +535,11 @@ export const provisionRestaurantBranchAdmin = onCall(async (request) => {
         restaurantBranchId,
         role,
         isActive,
-        onboardingCompleted: branchOnboardingCompleted,
         authProvider: "phone",
+        onboardingCompleted,
+        ...(onboardingCompleted
+          ? {onboardedAt: branchSnap.get("onboardingCompletedAt") ?? FieldValue.serverTimestamp()}
+          : {}),
         updatedAt: FieldValue.serverTimestamp(),
       });
       return;
@@ -546,8 +553,11 @@ export const provisionRestaurantBranchAdmin = onCall(async (request) => {
       restaurantBranchId,
       role,
       isActive,
-      onboardingCompleted: branchOnboardingCompleted,
       authProvider: "phone",
+      onboardingCompleted,
+      ...(onboardingCompleted
+        ? {onboardedAt: branchSnap.get("onboardingCompletedAt") ?? FieldValue.serverTimestamp()}
+        : {}),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });

@@ -868,7 +868,7 @@ class _FooterActions extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _SecondaryButton(
-            label: 'Download Setup Summary',
+            label: 'View Setup Summary',
             onPressed: onDownloadSetupSummary,
           ),
           const SizedBox(height: 12),
@@ -884,7 +884,7 @@ class _FooterActions extends StatelessWidget {
         const Spacer(),
         Flexible(
           child: _SecondaryButton(
-            label: 'Download Setup Summary',
+            label: 'View Setup Summary',
             onPressed: onDownloadSetupSummary,
           ),
         ),
