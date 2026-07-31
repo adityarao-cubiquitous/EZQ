@@ -16,6 +16,7 @@ import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
 import '../data/branch_identity_repository.dart';
 import '../data/customer_queue_repository.dart';
+import '../domain/party_ahead_copy.dart';
 import 'customer_shell.dart';
 import 'restaurant_logo.dart';
 
@@ -1366,7 +1367,7 @@ class _QueueStatusCard extends StatelessWidget {
                   child: _MetricBlock(
                     label: 'Ahead',
                     value: '$aheadCount',
-                    suffix: aheadCount == 1 ? 'person' : 'people',
+                    suffix: partyNounForCount(aheadCount),
                   ),
                 ),
                 Container(width: 1, height: 46, color: const Color(0x1A006687)),

@@ -9,8 +9,9 @@ import '../../auth/data/auth_repository.dart';
 import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
 import '../data/customer_queue_repository.dart';
-import 'nearby_restaurants_screen.dart';
+import '../domain/party_ahead_copy.dart';
 import 'customer_shell.dart';
+import 'nearby_restaurants_screen.dart';
 
 class CustomerAppHomeScreen extends ConsumerWidget {
   const CustomerAppHomeScreen({super.key});
@@ -537,7 +538,7 @@ class _ActiveVisitCard extends StatelessWidget {
                     label: seated ? 'Table' : 'Ahead',
                     value: seated
                         ? (entry.assignedTableNumber ?? 'Assigned')
-                        : '$aheadCount ${aheadCount == 1 ? 'person' : 'people'}',
+                        : partyCountLabel(aheadCount),
                   ),
                 ),
                 const SizedBox(width: 10),

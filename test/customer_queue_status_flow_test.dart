@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:ezq/features/customer/data/branch_identity_repository.dart';
 import 'package:ezq/features/customer/data/customer_queue_repository.dart';
+import 'package:ezq/features/customer/domain/party_ahead_copy.dart';
 import 'package:ezq/features/customer/presentation/customer_queue_status_screen.dart';
 import 'package:ezq/features/queue/domain/queue_entry.dart';
 import 'package:ezq/features/queue/domain/queue_status.dart';
@@ -108,6 +109,30 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('waiting uses Party and Parties for the live ahead count', (
+    tester,
+  ) async {
+    for (final (count, noun) in <(int, String)>[(1, 'Party'), (5, 'Parties')]) {
+      final repository = ControlledCustomerQueueRepository(
+        QueueStatus.waiting,
+        aheadCount: count,
+      );
+      await pumpStatusScreen(tester, repository);
+
+      expect(find.text('$count'), findsOneWidget);
+      expect(find.text(noun), findsOneWidget);
+      expect(find.text('person'), findsNothing);
+      expect(find.text('people'), findsNothing);
+      await repository.close();
+    }
+  });
+
+  test('party-ahead copy uses correct singular and plural grammar', () {
+    expect(partiesAheadLabel(1), '1 Party Ahead');
+    expect(partiesAheadLabel(5), '5 Parties Ahead');
+    expect(partiesAheadLabel(0), '0 Parties Ahead');
+  });
 
   testWidgets('completed and cancelled states offer restaurant browsing', (
     tester,
@@ -261,9 +286,11 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
   ControlledCustomerQueueRepository(
     QueueStatus initialStatus, {
     this.streamError,
+    this.aheadCount = 2,
   }) : _entry = _entryFor(initialStatus);
 
   final Object? streamError;
+  final int aheadCount;
   final StreamController<QueueEntry> _controller =
       StreamController<QueueEntry>.broadcast();
   QueueEntry _entry;
@@ -333,7 +360,7 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
     required String branchId,
     required String queueEntryId,
   }) async* {
-    yield 2;
+    yield aheadCount;
   }
 
   @override
