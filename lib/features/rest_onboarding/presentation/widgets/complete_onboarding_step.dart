@@ -29,7 +29,6 @@ class CompleteOnboardingStep extends StatelessWidget {
     required this.onBack,
     required this.onRetry,
     required this.onBackToReview,
-    required this.onManageQr,
     required this.onGoToDashboard,
   });
 
@@ -54,7 +53,6 @@ class CompleteOnboardingStep extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onRetry;
   final VoidCallback onBackToReview;
-  final VoidCallback onManageQr;
   final VoidCallback onGoToDashboard;
 
   @override
@@ -93,7 +91,6 @@ class CompleteOnboardingStep extends StatelessWidget {
                 totalTables: totalTables,
                 totalSeats: totalSeats,
                 isMobile: isMobile,
-                onManageQr: onManageQr,
                 onGoToDashboard: onGoToDashboard,
               ),
             },
@@ -444,7 +441,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
     required this.totalTables,
     required this.totalSeats,
     required this.isMobile,
-    required this.onManageQr,
     required this.onGoToDashboard,
   });
 
@@ -459,7 +455,6 @@ class _ProvisioningSuccessView extends StatelessWidget {
   final int totalTables;
   final int totalSeats;
   final bool isMobile;
-  final VoidCallback onManageQr;
   final VoidCallback onGoToDashboard;
 
   @override
@@ -631,11 +626,7 @@ class _ProvisioningSuccessView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 32),
-        _FooterActions(
-          isMobile: isMobile,
-          onManageQr: onManageQr,
-          onGoToDashboard: onGoToDashboard,
-        ),
+        _FooterActions(isMobile: isMobile, onGoToDashboard: onGoToDashboard),
       ],
     );
   }
@@ -737,14 +728,9 @@ class _NextStepLine extends StatelessWidget {
 }
 
 class _FooterActions extends StatelessWidget {
-  const _FooterActions({
-    required this.isMobile,
-    required this.onManageQr,
-    required this.onGoToDashboard,
-  });
+  const _FooterActions({required this.isMobile, required this.onGoToDashboard});
 
   final bool isMobile;
-  final VoidCallback onManageQr;
   final VoidCallback onGoToDashboard;
 
   @override
@@ -753,8 +739,6 @@ class _FooterActions extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SecondaryButton(label: 'Manage QR', onPressed: onManageQr),
-          const SizedBox(height: 12),
           _GradientButton(label: 'Go to Dashboard', onPressed: onGoToDashboard),
         ],
       );
@@ -763,10 +747,6 @@ class _FooterActions extends StatelessWidget {
     return Row(
       children: [
         const Spacer(),
-        Flexible(
-          child: _SecondaryButton(label: 'Manage QR', onPressed: onManageQr),
-        ),
-        const SizedBox(width: 16),
         Flexible(
           child: _GradientButton(
             label: 'Go to Dashboard',

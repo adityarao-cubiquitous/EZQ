@@ -3,22 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('Manage QR delegates to the supplied shared dialog callback', (
+  testWidgets('completed screen omits onboarding QR management action', (
     tester,
   ) async {
-    var manageQrCount = 0;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: _successStep())));
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(body: _successStep(onManageQr: () => manageQrCount++)),
-      ),
-    );
-
-    await tester.ensureVisible(find.text('Manage QR'));
-    await tester.tap(find.text('Manage QR'));
-
-    expect(manageQrCount, 1);
-    expect(find.byType(SnackBar), findsNothing);
+    expect(find.text('Manage QR'), findsNothing);
+    expect(find.text('Go to Dashboard'), findsOneWidget);
+    expect(find.text('QR URL'), findsOneWidget);
   });
 
   for (final size in <Size>[
@@ -42,13 +34,13 @@ void main() {
       expect(find.text('Provisioning Checklist'), findsNothing);
       expect(find.text('View Setup Summary'), findsNothing);
       expect(find.text('4 Top, 6 Top'), findsOneWidget);
-      expect(find.text('Manage QR'), findsOneWidget);
+      expect(find.text('Manage QR'), findsNothing);
       expect(find.text('Go to Dashboard'), findsOneWidget);
     });
   }
 }
 
-CompleteOnboardingStep _successStep({VoidCallback? onManageQr}) {
+CompleteOnboardingStep _successStep() {
   return CompleteOnboardingStep(
     viewState: CompleteOnboardingViewState.success,
     restaurantName: 'The Spice House',
@@ -71,7 +63,6 @@ CompleteOnboardingStep _successStep({VoidCallback? onManageQr}) {
     onBack: () {},
     onRetry: () {},
     onBackToReview: () {},
-    onManageQr: onManageQr ?? () {},
     onGoToDashboard: () {},
   );
 }

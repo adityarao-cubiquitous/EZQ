@@ -51,7 +51,7 @@ void main() {
       expect(find.text('Setup Summary'), findsOneWidget);
       expect(find.text('Provisioning Checklist'), findsNothing);
       expect(find.text('View Setup Summary'), findsNothing);
-      expect(find.text('Manage QR'), findsOneWidget);
+      expect(find.text('Manage QR'), findsNothing);
       expect(find.text('Go to Dashboard'), findsOneWidget);
       expect(find.text('Restaurant Branch ID'), findsOneWidget);
       expect(find.text('complete-branch'), findsWidgets);
