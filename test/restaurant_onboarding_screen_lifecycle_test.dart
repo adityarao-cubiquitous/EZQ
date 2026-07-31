@@ -51,8 +51,8 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(repository.loadCount, 1);
       expect(find.text('Setup Summary'), findsOneWidget);
-      expect(find.text('Provisioning Checklist'), findsOneWidget);
-      expect(find.text('View Setup Summary'), findsOneWidget);
+      expect(find.text('Provisioning Checklist'), findsNothing);
+      expect(find.text('View Setup Summary'), findsNothing);
       expect(find.text('Manage QR'), findsOneWidget);
       expect(find.text('Go to Dashboard'), findsOneWidget);
       expect(find.text('Persisted Restaurant'), findsWidgets);
@@ -166,7 +166,8 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(repository.loadCount, 2);
-    expect(find.text('Provisioning Checklist'), findsOneWidget);
+    expect(find.text('Setup Summary'), findsOneWidget);
+    expect(find.text('Provisioning Checklist'), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
@@ -221,7 +222,8 @@ void main() {
     );
     await tester.tap(find.text('Open onboarding summary'));
     await tester.pumpAndSettle();
-    expect(find.text('Provisioning Checklist'), findsOneWidget);
+    expect(find.text('Setup Summary'), findsOneWidget);
+    expect(find.text('Provisioning Checklist'), findsNothing);
 
     router.pop();
     await tester.pumpAndSettle();

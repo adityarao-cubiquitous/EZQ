@@ -15,7 +15,6 @@ import '../widgets/floors_tables_step.dart';
 import '../widgets/restaurant_details_step.dart';
 import '../widgets/restaurant_onboarding_wizard_bar.dart';
 import '../widgets/review_confirm_step.dart';
-import '../widgets/setup_summary_dialog.dart';
 
 class RestaurantOnboardingScreen extends ConsumerStatefulWidget {
   const RestaurantOnboardingScreen({super.key});
@@ -139,16 +138,6 @@ class _RestaurantOnboardingScreenState
     await ref
         .read(restaurantOnboardingControllerProvider.notifier)
         .startProvisioning();
-  }
-
-  void _downloadSetupSummary(RestaurantOnboardingState state) {
-    final result = state.provisioningResult;
-    if (result == null) return;
-    showDialog<void>(
-      context: context,
-      builder: (context) =>
-          SetupSummaryDialog(summaryText: state.setupSummaryText(result)),
-    );
   }
 
   void _goToDashboard(RestaurantOnboardingState state) {
@@ -431,7 +420,6 @@ class _RestaurantOnboardingScreenState
       restaurantName: state.trimmedRestaurantName,
       branchName: state.trimmedBranchName,
       restaurantId: state.provisioningResult?.restaurantBranchId,
-      branchId: state.provisioningResult?.restaurantBranchId,
       createdAt: state.provisioningResult?.createdAt,
       adminEmail: state.provisioningResult?.adminEmail,
       qrUrl: state.provisioningResult?.qrUrl,
@@ -453,7 +441,6 @@ class _RestaurantOnboardingScreenState
       onBackToReview: () => ref
           .read(restaurantOnboardingControllerProvider.notifier)
           .backToReviewFromFailure(),
-      onViewSummary: () => _downloadSetupSummary(state),
       onManageQr: () => _manageQr(state),
       onGoToDashboard: () => _goToDashboard(state),
     );
