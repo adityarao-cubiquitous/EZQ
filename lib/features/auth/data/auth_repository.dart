@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +26,11 @@ class TemporaryOtpConfig {
 
 abstract class AuthRepository {
   Future<void> signInAdmin({required String email, required String password});
+
+  Future<void> signInAdminWithTemporaryOtp({
+    required String phone,
+    required String code,
+  });
 
   Future<PhoneCodeRequestResult> startAdminPhoneSignIn({
     required String phone,
@@ -390,10 +396,12 @@ class FirebaseCustomerProfileRepository implements CustomerProfileRepository {
 }
 
 class FirebaseAuthRepository implements AuthRepository {
-  FirebaseAuthRepository({FirebaseAuth? auth})
-    : _auth = auth ?? FirebaseAuth.instance;
+  FirebaseAuthRepository({FirebaseAuth? auth, FirebaseFunctions? functions})
+    : _auth = auth ?? FirebaseAuth.instance,
+      _functions = functions ?? FirebaseFunctions.instance;
 
   final FirebaseAuth _auth;
+  final FirebaseFunctions _functions;
 
   @override
   Future<void> signInAdmin({
@@ -407,6 +415,30 @@ class FirebaseAuthRepository implements AuthRepository {
       email: email.trim(),
       password: password,
     );
+  }
+
+  @override
+  Future<void> signInAdminWithTemporaryOtp({
+    required String phone,
+    required String code,
+  }) async {
+    final normalizedPhone = PhoneUtils.normalizeIndiaMobile(phone);
+    final response = await _functions
+        .httpsCallable('signInAdminWithTemporaryOtp')
+        .call<Map<dynamic, dynamic>>(<String, Object?>{
+          'phone': normalizedPhone,
+          'code': code.trim(),
+        });
+    final customToken = (response.data['customToken'] as String? ?? '').trim();
+    if (customToken.isEmpty) {
+      throw StateError(
+        'Temporary admin authentication returned an empty custom token.',
+      );
+    }
+    if (kIsWeb) {
+      await _auth.setPersistence(Persistence.SESSION);
+    }
+    await _auth.signInWithCustomToken(customToken);
   }
 
   @override
@@ -498,6 +530,12 @@ class MockAuthRepository implements AuthRepository {
   Future<void> signInAdmin({
     required String email,
     required String password,
+  }) async {}
+
+  @override
+  Future<void> signInAdminWithTemporaryOtp({
+    required String phone,
+    required String code,
   }) async {}
 
   @override

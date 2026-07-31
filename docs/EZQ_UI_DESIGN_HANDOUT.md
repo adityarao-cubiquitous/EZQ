@@ -650,11 +650,14 @@ Onboarding data and validation behavior:
 - Walk-in queue entries support seating preference and live ETA context.
 - Branch QR management is available from the admin top bar.
 - Completed onboarding remains available as a read-only Screen 4 summary only when its branch URL is opened explicitly; login still routes completed managers directly to the dashboard.
+- Admin login, dashboard, and reports routes use the same canonical onboarding readiness validation so a branch cannot be rejected at login and accepted by a direct route.
+- Operational legacy branches reconstruct deterministic queue URLs and missing capacity types in memory after their persisted floors, tables, settings equivalents, and completion state pass strict validation.
 - Restaurant onboarding completes the admin, branch, floors, tables, settings, and QR configuration in one atomic Firestore batch with deterministic document IDs.
 - Failed onboarding can be retried safely without duplicate or orphan floors, tables, settings, or QR metadata.
 - Completed onboarding deep links restore a read-only setup summary from Firestore; they never reopen editable wizard steps.
 - Customer status includes ad space and hidden-object puzzle placeholder.
 - Admin and mobile customer auth both show the OTP verification step. For MVP/TestFlight validation the app accepts `123456`; the retained Firebase SMS verification path can be restored with `--dart-define=USE_REAL_FIREBASE_OTP=true`.
+- Temporary admin authentication covers every configured demo restaurant, falls back to canonical backend phone resolution when no local compatibility entry exists, and verifies the authenticated UID, phone, and restaurant branch against the canonical `admins/{uid}` document before routing.
 - A customer with a `waiting`, `reserved`, or `on_the_way` queue entry cannot join another restaurant queue. Cancelling or being seated releases the customer to join again.
 - The native QR scanner shows explicit camera-denied and camera-unavailable states with retry, Open Settings, and manual-code fallback actions on both iOS and Android.
 - Nearby restaurants distinguishes location services off, permission denied, and permission permanently denied. Customers can retry, open the appropriate Settings page, or continue using the demo location without a dead end.
@@ -798,6 +801,8 @@ Manager flow:
 - The system shall enable Step 1 Continue only when branch mapping, administrator name, email, phone, restaurant name, branch name, area, and address are valid.
 - The system shall name the exact Firestore document and field when required onboarding data is missing instead of displaying `Not specified`.
 - The system shall keep admin and branch `onboardingCompleted` flags synchronized with branch `provisioningStatus`, and shall reject any persisted completed/incomplete mismatch.
+- The system shall preserve strict completed-onboarding validation while reconstructing deterministic legacy metadata only when the persisted operational floor, table, settings-equivalent, admin, and branch data is internally consistent.
+- The system shall use one canonical admin-branch readiness result for login, dashboard, onboarding, and reports routing.
 - The system shall show live waiting queue entries for the selected branch.
 - The system shall allow the Live Queue to be collapsed and reopened by touch, mouse, or keyboard on desktop, tablet, and mobile layouts.
 - The system shall expand the table dashboard into all released space when the Live Queue is closed.

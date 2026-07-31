@@ -130,11 +130,14 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
         PhoneUtils.normalizeIndiaMobile(_phoneController.text);
     final session = _temporaryAdminSessions[phone];
     if (session == null) {
-      setState(
-        () => _errorText =
-            'No temporary admin mapping was found for $phone. '
-            'Create the backend admin mapping before login.',
-      );
+      await ref
+          .read(authRepositoryProvider)
+          .signInAdminWithTemporaryOtp(
+            phone: phone,
+            code: TemporaryOtpConfig.code,
+          );
+      if (!mounted) return;
+      await _finishAdminLogin();
       return;
     }
 
@@ -151,10 +154,12 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
         '${session.onboardingQuery}',
       );
     }
-    await _finishAdminLogin();
+    await _finishAdminLogin(temporarySession: session);
   }
 
-  Future<void> _finishAdminLogin() async {
+  Future<void> _finishAdminLogin({
+    _TemporaryAdminSession? temporarySession,
+  }) async {
     final adminContext = await ref
         .read(restaurantOnboardingRepositoryProvider)
         .loadAdminContext();
@@ -164,6 +169,22 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
         () => _errorText =
             'No admin mapping was found for this phone number. '
             'Ask platform support to map this Firebase Auth user to a restaurant.',
+      );
+      return;
+    }
+    if (temporarySession != null &&
+        !temporaryAdminCanonicalMappingMatches(
+          requestedPhone: temporarySession.adminPhone,
+          canonicalUid: adminContext.uid,
+          canonicalPhone: adminContext.phone,
+          canonicalRestaurantBranchId: adminContext.restaurantBranchId,
+        )) {
+      await ref.read(authRepositoryProvider).signOut();
+      if (!mounted) return;
+      setState(
+        () => _errorText =
+            'The temporary login does not match the canonical admin mapping. '
+            'Ask platform support to verify this admin account.',
       );
       return;
     }
@@ -576,7 +597,108 @@ const _temporaryAdminSessions = <String, _TemporaryAdminSession>{
     address: 'Vijaya Bank Layout near IIM Bangalore, Bengaluru',
     slug: 'the-spice-house-indiranagar',
   ),
+  '+919999001011': _TemporaryAdminSession(
+    adminUid: 'ycwQM1bDSqQ2rPunFLNYNpl8Twp2',
+    adminName: 'Bhagini Horamavu Signal Admin',
+    adminEmail: 'admin.bhagini.horamavu.signal@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001011',
+    restaurantBranchId: 'bhagini-horamavu-signal',
+    restaurantName: 'Bhagini',
+    branchName: 'Horamavu Signal',
+    area: 'Horamavu',
+    address:
+        '1253, Near Horamavu Signal, Outer Ring Road, Dodda Banaswadi, '
+        'Bengaluru, Karnataka 560043',
+    slug: 'bhagini-horamavu-signal',
+  ),
+  '+919999001012': _TemporaryAdminSession(
+    adminUid: 'etKj2QC0KcaXrKhqAkgqs0IgVKj2',
+    adminName: 'The Indian Eatery Kalyan Nagar Admin',
+    adminEmail: 'admin.the.indian.eatery.kalyan.nagar@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001012',
+    restaurantBranchId: 'the-indian-eatery-kalyan-nagar',
+    restaurantName: 'The Indian Eatery',
+    branchName: 'Kalyan Nagar',
+    area: 'HRBR Layout 1st Block',
+    address:
+        '959, 3rd Cross Road, HRBR Layout 1st Block, Kalyan Nagar, '
+        'Bengaluru, Karnataka 560043',
+    slug: 'the-indian-eatery-kalyan-nagar',
+  ),
+  '+919999001013': _TemporaryAdminSession(
+    adminUid: 'r7O0pI816LYyZC8xozUmPpdNMtU2',
+    adminName: 'Tamarind Banaswadi Admin',
+    adminEmail: 'admin.tamarind.banaswadi@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001013',
+    restaurantBranchId: 'tamarind-banaswadi',
+    restaurantName: 'Tamarind',
+    branchName: 'Banaswadi',
+    area: 'Chairman Layout',
+    address:
+        '1, 9th B Main, Chairman Layout, Banaswadi Main Road, Bengaluru, '
+        'Karnataka 560043',
+    slug: 'tamarind-banaswadi',
+  ),
+  '+919999001014': _TemporaryAdminSession(
+    adminUid: 'o1tdidFyzNekD4vewzTujKshKxf2',
+    adminName: 'The Filter Coffee Kalyan Nagar Admin',
+    adminEmail: 'admin.the.filter.coffee.kalyan.nagar@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001014',
+    restaurantBranchId: 'the-filter-coffee-kalyan-nagar',
+    restaurantName: 'The Filter Coffee',
+    branchName: 'Kalyan Nagar',
+    area: 'HRBR Layout',
+    address:
+        '7th Main Road, HRBR Layout, Kalyan Nagar, Bengaluru, Karnataka '
+        '560043',
+    slug: 'the-filter-coffee-kalyan-nagar',
+  ),
+  '+919999001015': _TemporaryAdminSession(
+    adminUid: 'KmrlbVCFkRYoFE7pB4Ap1TrM25a2',
+    adminName: 'Mahanagaram Kalyan Nagar Admin',
+    adminEmail: 'admin.mahanagaram.kalyan.nagar@ezq-demo.cubiquitous.in',
+    adminPassword: 'Welcome@123',
+    adminPhone: '+919999001015',
+    restaurantBranchId: 'mahanagaram-kalyan-nagar',
+    restaurantName: 'Mahanagaram',
+    branchName: 'Kalyan Nagar',
+    area: 'HRBR Layout 2nd Block',
+    address:
+        '3rd Floor, 229, 7th Main Road, HRBR Layout 2nd Block, Kalyan Nagar, '
+        'Bengaluru, Karnataka 560043',
+    slug: 'mahanagaram-kalyan-nagar',
+  ),
 };
+
+@visibleForTesting
+Set<String> get temporaryAdminConfiguredPhones =>
+    Set<String>.unmodifiable(_temporaryAdminSessions.keys);
+
+@visibleForTesting
+String? temporaryAdminBranchForPhone(String rawPhone) {
+  return _temporaryAdminSessions[PhoneUtils.normalizeIndiaMobile(rawPhone)]
+      ?.restaurantBranchId;
+}
+
+@visibleForTesting
+bool temporaryAdminCanonicalMappingMatches({
+  required String requestedPhone,
+  required String canonicalUid,
+  required String canonicalPhone,
+  required String canonicalRestaurantBranchId,
+}) {
+  final session =
+      _temporaryAdminSessions[PhoneUtils.normalizeIndiaMobile(requestedPhone)];
+  return session != null &&
+      session.adminUid == canonicalUid &&
+      PhoneUtils.normalizeIndiaMobile(session.adminPhone) ==
+          PhoneUtils.normalizeIndiaMobile(canonicalPhone) &&
+      session.restaurantBranchId == canonicalRestaurantBranchId;
+}
 
 class _AdminLoginField extends StatelessWidget {
   const _AdminLoginField({

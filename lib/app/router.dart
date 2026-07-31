@@ -1,10 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/constants/app_constants.dart';
-import '../core/constants/firestore_paths.dart';
 import '../features/admin/presentation/admin_dashboard_screen.dart';
 import '../features/auth/presentation/customer_name_profile_screen.dart';
 import '../features/auth/presentation/customer_phone_auth_screen.dart';
@@ -19,11 +17,13 @@ import '../features/customer/presentation/customer_qr_scanner_screen.dart';
 import '../features/customer/presentation/customer_route_guard.dart';
 import '../features/customer/presentation/customer_support_screen.dart';
 import '../features/customer/presentation/nearby_restaurants_screen.dart';
-import '../features/customer/domain/restaurant_branch_readiness.dart';
 import '../features/customer/presentation/seated_view.dart';
 import '../features/customer/presentation/table_ready_view.dart';
 import '../features/reports/presentation/daily_summary_screen.dart';
 import '../features/rest_onboarding/presentation/screens/restaurant_onboarding_screen.dart';
+import '../features/rest_onboarding/data/restaurant_onboarding_repository.dart';
+import '../features/rest_onboarding/domain/onboarding_provisioning.dart';
+import '../features/rest_onboarding/providers/restaurant_onboarding_controller.dart';
 import 'admin_branch_route_policy.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -132,13 +132,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/admin/register/onboarding',
-        redirect: (context, state) => _redirectLegacyAdminOnboarding(),
+        redirect: (context, state) => _redirectLegacyAdminOnboarding(
+          ref.read(restaurantOnboardingRepositoryProvider),
+        ),
       ),
       GoRoute(
         path: '/admin/:restaurantBranchId/register/onboarding',
         redirect: (context, state) => _redirectAdminBranchRoute(
           state,
           state.pathParameters['restaurantBranchId']!,
+          ref.read(restaurantOnboardingRepositoryProvider),
           allowCompletedOnboardingSummary: true,
         ),
         builder: (context, state) => const RestaurantOnboardingScreen(),
@@ -148,6 +151,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         redirect: (context, state) => _redirectAdminBranchRoute(
           state,
           state.pathParameters['restaurantBranchId']!,
+          ref.read(restaurantOnboardingRepositoryProvider),
         ),
         builder: (context, state) {
           final restaurantBranchId =
@@ -160,6 +164,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/admin/:restaurantBranchId/reports',
+        redirect: (context, state) => _redirectAdminBranchRoute(
+          state,
+          state.pathParameters['restaurantBranchId']!,
+          ref.read(restaurantOnboardingRepositoryProvider),
+        ),
         builder: (context, state) {
           final restaurantBranchId =
               state.pathParameters['restaurantBranchId']!;
@@ -207,75 +216,61 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-Future<String> _redirectLegacyAdminOnboarding() async {
+Future<String> _redirectLegacyAdminOnboarding(
+  RestaurantOnboardingRepository onboardingRepository,
+) async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return '/admin/login';
 
-  final adminSnapshot = await FirebaseFirestore.instance
-      .doc(FirestorePaths.rootAdmin(user.uid))
-      .get();
-  final adminData = adminSnapshot.data();
-  final restaurantBranchId = (adminData?['restaurantBranchId'] as String? ?? '')
-      .trim();
-  if (restaurantBranchId.isEmpty) return '/admin/login';
-  if (adminData?['onboardingCompleted'] != true) {
-    return '/admin/$restaurantBranchId/register/onboarding';
+  try {
+    final adminContext = await onboardingRepository.loadAdminContext();
+    if (adminContext == null || !adminContext.isActive) return '/admin/login';
+    return _adminBranchDestination(adminContext);
+  } on AdminContextLoadException {
+    return '/admin/login';
   }
-
-  return _adminBranchDestination(restaurantBranchId);
 }
 
 Future<String?> _redirectAdminBranchRoute(
   GoRouterState state,
-  String restaurantBranchId, {
+  String restaurantBranchId,
+  RestaurantOnboardingRepository onboardingRepository, {
   bool allowCompletedOnboardingSummary = false,
 }) async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return '/admin/login';
 
-  final adminSnapshot = await FirebaseFirestore.instance
-      .doc(FirestorePaths.rootAdmin(user.uid))
-      .get();
-  final adminData = adminSnapshot.data();
-  final mappedRestaurantBranchId =
-      (adminData?['restaurantBranchId'] as String? ?? '').trim();
-  final isActive = adminData?['isActive'] as bool? ?? false;
-  if (!isActive || mappedRestaurantBranchId.isEmpty) {
+  RestaurantBranchAdminContext? adminContext;
+  try {
+    adminContext = await onboardingRepository.loadAdminContext();
+  } on AdminContextLoadException {
+    final onboardingPath = '/admin/$restaurantBranchId/register/onboarding';
+    return state.uri.path == onboardingPath ? null : onboardingPath;
+  }
+  if (adminContext == null || !adminContext.isActive) {
     return '/admin/login';
   }
+  final mappedRestaurantBranchId = adminContext.restaurantBranchId;
   if (mappedRestaurantBranchId != restaurantBranchId) {
-    return _adminBranchDestination(mappedRestaurantBranchId);
+    return _adminBranchDestination(adminContext);
   }
-  if (adminData?['onboardingCompleted'] != true) {
+  if (!adminContext.isProvisioningCompleted) {
     final onboardingPath = '/admin/$restaurantBranchId/register/onboarding';
     return state.uri.path == onboardingPath ? null : onboardingPath;
   }
 
-  final branchReady = await _restaurantBranchIsReady(mappedRestaurantBranchId);
   return resolveAdminBranchRouteRedirect(
     currentPath: state.uri.path,
     restaurantBranchId: mappedRestaurantBranchId,
-    branchReady: branchReady,
+    branchReady: adminContext.isProvisioningCompleted,
     allowCompletedOnboardingSummary: allowCompletedOnboardingSummary,
   );
 }
 
-Future<String> _adminBranchDestination(String restaurantBranchId) async {
-  final branchReady = await _restaurantBranchIsReady(restaurantBranchId);
-  if (branchReady) {
+String _adminBranchDestination(RestaurantBranchAdminContext adminContext) {
+  final restaurantBranchId = adminContext.restaurantBranchId;
+  if (adminContext.isProvisioningCompleted) {
     return '/admin/$restaurantBranchId/dashboard';
   }
   return '/admin/$restaurantBranchId/register/onboarding';
-}
-
-Future<bool> _restaurantBranchIsReady(String restaurantBranchId) async {
-  final branchSnapshot = await FirebaseFirestore.instance
-      .doc(FirestorePaths.restaurantBranch(restaurantBranchId))
-      .get();
-  final branchData = branchSnapshot.data();
-  final readiness = evaluateRestaurantBranchReadiness(
-    branchExists: branchSnapshot.exists,
-    branchData: branchData,
-  );
-  return readiness.isReady;
 }

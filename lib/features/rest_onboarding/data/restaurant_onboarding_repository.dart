@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../domain/completed_onboarding_compatibility.dart';
 import '../domain/onboarding_provisioning.dart';
 import 'provisioning_stage_runner.dart';
 
@@ -181,7 +182,9 @@ class FirebaseRestaurantOnboardingRepository
             branchData: branchData,
           )
         : null;
-    final capacityTypes = _intListFromValue(branchData['capacityTypes']);
+    final capacityTypes =
+        completedConfiguration?.capacityTypes ??
+        _intListFromValue(branchData['capacityTypes']);
     final completedAt =
         _dateTimeFromValue(branchData['onboardingCompletedAt']) ??
         _dateTimeFromValue(adminData['onboardedAt']) ??
@@ -217,7 +220,9 @@ class FirebaseRestaurantOnboardingRepository
       ),
       onboardedAt: _dateTimeFromValue(adminData['onboardedAt']),
       createdAt: completedAt,
-      queueUrl: (branchData['queueUrl'] as String? ?? '').trim(),
+      queueUrl:
+          completedConfiguration?.queueUrl ??
+          (branchData['queueUrl'] as String? ?? '').trim(),
       provisioningFingerprint:
           (branchData['provisioningFingerprint'] as String? ?? '').trim(),
       onboardingDraft: RestaurantOnboardingDraft.fromFirestore(
@@ -710,49 +715,39 @@ class FirebaseRestaurantOnboardingRepository
     final floors = results[0] as QuerySnapshot<Map<String, dynamic>>;
     final tables = results[1] as QuerySnapshot<Map<String, dynamic>>;
     final settings = results[2] as DocumentSnapshot<Map<String, dynamic>>;
-    final floorCount = _intFromValue(branchData['floorCount']);
-    final totalTables = _intFromValue(branchData['totalTables']);
-    final capacityTypes = _intListFromValue(branchData['capacityTypes']);
-    final queueUrl = (branchData['queueUrl'] as String? ?? '').trim();
-
-    if (floorCount <= 0 ||
-        floors.docs.length != floorCount ||
-        tables.docs.length != totalTables ||
-        !settings.exists ||
-        capacityTypes.isEmpty ||
-        queueUrl.isEmpty) {
+    final compatibility = resolveCompletedOnboardingCompatibility(
+      restaurantBranchId: restaurantBranchId,
+      branchData: branchData,
+      floorDocumentIds: floors.docs.map((floor) => floor.id).toList(),
+      tables: [
+        for (final table in tables.docs)
+          CompletedOnboardingTableRecord(
+            id: table.id,
+            floorId: (table.data()['floorId'] as String? ?? '').trim(),
+            capacity: _intFromValue(table.data()['capacity']),
+          ),
+      ],
+      settingsDocumentExists: settings.exists,
+    );
+    if (!compatibility.isValid) {
       throw AdminContextLoadException(
         'Completed onboarding data is inconsistent for '
-        'restaurantBranches/$restaurantBranchId. Expected $floorCount floors, '
-        '$totalTables tables, settings/general, capacityTypes, and queueUrl; '
-        'found ${floors.docs.length} floors, ${tables.docs.length} tables, '
-        'settings=${settings.exists}, capacities=${capacityTypes.length}, '
-        'queueUrl=${queueUrl.isNotEmpty}.',
+        'restaurantBranches/$restaurantBranchId. ${compatibility.error}',
       );
     }
-
-    final counts = List<List<int>>.generate(
-      floorCount,
-      (_) => List<int>.filled(capacityTypes.length, 0),
-    );
-    for (final table in tables.docs) {
-      final data = table.data();
-      final floorId = (data['floorId'] as String? ?? '').trim();
-      final floorNumber = int.tryParse(floorId.replaceFirst('F', ''));
-      final capacity = _intFromValue(data['capacity']);
-      final capacityIndex = capacityTypes.indexOf(capacity);
-      if (floorNumber == null ||
-          floorNumber < 1 ||
-          floorNumber > floorCount ||
-          capacityIndex < 0) {
-        throw AdminContextLoadException(
-          'Completed onboarding table ${table.reference.path} has an invalid '
-          'floorId or capacity.',
-        );
-      }
-      counts[floorNumber - 1][capacityIndex]++;
+    if (compatibility.usedLegacyCompatibility) {
+      _debugLog(
+        '[ONBOARDING_COMPATIBILITY] restaurantBranchId=$restaurantBranchId '
+        'capacityTypes=${compatibility.capacityTypes} '
+        'queueUrl=${compatibility.queueUrl} '
+        'settingsDocumentExists=${settings.exists}',
+      );
     }
-    return _PersistedProvisioningConfiguration(tableCountsByFloor: counts);
+    return _PersistedProvisioningConfiguration(
+      tableCountsByFloor: compatibility.tableCountsByFloor,
+      capacityTypes: compatibility.capacityTypes,
+      queueUrl: compatibility.queueUrl,
+    );
   }
 
   Future<void> _assertNoPartialProvisioningData(
@@ -841,9 +836,15 @@ class OnboardingCompletionUpdates {
 }
 
 class _PersistedProvisioningConfiguration {
-  const _PersistedProvisioningConfiguration({required this.tableCountsByFloor});
+  const _PersistedProvisioningConfiguration({
+    required this.tableCountsByFloor,
+    required this.capacityTypes,
+    required this.queueUrl,
+  });
 
   final List<List<int>> tableCountsByFloor;
+  final List<int> capacityTypes;
+  final String queueUrl;
 }
 
 int _intFromValue(Object? value) {
