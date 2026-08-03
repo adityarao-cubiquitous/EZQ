@@ -184,10 +184,18 @@ async function deleteDocument(documentName) {
   );
 }
 
-async function patchDocument(documentPath, data) {
+async function patchDocument(documentPath, data, { merge = false } = {}) {
+  const updateMask = merge
+    ? `?${new URLSearchParams(
+        Object.keys(data).map((fieldPath) => [
+          'updateMask.fieldPaths',
+          fieldPath,
+        ]),
+      )}`
+    : '';
   await firestoreRequest(
     'PATCH',
-    `/v1/projects/${projectId}/databases/(default)/documents/${documentPath}`,
+    `/v1/projects/${projectId}/databases/(default)/documents/${documentPath}${updateMask}`,
     data,
   );
 }
@@ -384,14 +392,18 @@ await patchDocument(`${basePath}/dailyCounters/${businessDate}`, {
   updatedAt: new Date(now).toISOString(),
 });
 
-await patchDocument(basePath, {
-  restaurantBranchId,
-  isActive: true,
-  floorCount: floors.length,
-  totalTables: tables.length,
-  totalSeats: tables.reduce((total, table) => total + table.capacity, 0),
-  updatedAt: new Date(now).toISOString(),
-});
+await patchDocument(
+  basePath,
+  {
+    restaurantBranchId,
+    isActive: true,
+    floorCount: floors.length,
+    totalTables: tables.length,
+    totalSeats: tables.reduce((total, table) => total + table.capacity, 0),
+    updatedAt: new Date(now).toISOString(),
+  },
+  { merge: true },
+);
 
 console.log(
   `Seeded ${restaurantBranchId}: ${floors.length} floors, ${tables.length} tables, ${seatedScenarios.length} seated, ${waitingParties.length} waiting.`,

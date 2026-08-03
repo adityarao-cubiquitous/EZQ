@@ -208,12 +208,14 @@ class _StatusContent extends ConsumerWidget {
       QueueStatus.reserved => _InlineReadyCard(
         restaurantId: restaurantId,
         branchId: branchId,
+        branchLink: branchLink,
         entry: entry,
         onTheWay: false,
       ),
       QueueStatus.onTheWay => _InlineReadyCard(
         restaurantId: restaurantId,
         branchId: branchId,
+        branchLink: branchLink,
         entry: entry,
         onTheWay: true,
       ),
@@ -221,35 +223,46 @@ class _StatusContent extends ConsumerWidget {
         entry: entry,
         branchLink: branchLink,
       ),
-      QueueStatus.completed => const _TerminalStatusCard(
+      QueueStatus.completed => _TerminalStatusCard(
         status: QueueStatus.completed,
         title: '✓ Meal Completed',
-        message: 'Thank you for dining with us.',
+        message:
+            'Thank you for dining at ${branchLink.restaurantName}, '
+            '${branchLink.branch.name}.',
         icon: Icons.check_circle_rounded,
         iconColor: AppColors.successGreen,
       ),
-      QueueStatus.cancelled => const _TerminalStatusCard(
+      QueueStatus.cancelled => _TerminalStatusCard(
         status: QueueStatus.cancelled,
         title: 'Queue Exited',
-        message: 'You have exited this queue.',
+        message:
+            'You have exited the queue at ${branchLink.restaurantName}, '
+            '${branchLink.branch.name}.',
         icon: Icons.cancel_rounded,
         iconColor: Color(0xFFBA1A1A),
       ),
-      QueueStatus.skipped => const _TerminalStatusCard(
+      QueueStatus.skipped => _TerminalStatusCard(
         status: QueueStatus.skipped,
         title: 'Reservation Skipped',
-        message: 'Please contact the host if you still wish to dine.',
+        message:
+            'Please contact the host at ${branchLink.restaurantName}, '
+            '${branchLink.branch.name}, if you still wish to dine.',
         icon: Icons.skip_next_rounded,
         iconColor: AppColors.warningOrange,
       ),
-      QueueStatus.noShow => const _TerminalStatusCard(
+      QueueStatus.noShow => _TerminalStatusCard(
         status: QueueStatus.noShow,
         title: 'Reservation Closed',
-        message: 'You did not arrive before your reservation expired.',
+        message:
+            'Your reservation at ${branchLink.restaurantName}, '
+            '${branchLink.branch.name}, has expired.',
         icon: Icons.person_off_rounded,
         iconColor: Color(0xFFBA1A1A),
       ),
-      QueueStatus.expired => _AutoExpiredCard(entry: entry),
+      QueueStatus.expired => _AutoExpiredCard(
+        entry: entry,
+        branchLink: branchLink,
+      ),
     };
     final actions = switch (entry.status) {
       QueueStatus.waiting ||
@@ -471,9 +484,10 @@ class _TerminalStatusCard extends StatelessWidget {
 }
 
 class _AutoExpiredCard extends StatelessWidget {
-  const _AutoExpiredCard({required this.entry});
+  const _AutoExpiredCard({required this.entry, required this.branchLink});
 
   final QueueEntry entry;
+  final CustomerBranchLink branchLink;
 
   @override
   Widget build(BuildContext context) {
@@ -522,7 +536,9 @@ class _AutoExpiredCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'This queue entry is no longer active. Please join the queue again if you still need a table.',
+            'This queue entry at ${branchLink.restaurantName}, '
+            '${branchLink.branch.name}, is no longer active. Please join the '
+            'queue again if you still need a table.',
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Color(0xFF607D8B),
@@ -1799,12 +1815,14 @@ class _InlineReadyCard extends ConsumerWidget {
   const _InlineReadyCard({
     required this.restaurantId,
     required this.branchId,
+    required this.branchLink,
     required this.entry,
     required this.onTheWay,
   });
 
   final String restaurantId;
   final String branchId;
+  final CustomerBranchLink branchLink;
   final QueueEntry entry;
   final bool onTheWay;
 
@@ -1844,6 +1862,16 @@ class _InlineReadyCard extends ConsumerWidget {
               color: AppColors.deepTeal,
               fontSize: 28,
               fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${branchLink.restaurantName} · ${branchLink.branch.name}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.mutedText,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 18),
@@ -2014,6 +2042,7 @@ class _InlineSeatedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final restaurantName = branchLink.restaurantName;
+    final branchName = branchLink.branch.name;
     return _Card(
       key: const ValueKey('queue-status-seated'),
       child: Column(
@@ -2034,7 +2063,7 @@ class _InlineSeatedCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'You have been seated at ${entry.assignedTableNumber ?? 'your table'} at $restaurantName.',
+            'You have been seated at ${entry.assignedTableNumber ?? 'your table'} at $restaurantName, $branchName.',
             textAlign: TextAlign.center,
             style: const TextStyle(color: Color(0xFF3E484F), fontSize: 16),
           ),
