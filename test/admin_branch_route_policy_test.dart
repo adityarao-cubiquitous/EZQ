@@ -31,6 +31,18 @@ void main() {
     );
   });
 
+  test('completed branch remains on reports', () {
+    expect(
+      resolveAdminBranchRouteRedirect(
+        currentPath: reportsPath,
+        restaurantBranchId: branchId,
+        branchReady: true,
+        allowCompletedOnboardingSummary: false,
+      ),
+      isNull,
+    );
+  });
+
   test(
     'incomplete branch is still redirected from dashboard to onboarding',
     () {
