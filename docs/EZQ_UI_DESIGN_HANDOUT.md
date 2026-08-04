@@ -656,8 +656,8 @@ Onboarding data and validation behavior:
 - Failed onboarding can be retried safely without duplicate or orphan floors, tables, settings, or QR metadata.
 - Completed onboarding deep links restore a read-only setup summary from Firestore; they never reopen editable wizard steps.
 - Customer status includes ad space and hidden-object puzzle placeholder.
-- Admin and mobile customer auth both show the OTP verification step. For MVP/TestFlight validation the app accepts `123456`; the retained Firebase SMS verification path can be restored with `--dart-define=USE_REAL_FIREBASE_OTP=true`.
-- Temporary admin authentication covers every configured demo restaurant, falls back to canonical backend phone resolution when no local compatibility entry exists, and verifies the authenticated UID, phone, and restaurant branch against the canonical `admins/{uid}` document before routing.
+- Admin and mobile customer auth both show the OTP verification step. For MVP/TestFlight validation the app accepts `123456`; configured temporary admins use their existing Firebase Auth mapping without depending on an undeployed callable function, and the retained Firebase SMS verification path can be restored with `--dart-define=USE_REAL_FIREBASE_OTP=true`.
+- Temporary admin authentication covers every configured demo restaurant through an explicit compatibility entry and verifies the authenticated UID, phone, and restaurant branch against the canonical `admins/{uid}` document before routing. Unmapped phones are rejected before the OTP step while the callable backend is unavailable.
 - A customer with a `waiting`, `reserved`, or `on_the_way` queue entry cannot join another restaurant queue. Exiting the queue or being seated releases the customer to join again.
 - The native QR scanner shows explicit camera-denied and camera-unavailable states with retry, Open Settings, and manual-code fallback actions on both iOS and Android.
 - Nearby restaurants distinguishes location services off, permission denied, and permission permanently denied. Customers can retry, open the appropriate Settings page, or continue using the demo location without a dead end.

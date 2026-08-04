@@ -124,21 +124,34 @@ class _TableGridState extends State<TableGrid> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Text(
-                    'Tables',
-                    style: TextStyle(
-                      fontSize: compact ? 20 : 24,
-                      fontWeight: FontWeight.w800,
-                    ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final title = Text(
+                  'Tables',
+                  style: TextStyle(
+                    fontSize: compact ? 20 : 24,
+                    fontWeight: FontWeight.w800,
                   ),
-                ),
-                const SizedBox(width: 12),
-                const _StatusLegend(),
-              ],
+                );
+                if (constraints.maxWidth < 360) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      title,
+                      const SizedBox(height: 8),
+                      const _StatusLegend(),
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: title),
+                    const SizedBox(width: 12),
+                    const _StatusLegend(),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 4),
             Text(
@@ -539,34 +552,48 @@ class _CapacityHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final compact = Responsive.isCompact(context);
     final countLabel = '$count ${count == 1 ? 'Table' : 'Tables'}';
-    return Row(
-      children: [
-        Container(
-          height: compact ? 44 : 46,
-          padding: EdgeInsets.symmetric(horizontal: compact ? 20 : 24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFF3AA9F4).withValues(alpha: 0.18),
-                const Color(0xFF6D5CF5).withValues(alpha: 0.16),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: AppColors.primaryTeal.withValues(alpha: 0.22),
-            ),
+    Widget capacityPill({required bool narrow}) {
+      return Container(
+        height: compact ? 44 : 46,
+        padding: EdgeInsets.symmetric(
+          horizontal: narrow ? 12 : (compact ? 20 : 24),
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF3AA9F4).withValues(alpha: 0.18),
+              const Color(0xFF6D5CF5).withValues(alpha: 0.16),
+            ],
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.table_restaurant_rounded,
-                size: 17,
-                color: AppColors.deepTeal,
-              ),
-              const SizedBox(width: 9),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: AppColors.primaryTeal.withValues(alpha: 0.22),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: narrow ? MainAxisSize.max : MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.table_restaurant_rounded,
+              size: 17,
+              color: AppColors.deepTeal,
+            ),
+            SizedBox(width: narrow ? 7 : 9),
+            if (narrow)
+              Expanded(
+                child: Text(
+                  capacityLabel,
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: AppColors.inkBlue,
+                    fontSize: compact ? 15 : 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              )
+            else
               Text(
                 capacityLabel,
                 style: TextStyle(
@@ -575,31 +602,46 @@ class _CapacityHeader extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(width: 18),
-              Container(
-                width: 1,
-                height: 16,
-                color: AppColors.primaryTeal.withValues(alpha: 0.2),
+            SizedBox(width: narrow ? 8 : 18),
+            Container(
+              width: 1,
+              height: 16,
+              color: AppColors.primaryTeal.withValues(alpha: 0.2),
+            ),
+            SizedBox(width: narrow ? 8 : 14),
+            Text(
+              countLabel,
+              style: TextStyle(
+                color: AppColors.deepTeal.withValues(alpha: 0.72),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
-              const SizedBox(width: 14),
-              Text(
-                countLabel,
-                style: TextStyle(
-                  color: AppColors.deepTeal.withValues(alpha: 0.72),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 260) {
+          return SizedBox(
+            width: double.infinity,
+            child: capacityPill(narrow: true),
+          );
+        }
+        return Row(
+          children: [
+            capacityPill(narrow: false),
+            const Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(left: 10),
+                child: Divider(color: Color(0x1ABDC8D0)),
               ),
-            ],
-          ),
-        ),
-        const Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(left: 10),
-            child: Divider(color: Color(0x1ABDC8D0)),
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 }

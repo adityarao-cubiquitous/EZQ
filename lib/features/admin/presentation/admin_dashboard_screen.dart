@@ -2700,6 +2700,7 @@ class _AdminTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final compact = screenWidth < 1100;
+    final narrowMobile = screenWidth < 360;
     final tightDesktop = !compact && screenWidth < 1500;
     final tablet = Responsive.isTablet(context);
     final horizontalPadding = compact ? 14.0 : 32.0;
@@ -2717,6 +2718,29 @@ class _AdminTopBar extends StatelessWidget {
         );
       }
       return AdminBranchIdentityPill(identity: identity, compact: compact);
+    }
+
+    Widget compactHeaderActions() {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'QR management',
+            onPressed: onQrManagement,
+            icon: const Icon(Icons.qr_code_2),
+          ),
+          IconButton(
+            tooltip: 'Daily summary',
+            onPressed: onReports,
+            icon: const Icon(Icons.bar_chart),
+          ),
+          IconButton(
+            tooltip: 'Logout',
+            onPressed: onLogout,
+            icon: const Icon(Icons.logout_rounded),
+          ),
+        ],
+      );
     }
 
     return Container(
@@ -2744,28 +2768,28 @@ class _AdminTopBar extends StatelessWidget {
           ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    const BrandMark(size: 50),
-                    const SizedBox(width: 12),
-                    Expanded(child: identityPill(compact: true)),
-                    IconButton(
-                      tooltip: 'QR management',
-                      onPressed: onQrManagement,
-                      icon: const Icon(Icons.qr_code_2),
-                    ),
-                    IconButton(
-                      tooltip: 'Daily summary',
-                      onPressed: onReports,
-                      icon: const Icon(Icons.bar_chart),
-                    ),
-                    IconButton(
-                      tooltip: 'Logout',
-                      onPressed: onLogout,
-                      icon: const Icon(Icons.logout_rounded),
-                    ),
-                  ],
-                ),
+                if (narrowMobile) ...[
+                  Row(
+                    children: [
+                      const BrandMark(size: 50),
+                      const Spacer(),
+                      compactHeaderActions(),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: identityPill(compact: true),
+                  ),
+                ] else
+                  Row(
+                    children: [
+                      const BrandMark(size: 50),
+                      const SizedBox(width: 12),
+                      Expanded(child: identityPill(compact: true)),
+                      compactHeaderActions(),
+                    ],
+                  ),
                 const SizedBox(height: 10),
                 Row(
                   children: [

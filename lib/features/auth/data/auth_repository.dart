@@ -444,6 +444,12 @@ class FirebaseAuthRepository implements AuthRepository {
           error.message ?? 'This admin account is not ready for OTP sign-in.',
         );
       }
+      if (error.code == 'internal' || error.code == 'unavailable') {
+        throw StateError(
+          'The admin verification service is unavailable. '
+          'Please try again later or contact platform support.',
+        );
+      }
       rethrow;
     }
   }
@@ -454,12 +460,23 @@ class FirebaseAuthRepository implements AuthRepository {
     required String code,
   }) async {
     final normalizedPhone = PhoneUtils.normalizeIndiaMobile(phone);
-    final response = await _functions
-        .httpsCallable('signInAdminWithTemporaryOtp')
-        .call<Map<dynamic, dynamic>>(<String, Object?>{
-          'phone': normalizedPhone,
-          'code': code.trim(),
-        });
+    final HttpsCallableResult<Map<dynamic, dynamic>> response;
+    try {
+      response = await _functions
+          .httpsCallable('signInAdminWithTemporaryOtp')
+          .call<Map<dynamic, dynamic>>(<String, Object?>{
+            'phone': normalizedPhone,
+            'code': code.trim(),
+          });
+    } on FirebaseFunctionsException catch (error) {
+      if (error.code == 'internal' || error.code == 'unavailable') {
+        throw StateError(
+          'The admin verification service is unavailable. '
+          'Please try again later or contact platform support.',
+        );
+      }
+      rethrow;
+    }
     final customToken = (response.data['customToken'] as String? ?? '').trim();
     if (customToken.isEmpty) {
       throw StateError(

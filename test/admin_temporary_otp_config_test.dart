@@ -68,10 +68,10 @@ void main() {
   });
 
   testWidgets(
-    'unmapped local phone is backend-validated before temporary OTP login',
+    'configured temporary admin bypasses undeployed callable validation',
     (tester) async {
       final authRepository = _TrackingAuthRepository();
-      final onboardingRepository = _CanonicalOnboardingRepository();
+      final onboardingRepository = _NoodleYardOnboardingRepository();
       final router = GoRouter(
         initialLocation: '/admin/login',
         routes: [
@@ -99,25 +99,29 @@ void main() {
           child: MaterialApp.router(routerConfig: router),
         ),
       );
-      await tester.enterText(find.byType(TextFormField).first, '9999009999');
+      await tester.enterText(find.byType(TextFormField).first, '9999001006');
       await tester.tap(find.text('Send OTP'));
       await tester.pumpAndSettle();
-      expect(authRepository.validatedPhone, '+919999009999');
+      expect(authRepository.validatedPhone, isNull);
       expect(find.byType(TextFormField), findsOneWidget);
       await tester.enterText(find.byType(TextFormField), '123456');
       await tester.tap(find.text('Verify & Continue'));
       await tester.pumpAndSettle();
 
-      expect(authRepository.temporaryPhone, '+919999009999');
-      expect(authRepository.temporaryCode, '123456');
+      expect(
+        authRepository.adminEmail,
+        'admin.noodle.yard.indiranagar@ezq-demo.cubiquitous.in',
+      );
+      expect(authRepository.adminPassword, 'Welcome@123');
+      expect(authRepository.temporaryPhone, isNull);
       expect(find.text('Canonical dashboard'), findsOneWidget);
     },
   );
 
-  testWidgets('backend-unmapped phone never reaches the OTP step', (
+  testWidgets('unmapped temporary phone never calls the missing backend', (
     tester,
   ) async {
-    final authRepository = _TrackingAuthRepository(rejectValidation: true);
+    final authRepository = _TrackingAuthRepository();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [authRepositoryProvider.overrideWithValue(authRepository)],
@@ -129,7 +133,7 @@ void main() {
     await tester.tap(find.text('Send OTP'));
     await tester.pumpAndSettle();
 
-    expect(authRepository.validatedPhone, '+919999009998');
+    expect(authRepository.validatedPhone, isNull);
     expect(
       find.text('This phone number is not registered for active admin access.'),
       findsOneWidget,
@@ -150,7 +154,7 @@ void main() {
       ),
     );
 
-    await tester.enterText(find.byType(TextFormField), '9999009999');
+    await tester.enterText(find.byType(TextFormField), '9999001006');
     await tester.tap(find.text('Send OTP'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), '654321');
@@ -166,21 +170,24 @@ void main() {
 }
 
 class _TrackingAuthRepository extends MockAuthRepository {
-  _TrackingAuthRepository({this.rejectValidation = false});
-
-  final bool rejectValidation;
   String? validatedPhone;
   String? temporaryPhone;
   String? temporaryCode;
+  String? adminEmail;
+  String? adminPassword;
+
+  @override
+  Future<void> signInAdmin({
+    required String email,
+    required String password,
+  }) async {
+    adminEmail = email;
+    adminPassword = password;
+  }
 
   @override
   Future<void> validateAdminPhoneForOtp({required String phone}) async {
     validatedPhone = phone;
-    if (rejectValidation) {
-      throw StateError(
-        'This phone number is not registered for active admin access.',
-      );
-    }
   }
 
   @override
@@ -193,26 +200,27 @@ class _TrackingAuthRepository extends MockAuthRepository {
   }
 }
 
-class _CanonicalOnboardingRepository implements RestaurantOnboardingRepository {
+class _NoodleYardOnboardingRepository
+    implements RestaurantOnboardingRepository {
   @override
   Future<RestaurantBranchAdminContext?> loadAdminContext() async {
     return const RestaurantBranchAdminContext(
-      uid: 'canonical-admin',
-      name: 'Canonical Admin',
-      email: 'admin@example.test',
-      phone: '+919999009999',
-      restaurantBranchId: 'canonical-branch',
+      uid: 'SyFKT8CDYSgAttPuscL80GuJgtE3',
+      name: 'Noodle Yard Indiranagar Admin',
+      email: 'admin.noodle.yard.indiranagar@ezq-demo.cubiquitous.in',
+      phone: '+919999001006',
+      restaurantBranchId: 'noodle-yard-indiranagar',
       role: 'owner',
       isActive: true,
       onboardingCompleted: true,
       adminOnboardingCompleted: true,
       provisioningStatus: 'completed',
       branchActive: true,
-      restaurantName: 'Canonical Restaurant',
-      branchName: 'Main',
-      area: 'Indiranagar',
-      address: '12th Main',
-      slug: 'canonical-branch',
+      restaurantName: 'Noodle Yard',
+      branchName: 'Indiranagar',
+      area: 'Panduranga Nagar',
+      address: 'Panduranga Nagar near IIM Bangalore, Bengaluru',
+      slug: 'noodle-yard-indiranagar',
     );
   }
 
@@ -220,7 +228,7 @@ class _CanonicalOnboardingRepository implements RestaurantOnboardingRepository {
   Future<CompletedRestaurantOnboarding?>
   completedOnboardingForCurrentAdmin() async {
     return const CompletedRestaurantOnboarding(
-      restaurantBranchId: 'canonical-branch',
+      restaurantBranchId: 'noodle-yard-indiranagar',
     );
   }
 
