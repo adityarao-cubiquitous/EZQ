@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -27,7 +30,16 @@ import '../features/rest_onboarding/providers/restaurant_onboarding_controller.d
 import 'admin_branch_route_policy.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
+  const useFirebase = bool.fromEnvironment('USE_FIREBASE');
+  final authRefreshListenable = useFirebase || kIsWeb
+      ? _AuthRefreshListenable(FirebaseAuth.instance.authStateChanges())
+      : null;
+  if (authRefreshListenable != null) {
+    ref.onDispose(authRefreshListenable.dispose);
+  }
+  final router = GoRouter(
+    refreshListenable: authRefreshListenable,
+    redirect: (context, state) => _redirectAdminAuthentication(state),
     routes: [
       GoRoute(
         path: '/',
@@ -214,7 +226,23 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  ref.onDispose(router.dispose);
+  return router;
 });
+
+Future<String?> _redirectAdminAuthentication(GoRouterState state) async {
+  final currentPath = state.uri.path;
+  if (!currentPath.startsWith('/admin/') || currentPath == adminLoginPath) {
+    return null;
+  }
+  const useFirebase = bool.fromEnvironment('USE_FIREBASE');
+  if (!useFirebase && !kIsWeb) return adminLoginPath;
+  final user = await FirebaseAuth.instance.authStateChanges().first;
+  return resolveAdminAuthenticationRedirect(
+    currentPath: currentPath,
+    isAuthenticated: user != null,
+  );
+}
 
 Future<String> _redirectLegacyAdminOnboarding(
   RestaurantOnboardingRepository onboardingRepository,
@@ -244,8 +272,7 @@ Future<String?> _redirectAdminBranchRoute(
   try {
     adminContext = await onboardingRepository.loadAdminContext();
   } on AdminContextLoadException {
-    final onboardingPath = '/admin/$restaurantBranchId/register/onboarding';
-    return state.uri.path == onboardingPath ? null : onboardingPath;
+    return adminLoginPath;
   }
   if (adminContext == null || !adminContext.isActive) {
     return '/admin/login';
@@ -265,6 +292,20 @@ Future<String?> _redirectAdminBranchRoute(
     branchReady: adminContext.isProvisioningCompleted,
     allowCompletedOnboardingSummary: allowCompletedOnboardingSummary,
   );
+}
+
+class _AuthRefreshListenable extends ChangeNotifier {
+  _AuthRefreshListenable(Stream<User?> authStateChanges) {
+    _subscription = authStateChanges.listen((_) => notifyListeners());
+  }
+
+  late final StreamSubscription<User?> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
 }
 
 String _adminBranchDestination(RestaurantBranchAdminContext adminContext) {

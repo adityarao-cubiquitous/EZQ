@@ -7,6 +7,55 @@ void main() {
   const dashboardPath = '/admin/$branchId/dashboard';
   const reportsPath = '/admin/$branchId/reports';
 
+  group('admin authentication route policy', () {
+    test('redirects every unauthenticated admin child route to login', () {
+      for (final path in <String>[
+        '/admin/branch-a/dashboard',
+        '/admin/branch-a/reports',
+        '/admin/branch-a/analytics',
+        '/admin/branch-a/register/onboarding',
+        '/admin/register/onboarding',
+      ]) {
+        expect(
+          resolveAdminAuthenticationRedirect(
+            currentPath: path,
+            isAuthenticated: false,
+          ),
+          adminLoginPath,
+          reason: path,
+        );
+      }
+    });
+
+    test('does not redirect login or non-admin routes', () {
+      for (final path in <String>[
+        adminLoginPath,
+        '/',
+        '/customer/branch-a',
+        '/app/home',
+      ]) {
+        expect(
+          resolveAdminAuthenticationRedirect(
+            currentPath: path,
+            isAuthenticated: false,
+          ),
+          isNull,
+          reason: path,
+        );
+      }
+    });
+
+    test('preserves authenticated admin child routes', () {
+      expect(
+        resolveAdminAuthenticationRedirect(
+          currentPath: reportsPath,
+          isAuthenticated: true,
+        ),
+        isNull,
+      );
+    });
+  });
+
   test('completed onboarding remains at an explicitly opened summary URL', () {
     expect(
       resolveAdminBranchRouteRedirect(

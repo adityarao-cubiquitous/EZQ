@@ -1,3 +1,15 @@
+const adminLoginPath = '/admin/login';
+
+String? resolveAdminAuthenticationRedirect({
+  required String currentPath,
+  required bool isAuthenticated,
+}) {
+  final isAdminChildRoute =
+      currentPath.startsWith('/admin/') && currentPath != adminLoginPath;
+  if (isAdminChildRoute && !isAuthenticated) return adminLoginPath;
+  return null;
+}
+
 String? resolveAdminBranchRouteRedirect({
   required String currentPath,
   required String restaurantBranchId,
