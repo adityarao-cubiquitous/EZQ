@@ -52,7 +52,7 @@ The manager dashboard uses a capacity-first table grid and a collapsible live qu
 
 - Product mark: compact rounded square with a queue-inspired Q mark.
 - Parent brand: Cubiquitous appears in powered-by placements with the company logo.
-- Admin header: EZQ product mark, branch name, live metrics, walk-in action, reports icon.
+- Admin header: EZQ product mark, canonical Firestore restaurant name with the branch name beneath it, live metrics, walk-in action, reports icon.
 - Customer header: EZQ product mark, download app shortcut, glass-style top bar.
 
 ## 4. Color System
@@ -803,6 +803,7 @@ Manager flow:
 - The system shall keep admin and branch `onboardingCompleted` flags synchronized with branch `provisioningStatus`, and shall reject any persisted completed/incomplete mismatch.
 - The system shall preserve strict completed-onboarding validation while reconstructing deterministic legacy metadata only when the persisted operational floor, table, settings-equivalent, admin, and branch data is internally consistent.
 - The system shall use one canonical admin-branch readiness result for login, dashboard, onboarding, and reports routing.
+- The system shall show the canonical Firestore restaurant name as the primary admin-navbar identity and the branch name directly beneath it at phone, tablet, and desktop widths.
 - The system shall show live waiting queue entries for the selected branch.
 - The system shall allow the Live Queue to be collapsed and reopened by touch, mouse, or keyboard on desktop, tablet, and mobile layouts.
 - The system shall expand the table dashboard into all released space when the Live Queue is closed.

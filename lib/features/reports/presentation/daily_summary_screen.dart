@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/brand_mark.dart';
-import '../../admin/presentation/admin_restaurant_display_name.dart';
 import '../../admin/presentation/widgets/admin_branch_identity_pill.dart';
+import '../../customer/data/branch_identity_repository.dart';
+import '../../customer/domain/restaurant_branch_identity.dart';
 import 'analytics_html_viewer.dart';
 
-class DailySummaryScreen extends StatelessWidget {
+class DailySummaryScreen extends ConsumerWidget {
   const DailySummaryScreen({
     super.key,
     required this.restaurantId,
@@ -22,7 +24,12 @@ class DailySummaryScreen extends StatelessWidget {
   static const htmlAssetPath = 'assets/analytics/ezq_analytics_v5.html';
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final identity = ref
+        .watch(customerBranchLinkProvider(restaurantId))
+        .asData
+        ?.value
+        .identity;
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -33,7 +40,7 @@ class DailySummaryScreen extends StatelessWidget {
                 restaurantId,
                 branchId,
               ),
-              restaurantName: adminRestaurantDisplayName(restaurantId),
+              identity: identity,
               onBackToDashboard: () => context.go(
                 '${FirestorePaths.adminRoute(restaurantId, branchId)}/dashboard',
               ),
@@ -51,12 +58,12 @@ class DailySummaryScreen extends StatelessWidget {
 class _AnalyticsNavbar extends StatelessWidget {
   const _AnalyticsNavbar({
     required this.restaurantBranchId,
-    required this.restaurantName,
+    required this.identity,
     required this.onBackToDashboard,
   });
 
   final String restaurantBranchId;
-  final String restaurantName;
+  final RestaurantBranchIdentity? identity;
   final VoidCallback onBackToDashboard;
 
   @override
@@ -77,11 +84,15 @@ class _AnalyticsNavbar extends StatelessWidget {
         Expanded(
           child: Align(
             alignment: Alignment.centerLeft,
-            child: AdminBranchIdentityPill(
-              restaurantBranchId: restaurantBranchId,
-              restaurantName: restaurantName,
-              compact: compact,
-            ),
+            child: identity == null
+                ? AdminBranchIdentityPill.loading(
+                    restaurantBranchId: restaurantBranchId,
+                    compact: compact,
+                  )
+                : AdminBranchIdentityPill(
+                    identity: identity!,
+                    compact: compact,
+                  ),
           ),
         ),
         const SizedBox(width: 12),
