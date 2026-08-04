@@ -51,10 +51,15 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
     });
 
     try {
+      final normalizedPhone = PhoneUtils.normalizeIndiaMobile(
+        _phoneController.text,
+      );
+      await ref
+          .read(authRepositoryProvider)
+          .validateAdminPhoneForOtp(phone: normalizedPhone);
+      if (!mounted) return;
+
       if (_temporaryOtpEnabled) {
-        final normalizedPhone = PhoneUtils.normalizeIndiaMobile(
-          _phoneController.text,
-        );
         setState(() {
           _verificationId = 'temporary-admin-otp-bypass';
           _normalizedPhone = normalizedPhone;

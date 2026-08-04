@@ -27,6 +27,8 @@ class TemporaryOtpConfig {
 abstract class AuthRepository {
   Future<void> signInAdmin({required String email, required String password});
 
+  Future<void> validateAdminPhoneForOtp({required String phone});
+
   Future<void> signInAdminWithTemporaryOtp({
     required String phone,
     required String code,
@@ -418,6 +420,35 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> validateAdminPhoneForOtp({required String phone}) async {
+    final normalizedPhone = PhoneUtils.normalizeIndiaMobile(phone);
+    try {
+      final response = await _functions
+          .httpsCallable('validateAdminPhoneForOtp')
+          .call<Map<dynamic, dynamic>>(<String, Object?>{
+            'phone': normalizedPhone,
+          });
+      if (response.data['eligible'] != true) {
+        throw StateError(
+          'This phone number is not registered for admin access.',
+        );
+      }
+    } on FirebaseFunctionsException catch (error) {
+      if (error.code == 'not-found' || error.code == 'permission-denied') {
+        throw StateError(
+          'This phone number is not registered for active admin access.',
+        );
+      }
+      if (error.code == 'failed-precondition') {
+        throw StateError(
+          error.message ?? 'This admin account is not ready for OTP sign-in.',
+        );
+      }
+      rethrow;
+    }
+  }
+
+  @override
   Future<void> signInAdminWithTemporaryOtp({
     required String phone,
     required String code,
@@ -531,6 +562,9 @@ class MockAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {}
+
+  @override
+  Future<void> validateAdminPhoneForOtp({required String phone}) async {}
 
   @override
   Future<void> signInAdminWithTemporaryOtp({

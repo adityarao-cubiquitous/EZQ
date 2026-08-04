@@ -68,7 +68,7 @@ void main() {
   });
 
   testWidgets(
-    'unmapped temporary phone falls back to canonical backend resolution',
+    'unmapped local phone is backend-validated before temporary OTP login',
     (tester) async {
       final authRepository = _TrackingAuthRepository();
       final onboardingRepository = _CanonicalOnboardingRepository();
@@ -102,6 +102,7 @@ void main() {
       await tester.enterText(find.byType(TextFormField).first, '9999009999');
       await tester.tap(find.text('Send OTP'));
       await tester.pumpAndSettle();
+      expect(authRepository.validatedPhone, '+919999009999');
       expect(find.byType(TextFormField), findsOneWidget);
       await tester.enterText(find.byType(TextFormField), '123456');
       await tester.tap(find.text('Verify & Continue'));
@@ -112,11 +113,75 @@ void main() {
       expect(find.text('Canonical dashboard'), findsOneWidget);
     },
   );
+
+  testWidgets('backend-unmapped phone never reaches the OTP step', (
+    tester,
+  ) async {
+    final authRepository = _TrackingAuthRepository(rejectValidation: true);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authRepositoryProvider.overrideWithValue(authRepository)],
+        child: const MaterialApp(home: AdminLoginScreen()),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextFormField), '9999009998');
+    await tester.tap(find.text('Send OTP'));
+    await tester.pumpAndSettle();
+
+    expect(authRepository.validatedPhone, '+919999009998');
+    expect(
+      find.text('This phone number is not registered for active admin access.'),
+      findsOneWidget,
+    );
+    expect(find.text('Send OTP'), findsOneWidget);
+    expect(find.text('Verify & Continue'), findsNothing);
+    expect(authRepository.temporaryPhone, isNull);
+  });
+
+  testWidgets('wrong temporary OTP is rejected without signing in', (
+    tester,
+  ) async {
+    final authRepository = _TrackingAuthRepository();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authRepositoryProvider.overrideWithValue(authRepository)],
+        child: const MaterialApp(home: AdminLoginScreen()),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextFormField), '9999009999');
+    await tester.tap(find.text('Send OTP'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), '654321');
+    await tester.tap(find.text('Verify & Continue'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('That code does not look right. Please try again.'),
+      findsOneWidget,
+    );
+    expect(authRepository.temporaryPhone, isNull);
+  });
 }
 
 class _TrackingAuthRepository extends MockAuthRepository {
+  _TrackingAuthRepository({this.rejectValidation = false});
+
+  final bool rejectValidation;
+  String? validatedPhone;
   String? temporaryPhone;
   String? temporaryCode;
+
+  @override
+  Future<void> validateAdminPhoneForOtp({required String phone}) async {
+    validatedPhone = phone;
+    if (rejectValidation) {
+      throw StateError(
+        'This phone number is not registered for active admin access.',
+      );
+    }
+  }
 
   @override
   Future<void> signInAdminWithTemporaryOtp({
