@@ -11,18 +11,6 @@ import '../data/branch_identity_repository.dart';
 import '../data/customer_queue_repository.dart';
 import 'customer_shell.dart';
 
-typedef _ReadyBranchArgs = ({String restaurantSlug, String branchSlug});
-
-final _readyBranchProvider =
-    FutureProvider.family<CustomerBranchLink, _ReadyBranchArgs>((ref, args) {
-      return ref
-          .watch(branchIdentityRepositoryProvider)
-          .resolveCustomerBranch(
-            restaurantSlug: args.restaurantSlug,
-            branchSlug: args.branchSlug,
-          );
-    }, retry: (_, _) => null);
-
 class TableReadyView extends ConsumerWidget {
   const TableReadyView({
     super.key,
@@ -37,12 +25,11 @@ class TableReadyView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final branch = ref.watch(
-      _readyBranchProvider((
-        restaurantSlug: restaurantId,
-        branchSlug: branchId,
-      )),
+    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
+      restaurantId,
+      branchId,
     );
+    final branch = ref.watch(customerBranchLinkProvider(restaurantBranchId));
     return CustomerShell(
       restaurantId: restaurantId,
       branchId: branchId,

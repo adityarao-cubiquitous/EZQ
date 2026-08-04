@@ -1,9 +1,11 @@
 class RestaurantBranchIdentity {
   const RestaurantBranchIdentity({
+    required this.restaurantBranchId,
     required this.restaurantName,
     required this.branchName,
   });
 
+  final String restaurantBranchId;
   final String restaurantName;
   final String branchName;
 }
@@ -36,6 +38,7 @@ RestaurantBranchIdentity resolveRestaurantBranchIdentity({
   }
 
   return RestaurantBranchIdentity(
+    restaurantBranchId: canonicalSlug,
     restaurantName:
         resolvedRestaurantName ??
         _titleFromSlug(canonicalSlug, fallback: 'Restaurant'),
@@ -48,14 +51,16 @@ String? _nonEmpty(String? value) {
   return normalized == null || normalized.isEmpty ? null : normalized;
 }
 
-RestaurantBranchIdentity? _splitDisplayName(String? displayName) {
+({String restaurantName, String branchName})? _splitDisplayName(
+  String? displayName,
+) {
   final normalized = _nonEmpty(displayName);
   if (normalized == null) return null;
   final separatorIndex = normalized.indexOf(' - ');
   if (separatorIndex <= 0 || separatorIndex >= normalized.length - 3) {
     return null;
   }
-  return RestaurantBranchIdentity(
+  return (
     restaurantName: normalized.substring(0, separatorIndex).trim(),
     branchName: normalized.substring(separatorIndex + 3).trim(),
   );

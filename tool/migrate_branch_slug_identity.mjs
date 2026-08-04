@@ -337,7 +337,7 @@ function normalizedBranchFields({
   const sourceData = parseFirestoreFields(sourceFields);
   const targetData = parseFirestoreFields(targetFields);
   const qrSlug = qrSlugFor(restaurantId, targetBranchSlug, sourceData, targetData);
-  const queueUrl = `${hostingOrigin}/customer/${restaurantId}/${targetBranchSlug}`;
+  const queueUrl = `${hostingOrigin}/customer/${restaurantId}-${targetBranchSlug}`;
   const restaurantName =
     sourceData.restaurantName ??
     targetData.restaurantName ??
@@ -388,7 +388,7 @@ async function migrateBranch({
         restaurantId,
         restaurantName: targetData.restaurantName ?? restaurantId,
         name: targetData.name ?? targetBranchSlug,
-        queueUrl: `${hostingOrigin}/customer/${restaurantId}/${targetBranchSlug}`,
+        queueUrl: `${hostingOrigin}/customer/${restaurantId}-${targetBranchSlug}`,
         qrSlug: targetData.qrSlug ?? `${restaurantId}-${targetBranchSlug}`,
         qrImageUrl:
           targetData.qrImageUrl ??

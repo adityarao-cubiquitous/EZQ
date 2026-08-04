@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../queue/domain/queue_entry.dart';
@@ -13,18 +14,6 @@ import '../data/customer_queue_repository.dart';
 import '../domain/party_ahead_copy.dart';
 import 'customer_shell.dart';
 import 'nearby_restaurants_screen.dart';
-
-typedef _HomeBranchArgs = ({String restaurantSlug, String branchSlug});
-
-final _homeBranchProvider =
-    FutureProvider.family<CustomerBranchLink, _HomeBranchArgs>((ref, args) {
-      return ref
-          .watch(branchIdentityRepositoryProvider)
-          .resolveCustomerBranch(
-            restaurantSlug: args.restaurantSlug,
-            branchSlug: args.branchSlug,
-          );
-    }, retry: (_, _) => null);
 
 class CustomerAppHomeScreen extends ConsumerWidget {
   const CustomerAppHomeScreen({super.key});
@@ -50,9 +39,19 @@ class CustomerAppHomeScreen extends ConsumerWidget {
               .asData
               ?.value;
 
+    final restaurantBranchId = currentVisit == null
+        ? FirestorePaths.restaurantBranchIdFromRoute(
+            AppConstants.demoRestaurantId,
+            AppConstants.demoBranchId,
+          )
+        : FirestorePaths.restaurantBranchIdFromRoute(
+            currentVisit.restaurantId,
+            currentVisit.branchId,
+          );
+
     return CustomerShell(
-      restaurantId: currentVisit?.restaurantId ?? AppConstants.demoRestaurantId,
-      branchId: currentVisit?.branchId ?? AppConstants.demoBranchId,
+      restaurantId: restaurantBranchId,
+      branchId: restaurantBranchId,
       activeTab: CustomerTab.status,
       queueEntryId: currentVisit?.queueEntryId,
       showBottomNav: currentVisit != null,
@@ -370,11 +369,13 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
             if (!isCurrentCustomerVisitStatus(entry.status)) {
               return const _NoCurrentVisitPanel();
             }
+            final restaurantBranchId =
+                FirestorePaths.restaurantBranchIdFromRoute(
+                  visit.restaurantId,
+                  visit.branchId,
+                );
             final branchState = ref.watch(
-              _homeBranchProvider((
-                restaurantSlug: visit.restaurantId,
-                branchSlug: visit.branchId,
-              )),
+              customerBranchLinkProvider(restaurantBranchId),
             );
             final fallbackAheadCount = (entry.queuePosition - 1).clamp(
               0,
@@ -398,10 +399,7 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
               loading: () => const _CurrentVisitLoadingPanel(),
               error: (error, _) => _CurrentVisitErrorPanel(
                 onRetry: () => ref.invalidate(
-                  _homeBranchProvider((
-                    restaurantSlug: visit.restaurantId,
-                    branchSlug: visit.branchId,
-                  )),
+                  customerBranchLinkProvider(restaurantBranchId),
                 ),
               ),
               data: (branch) => _ActiveVisitCard(

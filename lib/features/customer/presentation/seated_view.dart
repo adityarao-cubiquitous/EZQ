@@ -2,22 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../data/branch_identity_repository.dart';
 import 'customer_shell.dart';
-
-typedef _SeatedBranchArgs = ({String restaurantSlug, String branchSlug});
-
-final _seatedBranchProvider =
-    FutureProvider.family<CustomerBranchLink, _SeatedBranchArgs>((ref, args) {
-      return ref
-          .watch(branchIdentityRepositoryProvider)
-          .resolveCustomerBranch(
-            restaurantSlug: args.restaurantSlug,
-            branchSlug: args.branchSlug,
-          );
-    }, retry: (_, _) => null);
 
 class SeatedView extends ConsumerWidget {
   const SeatedView({
@@ -33,12 +22,11 @@ class SeatedView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final branch = ref.watch(
-      _seatedBranchProvider((
-        restaurantSlug: restaurantId,
-        branchSlug: branchId,
-      )),
+    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
+      restaurantId,
+      branchId,
     );
+    final branch = ref.watch(customerBranchLinkProvider(restaurantBranchId));
     return CustomerShell(
       restaurantId: restaurantId,
       branchId: branchId,

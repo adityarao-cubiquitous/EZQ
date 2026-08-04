@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
 import '../domain/branch.dart';
+import '../domain/restaurant_branch_identity.dart';
 
 enum CustomerDeepLinkFailure {
   restaurantNotFound,
@@ -15,15 +16,13 @@ enum CustomerDeepLinkFailure {
 }
 
 class CustomerBranchLink {
-  const CustomerBranchLink({
-    required this.restaurantId,
-    required this.restaurantName,
-    required this.branch,
-  });
+  const CustomerBranchLink({required this.identity, required this.branch});
 
-  final String restaurantId;
-  final String restaurantName;
+  final RestaurantBranchIdentity identity;
   final Branch branch;
+
+  String get restaurantId => identity.restaurantBranchId;
+  String get restaurantName => identity.restaurantName;
 }
 
 class CustomerDeepLinkException implements Exception {
@@ -34,13 +33,7 @@ class CustomerDeepLinkException implements Exception {
 
 abstract class BranchIdentityRepository {
   Future<CustomerBranchLink> resolveCustomerBranch({
-    required String restaurantSlug,
-    required String branchSlug,
-  });
-
-  Future<String> resolveBranchSlug({
-    required String restaurantId,
-    required String branchSlug,
+    required String restaurantBranchId,
   });
 }
 
@@ -52,13 +45,8 @@ class FirebaseBranchIdentityRepository implements BranchIdentityRepository {
 
   @override
   Future<CustomerBranchLink> resolveCustomerBranch({
-    required String restaurantSlug,
-    required String branchSlug,
+    required String restaurantBranchId,
   }) async {
-    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
-      restaurantSlug,
-      branchSlug,
-    );
     final branchPath = FirestorePaths.restaurantBranch(restaurantBranchId);
     debugPrint('[CUSTOMER_DEEP_LINK]\npath=$branchPath');
     final DocumentSnapshot<Map<String, dynamic>> branchSnapshot;
@@ -109,63 +97,30 @@ class FirebaseBranchIdentityRepository implements BranchIdentityRepository {
 
     final branch = Branch.fromMap(branchSnapshot.id, branchData);
     return CustomerBranchLink(
-      restaurantId: restaurantBranchId,
-      restaurantName: branch.restaurantName!,
+      identity: resolveRestaurantBranchIdentity(
+        restaurantBranchSlug: restaurantBranchId,
+        restaurantName: branch.restaurantName,
+        branchName: branch.name,
+      ),
       branch: branch,
     );
-  }
-
-  @override
-  Future<String> resolveBranchSlug({
-    required String restaurantId,
-    required String branchSlug,
-  }) async {
-    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
-      restaurantId,
-      branchSlug,
-    );
-    final path = FirestorePaths.restaurantBranch(restaurantBranchId);
-    final snapshot = await _firestore
-        .doc(path)
-        .snapshots()
-        .first
-        .timeout(
-          const Duration(seconds: 8),
-          onTimeout: () => throw TimeoutException('Timed out reading $path'),
-        );
-    if (snapshot.exists) return restaurantBranchId;
-    throw StateError('RestaurantBranch $restaurantBranchId was not found.');
   }
 }
 
 class PassthroughBranchIdentityRepository implements BranchIdentityRepository {
   @override
   Future<CustomerBranchLink> resolveCustomerBranch({
-    required String restaurantSlug,
-    required String branchSlug,
+    required String restaurantBranchId,
   }) async {
-    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
-      restaurantSlug,
-      branchSlug,
-    );
-    final branch = Branch.fromMap(restaurantBranchId, {
-      'restaurantId': restaurantSlug,
-      'branchSlug': branchSlug,
-      'isActive': true,
-    });
+    final branch = Branch.fromMap(restaurantBranchId, {'isActive': true});
     return CustomerBranchLink(
-      restaurantId: restaurantBranchId,
-      restaurantName: branch.restaurantName!,
+      identity: resolveRestaurantBranchIdentity(
+        restaurantBranchSlug: restaurantBranchId,
+        restaurantName: branch.restaurantName,
+        branchName: branch.name,
+      ),
       branch: branch,
     );
-  }
-
-  @override
-  Future<String> resolveBranchSlug({
-    required String restaurantId,
-    required String branchSlug,
-  }) async {
-    return branchSlug;
   }
 }
 
@@ -178,3 +133,13 @@ final branchIdentityRepositoryProvider = Provider<BranchIdentityRepository>((
   }
   return PassthroughBranchIdentityRepository();
 });
+
+final customerBranchLinkProvider =
+    FutureProvider.family<CustomerBranchLink, String>((
+      ref,
+      restaurantBranchId,
+    ) {
+      return ref
+          .watch(branchIdentityRepositoryProvider)
+          .resolveCustomerBranch(restaurantBranchId: restaurantBranchId);
+    }, retry: (_, _) => null);

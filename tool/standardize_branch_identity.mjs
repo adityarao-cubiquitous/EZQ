@@ -272,7 +272,7 @@ async function main() {
         restaurantData.name ??
         restaurantId;
       const qrSlug = qrSlugFor(restaurantId, branchSlug, branchData);
-      const queueUrl = `${hostingOrigin}/customer/${restaurantId}/${branchSlug}`;
+      const queueUrl = `${hostingOrigin}/customer/${qrSlug}`;
       const qrImageUrl = qrImageUrlFor(qrSlug, branchData);
       const isActive =
         typeof branchData.isActive === 'boolean'

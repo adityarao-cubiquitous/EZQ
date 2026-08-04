@@ -679,7 +679,7 @@ Customer features:
 - Customer mobile app home/nearby restaurant flow after login.
 - Camera Lens QR scanner at `/app/scan` using device camera.
 - QR scanner fallback for manually entering an EZQ link or QR code.
-- QR route resolver for canonical `/customer/:restaurantBranchId` links, legacy two-segment links, and active branch `qrSlug` values.
+- QR route resolver for canonical `/customer/:restaurantBranchId` links and active branch `qrSlug` values; legacy two-segment customer links are rejected.
 - Native join-location gate for scanned QR links, manual QR entries, and nearby restaurant join buttons.
 - Customer join form with name, mobile number, party size, and optional notes.
 - Mobile join form can prepopulate known signed-in customer name and phone number.

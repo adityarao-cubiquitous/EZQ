@@ -14,7 +14,7 @@
 **Feature:** Customer scans QR / opens branch URL and joins queue with name, phone, party size, optional notes.
 
 **Implementation logic:**
-- Route: `/customer/:restaurantId/:branchId`. Resolve restaurant + branch doc on load; if `isActive == false`, show a "currently not accepting queue" state instead of the form.
+- Route: `/customer/:restaurantBranchId`. Resolve the canonical restaurant-branch document on load; if `isActive == false`, show a "currently not accepting queue" state instead of the form.
 - Party size: exact-value picklist (1, 2, 3, 4, 5, 6, 7+), not free text — prevents invalid input and simplifies table matching.
 - On submit, call Cloud Function `joinQueue` (never write Firestore directly from client).
 - `joinQueue` runs a Firestore transaction on `dailyCounters/{businessDate}`:
@@ -190,7 +190,7 @@
 ### B.7 Deep Linking (Android)
 
 **Implementation logic:**
-- Android App Links configured against `https://ezq.cubiquitous.in/customer/{restaurantId}/{branchId}` (same URL as the QR/web link — no separate scheme).
+- Android App Links configured against `https://ezq.cubiquitous.in/customer/{restaurantBranchId}` (same URL as the QR/web link — no separate scheme).
 - `go_router` resolves the same route definitions used by web; if the app is installed, the link opens natively, otherwise it falls back to the web app automatically (standard App Links behavior) — no custom fallback logic needed in-app.
 
 ---

@@ -286,7 +286,7 @@ class QueueUrlGenerator {
   }
 
   generateQueueUrl({ restaurantId, branchSlug }) {
-    return `${this.origin}/customer/${restaurantId}/${branchSlug}`;
+    return `${this.origin}/customer/${restaurantId}-${branchSlug}`;
   }
 
   validateUrlUniqueness(branches) {

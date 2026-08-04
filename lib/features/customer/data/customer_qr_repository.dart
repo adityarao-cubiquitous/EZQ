@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 abstract class CustomerQrRepository {
@@ -13,7 +14,7 @@ class FirebaseCustomerQrRepository implements CustomerQrRepository {
 
   @override
   Future<String?> customerRouteForQrValue(String rawValue) async {
-    final localRoute = _customerRouteFromQrValue(rawValue);
+    final localRoute = customerRouteFromQrValue(rawValue);
     if (localRoute != null) return localRoute;
 
     final slug = _qrSlugFromValue(rawValue);
@@ -41,7 +42,8 @@ final customerQrRepositoryProvider = Provider<CustomerQrRepository>((ref) {
   return FirebaseCustomerQrRepository();
 });
 
-String? _customerRouteFromQrValue(String rawValue) {
+@visibleForTesting
+String? customerRouteFromQrValue(String rawValue) {
   final value = rawValue.trim();
   final uri = Uri.tryParse(value);
   if (uri == null) return null;
@@ -53,16 +55,6 @@ String? _customerRouteFromQrValue(String rawValue) {
     return '/customer/$restaurantBranchId';
   }
 
-  final restaurantId =
-      uri.queryParameters['restaurantId'] ?? uri.queryParameters['restaurant'];
-  final branchId =
-      uri.queryParameters['branchId'] ?? uri.queryParameters['branch'];
-  if (_isRouteSegment(restaurantId) && _isRouteSegment(branchId)) {
-    return restaurantId == branchId
-        ? '/customer/$restaurantId'
-        : '/customer/$restaurantId-$branchId';
-  }
-
   final pathSegments = uri.pathSegments;
   final customerIndex = pathSegments.indexOf('customer');
   if (customerIndex >= 0 && pathSegments.length > customerIndex + 1) {
@@ -72,16 +64,6 @@ String? _customerRouteFromQrValue(String rawValue) {
       return '/customer/$restaurantBranch';
     }
   }
-  if (customerIndex >= 0 && pathSegments.length > customerIndex + 2) {
-    final restaurant = pathSegments[customerIndex + 1];
-    final branch = pathSegments[customerIndex + 2];
-    if (_isRouteSegment(restaurant) && _isRouteSegment(branch)) {
-      return restaurant == branch
-          ? '/customer/$restaurant'
-          : '/customer/$restaurant-$branch';
-    }
-  }
-
   return null;
 }
 

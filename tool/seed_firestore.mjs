@@ -36,7 +36,7 @@ const documents = {
     address: '100 Feet Road, Indiranagar, Bengaluru',
     qrSlug: 'the-spice-house-indiranagar',
     queueUrl:
-      'https://ezq-dev-cubiquitous.web.app/customer/the-spice-house/indiranagar',
+      'https://ezq-dev-cubiquitous.web.app/customer/the-spice-house-indiranagar',
     qrImageUrl:
       'https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/qr-codes/the-spice-house-indiranagar.png',
     qrSvgUrl:
