@@ -107,13 +107,11 @@ class FirebaseBranchIdentityRepository implements BranchIdentityRepository {
       );
     }
 
+    final branch = Branch.fromMap(branchSnapshot.id, branchData);
     return CustomerBranchLink(
       restaurantId: restaurantBranchId,
-      restaurantName:
-          branchData['restaurantName'] as String? ??
-          branchData['displayName'] as String? ??
-          restaurantBranchId,
-      branch: Branch.fromMap(branchSnapshot.id, branchData),
+      restaurantName: branch.restaurantName!,
+      branch: branch,
     );
   }
 
@@ -146,24 +144,19 @@ class PassthroughBranchIdentityRepository implements BranchIdentityRepository {
     required String restaurantSlug,
     required String branchSlug,
   }) async {
+    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
+      restaurantSlug,
+      branchSlug,
+    );
+    final branch = Branch.fromMap(restaurantBranchId, {
+      'restaurantId': restaurantSlug,
+      'branchSlug': branchSlug,
+      'isActive': true,
+    });
     return CustomerBranchLink(
-      restaurantId: restaurantSlug,
-      restaurantName: restaurantSlug,
-      branch: Branch(
-        id: branchSlug,
-        branchSlug: branchSlug,
-        name: branchSlug,
-        address: '',
-        city: '',
-        state: '',
-        country: 'India',
-        timezone: 'Asia/Kolkata',
-        qrSlug: '$restaurantSlug-$branchSlug',
-        isActive: true,
-        averageDiningMinutes: 35,
-        averageCleaningMinutes: 5,
-        holdMinutes: 5,
-      ),
+      restaurantId: restaurantBranchId,
+      restaurantName: branch.restaurantName!,
+      branch: branch,
     );
   }
 

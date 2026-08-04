@@ -91,6 +91,8 @@ void main() {
       final expected = expectations[status]!;
       expect(find.byKey(ValueKey(expected.key)), findsOneWidget);
       expect(find.text(expected.text), findsOneWidget);
+      expect(find.textContaining('State Machine Restaurant'), findsWidgets);
+      expect(find.textContaining('State Machine Branch'), findsWidgets);
       expect(
         find.byKey(const ValueKey('queue-status-cancel-action')),
         status.canBeCancelledByCustomer ? findsOneWidget : findsNothing,
@@ -158,9 +160,7 @@ void main() {
       tester
           .getSemantics(
             find.descendant(
-              of: find.byKey(
-                const ValueKey('queue-status-cancel-action'),
-              ),
+              of: find.byKey(const ValueKey('queue-status-cancel-action')),
               matching: find.byType(OutlinedButton),
             ),
           )

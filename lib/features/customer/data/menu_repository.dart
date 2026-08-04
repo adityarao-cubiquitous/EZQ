@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../domain/branch.dart';
 import '../domain/menu_document.dart';
 import 'branch_identity_repository.dart';
 
@@ -43,11 +44,11 @@ class FirebaseMenuRepository implements MenuRepository {
         })
         .asyncMap((branchSnapshot) async {
           final branchData = branchSnapshot.data() ?? <String, dynamic>{};
+          final branch = Branch.fromMap(branchSnapshot.id, branchData);
 
           return MenuDocument(
-            restaurantName:
-                branchData['restaurantName'] as String? ?? restaurantId,
-            branchName: branchData['branchName'] as String? ?? branchId,
+            restaurantName: branch.restaurantName!,
+            branchName: branch.name,
             pdfUrl: branchData['menuPdfUrl'] as String? ?? '/demo-menu.pdf',
             previewImageUrl:
                 branchData['menuPreviewImageUrl'] as String? ??

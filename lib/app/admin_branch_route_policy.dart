@@ -6,10 +6,11 @@ String? resolveAdminBranchRouteRedirect({
 }) {
   final onboardingPath = '/admin/$restaurantBranchId/register/onboarding';
   final dashboardPath = '/admin/$restaurantBranchId/dashboard';
+  final reportsPath = '/admin/$restaurantBranchId/reports';
 
   if (branchReady &&
-      allowCompletedOnboardingSummary &&
-      currentPath == onboardingPath) {
+      ((allowCompletedOnboardingSummary && currentPath == onboardingPath) ||
+          currentPath == reportsPath)) {
     return null;
   }
 

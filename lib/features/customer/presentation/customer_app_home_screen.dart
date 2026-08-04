@@ -8,10 +8,23 @@ import '../../../core/widgets/ezq_button.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
+import '../data/branch_identity_repository.dart';
 import '../data/customer_queue_repository.dart';
 import '../domain/party_ahead_copy.dart';
 import 'customer_shell.dart';
 import 'nearby_restaurants_screen.dart';
+
+typedef _HomeBranchArgs = ({String restaurantSlug, String branchSlug});
+
+final _homeBranchProvider =
+    FutureProvider.family<CustomerBranchLink, _HomeBranchArgs>((ref, args) {
+      return ref
+          .watch(branchIdentityRepositoryProvider)
+          .resolveCustomerBranch(
+            restaurantSlug: args.restaurantSlug,
+            branchSlug: args.branchSlug,
+          );
+    }, retry: (_, _) => null);
 
 class CustomerAppHomeScreen extends ConsumerWidget {
   const CustomerAppHomeScreen({super.key});
@@ -357,6 +370,12 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
             if (!isCurrentCustomerVisitStatus(entry.status)) {
               return const _NoCurrentVisitPanel();
             }
+            final branchState = ref.watch(
+              _homeBranchProvider((
+                restaurantSlug: visit.restaurantId,
+                branchSlug: visit.branchId,
+              )),
+            );
             final fallbackAheadCount = (entry.queuePosition - 1).clamp(
               0,
               999999,
@@ -375,15 +394,28 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
                         data: (ahead) => ahead,
                         orElse: () => fallbackAheadCount,
                       );
-            return _ActiveVisitCard(
-              visit: visit,
-              entry: entry,
-              aheadCount: aheadCount,
-              cancelling: _cancelling,
-              onView: () => context.go(visit.statusRoute),
-              onCancel: entry.status == QueueStatus.seated
-                  ? null
-                  : () => _cancelVisit(visit, entry),
+            return branchState.when(
+              loading: () => const _CurrentVisitLoadingPanel(),
+              error: (error, _) => _CurrentVisitErrorPanel(
+                onRetry: () => ref.invalidate(
+                  _homeBranchProvider((
+                    restaurantSlug: visit.restaurantId,
+                    branchSlug: visit.branchId,
+                  )),
+                ),
+              ),
+              data: (branch) => _ActiveVisitCard(
+                visit: visit,
+                entry: entry,
+                restaurantName: branch.restaurantName,
+                branchName: branch.branch.name,
+                aheadCount: aheadCount,
+                cancelling: _cancelling,
+                onView: () => context.go(visit.statusRoute),
+                onCancel: entry.status == QueueStatus.seated
+                    ? null
+                    : () => _cancelVisit(visit, entry),
+              ),
             );
           },
         );
@@ -447,6 +479,8 @@ class _ActiveVisitCard extends StatelessWidget {
   const _ActiveVisitCard({
     required this.visit,
     required this.entry,
+    required this.restaurantName,
+    required this.branchName,
     required this.aheadCount,
     required this.cancelling,
     required this.onView,
@@ -455,6 +489,8 @@ class _ActiveVisitCard extends StatelessWidget {
 
   final CustomerQueueVisit visit;
   final QueueEntry entry;
+  final String restaurantName;
+  final String branchName;
   final int aheadCount;
   final bool cancelling;
   final VoidCallback onView;
@@ -502,7 +538,7 @@ class _ActiveVisitCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        _displayBranchName(visit.branchId),
+                        '$restaurantName · $branchName',
                         style: const TextStyle(
                           color: AppColors.mutedText,
                           fontSize: 13,
@@ -677,15 +713,6 @@ class _CurrentVisitErrorPanel extends StatelessWidget {
       ),
     ),
   );
-}
-
-String _displayBranchName(String branchId) {
-  final words = branchId
-      .split(RegExp(r'[-_]'))
-      .where((word) => word.isNotEmpty)
-      .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
-      .toList();
-  return words.isEmpty ? 'Your restaurant' : words.join(' ');
 }
 
 class _OutlineAction extends StatelessWidget {
