@@ -27,14 +27,18 @@ void main() {
     final tablesFinder = find.byKey(const ValueKey('live-queue-tables-scroll'));
     const panelKey = ValueKey('live-queue-panel');
     const handleKey = ValueKey('live-queue-resize-handle');
+    const visualHandleKey = ValueKey('live-queue-resize-handle-visual');
     final panelFinder = find.byKey(panelKey);
     final handleFinder = find.byKey(handleKey);
+    final visualHandleFinder = find.byKey(visualHandleKey);
     final initialTablesWidth = tester.getSize(tablesFinder).width;
     final initialPanelWidth = tester.getSize(panelFinder).width;
     expect(find.text('Queue content'), findsOneWidget);
-    expect(tester.getSize(handleFinder), const Size(30, 82));
+    expect(tester.getSize(handleFinder), const Size(48, 82));
+    expect(tester.getSize(visualHandleFinder), const Size(33, 82));
     expect(find.byIcon(Icons.drag_indicator_rounded), findsOneWidget);
     expect(tester.getCenter(handleFinder).dy, closeTo(450, 1));
+    expect(find.text('Open changes: 0'), findsOneWidget);
 
     await tester.enterText(
       find.byKey(const ValueKey('queue-search-probe')),
@@ -52,6 +56,7 @@ void main() {
     await widenGesture.up();
     await tester.pumpAndSettle();
 
+    expect(find.text('Open changes: 0'), findsOneWidget);
     final widerPanelWidth = tester.getSize(panelFinder).width;
     expect(widerPanelWidth, closeTo(initialPanelWidth + 120, 2));
     expect(
@@ -69,9 +74,11 @@ void main() {
       await tester.pump();
       expect(tester.takeException(), isNull);
     }
+    expect(find.text('Open changes: 0'), findsOneWidget);
     await hideGesture.up();
     await tester.pumpAndSettle();
 
+    expect(find.text('Open changes: 1'), findsOneWidget);
     expect(tester.getSize(panelFinder).width, 0);
     expect(find.text('Queue content'), findsNothing);
     expect(
@@ -97,9 +104,11 @@ void main() {
       await tester.pump();
       expect(tester.takeException(), isNull);
     }
+    expect(find.text('Open changes: 1'), findsOneWidget);
     await reopenGesture.up();
     await tester.pumpAndSettle();
 
+    expect(find.text('Open changes: 2'), findsOneWidget);
     expect(tester.getSize(panelFinder).width, closeTo(300, 2));
     expect(find.text('Q17'), findsOneWidget);
 
@@ -125,15 +134,26 @@ class _LayoutHarness extends StatefulWidget {
 
 class _LayoutHarnessState extends State<_LayoutHarness> {
   bool _isOpen = true;
+  int _openChanges = 0;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: CollapsibleLiveQueueLayout(
-        isLiveQueueOpen: _isOpen,
-        onLiveQueueOpenChanged: (value) => setState(() => _isOpen = value),
-        tables: const SizedBox(height: 1600, child: Text('Tables content')),
-        liveQueue: const _QueueProbe(),
+      body: Stack(
+        children: [
+          CollapsibleLiveQueueLayout(
+            isLiveQueueOpen: _isOpen,
+            onLiveQueueOpenChanged: (value) {
+              setState(() {
+                _isOpen = value;
+                _openChanges++;
+              });
+            },
+            tables: const SizedBox(height: 1600, child: Text('Tables content')),
+            liveQueue: const _QueueProbe(),
+          ),
+          Text('Open changes: $_openChanges'),
+        ],
       ),
     );
   }

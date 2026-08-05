@@ -44,6 +44,9 @@ class _CollapsibleLiveQueueLayoutState
   static const double _splitMaxPanelWidth = 620;
   static const double _minimumTablesWidth = 320;
   static const double _minimumContentWidth = 240;
+  static const double _handleHitWidth = 48;
+  static const double _handleVisibleWidth = 33;
+  static const double _handleHeight = 82;
 
   @override
   void dispose() {
@@ -86,23 +89,22 @@ class _CollapsibleLiveQueueLayoutState
             _isResizing || MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
             : const Duration(milliseconds: 240);
-        final open = widget.isLiveQueueOpen;
+        final open = widget.isLiveQueueOpen || _isResizing;
         final panelVisible = open && panelWidth > 0;
         final contentVisible =
             panelVisible && panelWidth >= _minimumContentWidth;
         final tableRightPadding = split && panelVisible
             ? pagePadding + panelWidth + gap
             : pagePadding;
-        const handleWidth = 30.0;
-        const handleHeight = 82.0;
+        const handleOverflow = (_handleHitWidth - _handleVisibleWidth) / 2;
         final handleRight = panelVisible
             ? math.min(
-                pagePadding + panelWidth - (handleWidth / 2),
-                width - handleWidth,
+                pagePadding + panelWidth - (_handleHitWidth / 2),
+                width - _handleHitWidth,
               )
-            : pagePadding;
+            : pagePadding - handleOverflow;
         final handleTop = height.isFinite
-            ? math.max(pagePadding, (height - handleHeight) / 2)
+            ? math.max(pagePadding, (height - _handleHeight) / 2)
             : pagePadding + 96;
 
         return CallbackShortcuts(
@@ -130,7 +132,7 @@ class _CollapsibleLiveQueueLayoutState
                     child: SingleChildScrollView(
                       key: const ValueKey('live-queue-tables-scroll'),
                       controller: _tablesScrollController,
-                      child: widget.tables,
+                      child: RepaintBoundary(child: widget.tables),
                     ),
                   ),
                 ),
@@ -166,7 +168,7 @@ class _CollapsibleLiveQueueLayoutState
                           offstage: !contentVisible,
                           child: SingleChildScrollView(
                             controller: _queueScrollController,
-                            child: widget.liveQueue,
+                            child: RepaintBoundary(child: widget.liveQueue),
                           ),
                         ),
                       ),
@@ -185,7 +187,6 @@ class _CollapsibleLiveQueueLayoutState
                         _isResizing = true;
                         _requestedPanelWidth = panelVisible ? panelWidth : 0;
                       });
-                      if (!open) widget.onLiveQueueOpenChanged(true);
                     },
                     onDragUpdate: (delta) {
                       if (!mounted || !_isResizing || !delta.isFinite) return;
@@ -202,8 +203,9 @@ class _CollapsibleLiveQueueLayoutState
                         _isResizing = false;
                         if (hidden) _requestedPanelWidth = 0;
                       });
-                      if (hidden && open) {
-                        widget.onLiveQueueOpenChanged(false);
+                      final shouldOpen = !hidden;
+                      if (widget.isLiveQueueOpen != shouldOpen) {
+                        widget.onLiveQueueOpenChanged(shouldOpen);
                       }
                     },
                     onIncrease: () {
@@ -301,45 +303,52 @@ class _LiveQueueHandleState extends State<_LiveQueueHandle> {
         onPointerMove: _move,
         onPointerUp: (event) => _finish(event.pointer),
         onPointerCancel: (event) => _finish(event.pointer),
-        child: Container(
-          width: 30,
-          height: 82,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFFF4FCFB), Color(0xFFDDF4F1)],
-            ),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: const Color(0xFFB9E3DD)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1F0F766E),
-                blurRadius: 14,
-                offset: Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                widget.isOpen
-                    ? Icons.drag_indicator_rounded
-                    : Icons.keyboard_double_arrow_left_rounded,
-                color: AppColors.deepTeal,
-                size: 19,
-              ),
-              const SizedBox(height: 7),
-              Container(
-                width: 3,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryTeal.withValues(alpha: 0.56),
-                  borderRadius: BorderRadius.circular(999),
+        child: SizedBox(
+          width: _CollapsibleLiveQueueLayoutState._handleHitWidth,
+          height: _CollapsibleLiveQueueLayoutState._handleHeight,
+          child: Center(
+            child: Container(
+              key: const ValueKey('live-queue-resize-handle-visual'),
+              width: _CollapsibleLiveQueueLayoutState._handleVisibleWidth,
+              height: _CollapsibleLiveQueueLayoutState._handleHeight,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFFF4FCFB), Color(0xFFDDF4F1)],
                 ),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: const Color(0xFFB9E3DD)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x1F0F766E),
+                    blurRadius: 14,
+                    offset: Offset(0, 5),
+                  ),
+                ],
               ),
-            ],
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    widget.isOpen
+                        ? Icons.drag_indicator_rounded
+                        : Icons.keyboard_double_arrow_left_rounded,
+                    color: AppColors.deepTeal,
+                    size: 22,
+                  ),
+                  const SizedBox(height: 7),
+                  Container(
+                    width: 4,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryTeal.withValues(alpha: 0.56),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

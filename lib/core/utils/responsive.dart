@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 class Responsive {
@@ -10,6 +11,17 @@ class Responsive {
     final width = MediaQuery.sizeOf(context).width;
     return width >= 700 && width < 1100;
   }
+
+  static bool isPhone(BuildContext context) {
+    final platformIsMobile =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    return platformIsMobile && MediaQuery.sizeOf(context).shortestSide < 600;
+  }
+
+  static bool isPhoneLandscape(BuildContext context) =>
+      isPhone(context) &&
+      MediaQuery.orientationOf(context) == Orientation.landscape;
 
   static double customerWidth(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
