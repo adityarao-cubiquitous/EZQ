@@ -99,7 +99,7 @@ Table color coding:
 
 Customer-facing features currently documented as built:
 
-- Guest queue join from `/customer/:restaurantSlug/:branchSlug`.
+- Guest queue join from `/customer/:restaurantBranchId`.
 - Join form with name, phone, exact party size, and optional notes.
 - Live queue status with token, party size, queue position, and remaining wait.
 - Customer seated/table-assigned status after manager seating.
@@ -187,8 +187,8 @@ When working inside Codex desktop, prefer the bundled Python runtime if local Py
 
 ## Local App Notes
 
-- Customer URL pattern: `/customer/:restaurantSlug/:branchSlug`.
-- Admin URL pattern: `/admin/:restaurantSlug/:branchSlug/dashboard`.
+- Customer URL pattern: `/customer/:restaurantBranchId`.
+- Admin URL pattern: `/admin/:restaurantBranchId/dashboard`.
 - For local web testing, prefer Flutter web or the local SPA helper in `tool/spa_server.py`.
 - For iOS simulator testing, use Flutter commands and keep safe-area layout in mind; avoid UI overlapping the iOS status bar or bottom home indicator.
 

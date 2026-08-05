@@ -2,23 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../data/branch_identity_repository.dart';
 import 'customer_shell.dart';
 import 'restaurant_logo.dart';
-
-typedef _SupportBranchArgs = ({String restaurantSlug, String branchSlug});
-
-final _supportBranchProvider =
-    FutureProvider.family<CustomerBranchLink, _SupportBranchArgs>((ref, args) {
-      return ref
-          .watch(branchIdentityRepositoryProvider)
-          .resolveCustomerBranch(
-            restaurantSlug: args.restaurantSlug,
-            branchSlug: args.branchSlug,
-          );
-    }, retry: (_, _) => null);
 
 class CustomerSupportScreen extends ConsumerWidget {
   const CustomerSupportScreen({
@@ -34,12 +23,11 @@ class CustomerSupportScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final branch = ref.watch(
-      _supportBranchProvider((
-        restaurantSlug: restaurantId,
-        branchSlug: branchId,
-      )),
+    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
+      restaurantId,
+      branchId,
     );
+    final branch = ref.watch(customerBranchLinkProvider(restaurantBranchId));
     return CustomerShell(
       restaurantId: restaurantId,
       branchId: branchId,

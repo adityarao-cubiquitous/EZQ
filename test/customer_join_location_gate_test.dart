@@ -1,5 +1,6 @@
 import 'package:ezq/features/customer/data/branch_identity_repository.dart';
 import 'package:ezq/features/customer/domain/branch.dart';
+import 'package:ezq/features/customer/domain/restaurant_branch_identity.dart';
 import 'package:ezq/features/customer/presentation/customer_join_location_gate.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -152,8 +153,11 @@ Widget _testApp({
 }
 
 const _branchLink = CustomerBranchLink(
-  restaurantId: 'salad-studio-12th-main',
-  restaurantName: 'Salad Studio',
+  identity: RestaurantBranchIdentity(
+    restaurantBranchId: 'salad-studio-12th-main',
+    restaurantName: 'Salad Studio',
+    branchName: '12th Main',
+  ),
   branch: Branch(
     id: 'salad-studio-12th-main',
     name: '12th Main',

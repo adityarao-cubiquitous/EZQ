@@ -15,6 +15,18 @@ class FirestorePaths {
     return '$restaurantId-$branchId';
   }
 
+  static String requireCanonicalRestaurantBranchId(
+    String restaurantId,
+    String branchId,
+  ) {
+    if (restaurantId != branchId) {
+      throw ArgumentError(
+        'Customer operations require one canonical RestaurantBranch ID.',
+      );
+    }
+    return restaurantId;
+  }
+
   static String customerRoute(String restaurantId, String branchId) {
     return '/customer/${restaurantBranchIdFromRoute(restaurantId, branchId)}';
   }

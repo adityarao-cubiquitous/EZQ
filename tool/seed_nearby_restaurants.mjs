@@ -156,7 +156,7 @@ const documents = Object.fromEntries(
           country: 'India',
           timezone: 'Asia/Kolkata',
           qrSlug,
-          queueUrl: `https://ezq-dev-cubiquitous.web.app/customer/${restaurant.id}/${branchSlug}`,
+          queueUrl: `https://ezq-dev-cubiquitous.web.app/customer/${qrSlug}`,
           qrImageUrl:
             `https://storage.googleapis.com/ezq-dev-cubiquitous.firebasestorage.app/` +
             `qr-codes/${qrSlug}.png`,

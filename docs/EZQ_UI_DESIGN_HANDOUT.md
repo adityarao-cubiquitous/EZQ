@@ -52,7 +52,7 @@ The manager dashboard uses a capacity-first table grid and a collapsible live qu
 
 - Product mark: compact rounded square with a queue-inspired Q mark.
 - Parent brand: Cubiquitous appears in powered-by placements with the company logo.
-- Admin header: EZQ product mark, branch name, live metrics, walk-in action, reports icon.
+- Admin header: EZQ product mark, canonical Firestore restaurant name with the branch name beneath it, live metrics, walk-in action, reports icon.
 - Customer header: EZQ product mark, download app shortcut, glass-style top bar.
 
 ## 4. Color System
@@ -656,8 +656,8 @@ Onboarding data and validation behavior:
 - Failed onboarding can be retried safely without duplicate or orphan floors, tables, settings, or QR metadata.
 - Completed onboarding deep links restore a read-only setup summary from Firestore; they never reopen editable wizard steps.
 - Customer status includes ad space and hidden-object puzzle placeholder.
-- Admin and mobile customer auth both show the OTP verification step. For MVP/TestFlight validation the app accepts `123456`; the retained Firebase SMS verification path can be restored with `--dart-define=USE_REAL_FIREBASE_OTP=true`.
-- Temporary admin authentication covers every configured demo restaurant, falls back to canonical backend phone resolution when no local compatibility entry exists, and verifies the authenticated UID, phone, and restaurant branch against the canonical `admins/{uid}` document before routing.
+- Admin and mobile customer auth both show the OTP verification step. For MVP/TestFlight validation the app accepts `123456`; configured temporary admins use their existing Firebase Auth mapping without depending on an undeployed callable function, and the retained Firebase SMS verification path can be restored with `--dart-define=USE_REAL_FIREBASE_OTP=true`.
+- Temporary admin authentication covers every configured demo restaurant through an explicit compatibility entry and verifies the authenticated UID, phone, and restaurant branch against the canonical `admins/{uid}` document before routing. Unmapped phones are rejected before the OTP step while the callable backend is unavailable.
 - A customer with a `waiting`, `reserved`, or `on_the_way` queue entry cannot join another restaurant queue. Exiting the queue or being seated releases the customer to join again.
 - The native QR scanner shows explicit camera-denied and camera-unavailable states with retry, Open Settings, and manual-code fallback actions on both iOS and Android.
 - Nearby restaurants distinguishes location services off, permission denied, and permission permanently denied. Customers can retry, open the appropriate Settings page, or continue using the demo location without a dead end.
@@ -679,7 +679,7 @@ Customer features:
 - Customer mobile app home/nearby restaurant flow after login.
 - Camera Lens QR scanner at `/app/scan` using device camera.
 - QR scanner fallback for manually entering an EZQ link or QR code.
-- QR route resolver for canonical `/customer/:restaurantBranchId` links, legacy two-segment links, and active branch `qrSlug` values.
+- QR route resolver for canonical `/customer/:restaurantBranchId` links and active branch `qrSlug` values; legacy two-segment customer links are rejected.
 - Native join-location gate for scanned QR links, manual QR entries, and nearby restaurant join buttons.
 - Customer join form with name, mobile number, party size, and optional notes.
 - Mobile join form can prepopulate known signed-in customer name and phone number.
@@ -803,6 +803,7 @@ Manager flow:
 - The system shall keep admin and branch `onboardingCompleted` flags synchronized with branch `provisioningStatus`, and shall reject any persisted completed/incomplete mismatch.
 - The system shall preserve strict completed-onboarding validation while reconstructing deterministic legacy metadata only when the persisted operational floor, table, settings-equivalent, admin, and branch data is internally consistent.
 - The system shall use one canonical admin-branch readiness result for login, dashboard, onboarding, and reports routing.
+- The system shall show the canonical Firestore restaurant name as the primary admin-navbar identity and the branch name directly beneath it at phone, tablet, and desktop widths.
 - The system shall show live waiting queue entries for the selected branch.
 - The system shall allow the Live Queue to be collapsed and reopened by touch, mouse, or keyboard on desktop, tablet, and mobile layouts.
 - The system shall expand the table dashboard into all released space when the Live Queue is closed.

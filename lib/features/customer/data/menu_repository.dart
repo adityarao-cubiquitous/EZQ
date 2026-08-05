@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/firestore_paths.dart';
 import '../domain/branch.dart';
 import '../domain/menu_document.dart';
-import 'branch_identity_repository.dart';
 
 abstract class MenuRepository {
   Stream<MenuDocument> watchMenu({
@@ -15,33 +14,24 @@ abstract class MenuRepository {
 }
 
 class FirebaseMenuRepository implements MenuRepository {
-  FirebaseMenuRepository({
-    FirebaseFirestore? firestore,
-    BranchIdentityRepository? branchIdentityRepository,
-  }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _branchIdentityRepository =
-           branchIdentityRepository ??
-           FirebaseBranchIdentityRepository(firestore: firestore);
+  FirebaseMenuRepository({FirebaseFirestore? firestore})
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
-  final BranchIdentityRepository _branchIdentityRepository;
 
   @override
   Stream<MenuDocument> watchMenu({
     required String restaurantId,
     required String branchId,
   }) {
-    return Stream.fromFuture(
-          _branchIdentityRepository.resolveBranchSlug(
-            restaurantId: restaurantId,
-            branchSlug: branchId,
-          ),
-        )
-        .asyncExpand((resolvedBranchSlug) {
-          return _firestore
-              .doc(FirestorePaths.branch(restaurantId, resolvedBranchSlug))
-              .snapshots();
-        })
+    final restaurantBranchId =
+        FirestorePaths.requireCanonicalRestaurantBranchId(
+          restaurantId,
+          branchId,
+        );
+    return _firestore
+        .doc(FirestorePaths.restaurantBranch(restaurantBranchId))
+        .snapshots()
         .asyncMap((branchSnapshot) async {
           final branchData = branchSnapshot.data() ?? <String, dynamic>{};
           final branch = Branch.fromMap(branchSnapshot.id, branchData);
@@ -76,9 +66,7 @@ class MockMenuRepository implements MenuRepository {
 final menuRepositoryProvider = Provider<MenuRepository>((ref) {
   const useFirebase = bool.fromEnvironment('USE_FIREBASE');
   if (useFirebase || kIsWeb) {
-    return FirebaseMenuRepository(
-      branchIdentityRepository: ref.watch(branchIdentityRepositoryProvider),
-    );
+    return FirebaseMenuRepository();
   }
   return MockMenuRepository();
 });

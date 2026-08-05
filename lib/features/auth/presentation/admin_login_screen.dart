@@ -51,10 +51,16 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
     });
 
     try {
+      final normalizedPhone = PhoneUtils.normalizeIndiaMobile(
+        _phoneController.text,
+      );
+
       if (_temporaryOtpEnabled) {
-        final normalizedPhone = PhoneUtils.normalizeIndiaMobile(
-          _phoneController.text,
-        );
+        if (!_temporaryAdminSessions.containsKey(normalizedPhone)) {
+          throw StateError(
+            'This phone number is not registered for active admin access.',
+          );
+        }
         setState(() {
           _verificationId = 'temporary-admin-otp-bypass';
           _normalizedPhone = normalizedPhone;
@@ -63,6 +69,11 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
         });
         return;
       }
+
+      await ref
+          .read(authRepositoryProvider)
+          .validateAdminPhoneForOtp(phone: normalizedPhone);
+      if (!mounted) return;
 
       final result = await ref
           .read(authRepositoryProvider)
@@ -130,15 +141,9 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
         PhoneUtils.normalizeIndiaMobile(_phoneController.text);
     final session = _temporaryAdminSessions[phone];
     if (session == null) {
-      await ref
-          .read(authRepositoryProvider)
-          .signInAdminWithTemporaryOtp(
-            phone: phone,
-            code: TemporaryOtpConfig.code,
-          );
-      if (!mounted) return;
-      await _finishAdminLogin();
-      return;
+      throw StateError(
+        'This phone number is not registered for active admin access.',
+      );
     }
 
     await ref
@@ -212,6 +217,11 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
     }
     if (message.contains('requires Firebase')) {
       return 'Run the app with Firebase enabled to use admin phone sign-in.';
+    }
+    if (message.contains('firebase_functions/internal') ||
+        message.contains('firebase_functions/unavailable')) {
+      return 'The admin verification service is unavailable. '
+          'Please try again later or contact platform support.';
     }
     return message.replaceFirst('Bad state: ', '');
   }

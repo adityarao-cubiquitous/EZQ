@@ -11,7 +11,6 @@ import '../../../core/utils/validators.dart';
 import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
 import '../../recommendation/domain/customer_preferences.dart';
-import 'branch_identity_repository.dart';
 
 class JoinQueueRequest {
   const JoinQueueRequest({
@@ -145,16 +144,10 @@ abstract class CustomerQueueRepository {
 }
 
 class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
-  FirebaseCustomerQueueRepository({
-    FirebaseFirestore? firestore,
-    BranchIdentityRepository? branchIdentityRepository,
-  }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _branchIdentityRepository =
-           branchIdentityRepository ??
-           FirebaseBranchIdentityRepository(firestore: firestore);
+  FirebaseCustomerQueueRepository({FirebaseFirestore? firestore})
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
-  final BranchIdentityRepository _branchIdentityRepository;
 
   @override
   Future<ActiveQueueConflictException?> findActiveQueueEntry({
@@ -189,9 +182,9 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Future<JoinQueueResult> joinQueue(JoinQueueRequest request) async {
-    final branchSlug = await _resolveBranchSlug(
+    final restaurantBranchId = _requireCanonicalRestaurantBranchId(
       restaurantId: request.restaurantId,
-      branchSlug: request.branchId,
+      branchId: request.branchId,
     );
     final businessDate = DateTimeUtils.businessDate();
     final phone = PhoneUtils.normalizeIndiaMobile(request.phone);
@@ -207,18 +200,18 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
 
     final partySizeBand = Validators.partySizeBand(request.partySize);
     final branchRef = _firestore.doc(
-      FirestorePaths.branch(request.restaurantId, branchSlug),
+      FirestorePaths.restaurantBranch(restaurantBranchId),
     );
     final counterRef = _firestore.doc(
       FirestorePaths.dailyCounter(
-        request.restaurantId,
-        branchSlug,
+        restaurantBranchId,
+        restaurantBranchId,
         businessDate,
       ),
     );
     final queueRef = _firestore
         .collection(
-          FirestorePaths.queueEntries(request.restaurantId, branchSlug),
+          FirestorePaths.queueEntries(restaurantBranchId, restaurantBranchId),
         )
         .doc();
 
@@ -283,20 +276,19 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     required String branchId,
     required String queueEntryId,
   }) {
-    return Stream.fromFuture(
-          _resolveBranchSlug(restaurantId: restaurantId, branchSlug: branchId),
+    final restaurantBranchId = _requireCanonicalRestaurantBranchId(
+      restaurantId: restaurantId,
+      branchId: branchId,
+    );
+    return _firestore
+        .doc(
+          FirestorePaths.queueEntry(
+            restaurantBranchId,
+            restaurantBranchId,
+            queueEntryId,
+          ),
         )
-        .asyncExpand((resolvedBranchSlug) {
-          return _firestore
-              .doc(
-                FirestorePaths.queueEntry(
-                  restaurantId,
-                  resolvedBranchSlug,
-                  queueEntryId,
-                ),
-              )
-              .snapshots();
-        })
+        .snapshots()
         .map((snapshot) {
           final data = snapshot.data();
           if (data == null) {
@@ -312,16 +304,15 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     required String branchId,
     required String queueEntryId,
   }) {
-    return Stream.fromFuture(
-          _resolveBranchSlug(restaurantId: restaurantId, branchSlug: branchId),
+    final restaurantBranchId = _requireCanonicalRestaurantBranchId(
+      restaurantId: restaurantId,
+      branchId: branchId,
+    );
+    return _firestore
+        .collection(
+          FirestorePaths.queueEntries(restaurantBranchId, restaurantBranchId),
         )
-        .asyncExpand((resolvedBranchSlug) {
-          return _firestore
-              .collection(
-                FirestorePaths.queueEntries(restaurantId, resolvedBranchSlug),
-              )
-              .snapshots();
-        })
+        .snapshots()
         .map((snapshot) {
           final businessDate = DateTimeUtils.businessDate();
           final liveQueue = snapshot.docs
@@ -406,12 +397,16 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     required Map<String, Object?> data,
     QueueStatus? transitionTo,
   }) async {
-    final resolvedBranchSlug = await _resolveBranchSlug(
+    final restaurantBranchId = _requireCanonicalRestaurantBranchId(
       restaurantId: restaurantId,
-      branchSlug: branchId,
+      branchId: branchId,
     );
     final entryRef = _firestore.doc(
-      FirestorePaths.queueEntry(restaurantId, resolvedBranchSlug, queueEntryId),
+      FirestorePaths.queueEntry(
+        restaurantBranchId,
+        restaurantBranchId,
+        queueEntryId,
+      ),
     );
     await _firestore.runTransaction<void>((transaction) async {
       final snapshot = await transaction.get(entryRef);
@@ -522,13 +517,13 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     );
   }
 
-  Future<String> _resolveBranchSlug({
+  String _requireCanonicalRestaurantBranchId({
     required String restaurantId,
-    required String branchSlug,
+    required String branchId,
   }) {
-    return _branchIdentityRepository.resolveBranchSlug(
-      restaurantId: restaurantId,
-      branchSlug: branchSlug,
+    return FirestorePaths.requireCanonicalRestaurantBranchId(
+      restaurantId,
+      branchId,
     );
   }
 }
@@ -711,9 +706,7 @@ final customerQueueRepositoryProvider = Provider<CustomerQueueRepository>((
   const useFirebase = bool.fromEnvironment('USE_FIREBASE');
   const useEmulator = bool.fromEnvironment('USE_EMULATOR');
   if (useFirebase || useEmulator || kIsWeb) {
-    return FirebaseCustomerQueueRepository(
-      branchIdentityRepository: ref.watch(branchIdentityRepositoryProvider),
-    );
+    return FirebaseCustomerQueueRepository();
   }
   return MockCustomerQueueRepository();
 });

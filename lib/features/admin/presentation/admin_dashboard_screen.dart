@@ -26,8 +26,9 @@ import '../../tables/domain/table_status.dart';
 import '../../tables/presentation/table_grid.dart';
 import '../../queue/presentation/queue_panel.dart';
 import '../../customer/domain/seating_preference_service.dart';
+import '../../customer/data/branch_identity_repository.dart';
+import '../../customer/domain/restaurant_branch_identity.dart';
 import 'qr_management_panel.dart';
-import 'admin_restaurant_display_name.dart';
 import 'widgets/admin_branch_identity_pill.dart';
 import 'widgets/collapsible_live_queue_layout.dart';
 
@@ -549,6 +550,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final restaurantBranchIdentity = ref
+        .watch(customerBranchLinkProvider(widget.restaurantId))
+        .asData
+        ?.value
+        .identity;
     final tablesStream = ref
         .watch(tableRepositoryProvider)
         .watchFloorTableMap(
@@ -645,9 +651,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     _AdminTopBar(
                       restaurantId: widget.restaurantId,
                       branchId: widget.branchId,
-                      restaurantName: adminRestaurantDisplayName(
-                        widget.restaurantId,
-                      ),
+                      restaurantBranchIdentity: restaurantBranchIdentity,
                       freeTables: free,
                       occupiedTables: occupied,
                       waitingCount: liveQueue.length,
@@ -2651,7 +2655,7 @@ class _AdminTopBar extends StatelessWidget {
   const _AdminTopBar({
     required this.restaurantId,
     required this.branchId,
-    required this.restaurantName,
+    required this.restaurantBranchIdentity,
     required this.freeTables,
     required this.occupiedTables,
     required this.waitingCount,
@@ -2673,7 +2677,7 @@ class _AdminTopBar extends StatelessWidget {
 
   final String restaurantId;
   final String branchId;
-  final String restaurantName;
+  final RestaurantBranchIdentity? restaurantBranchIdentity;
   final int freeTables;
   final int occupiedTables;
   final int waitingCount;
@@ -2696,11 +2700,49 @@ class _AdminTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final compact = screenWidth < 1100;
+    final narrowMobile = screenWidth < 360;
     final tightDesktop = !compact && screenWidth < 1500;
     final tablet = Responsive.isTablet(context);
     final horizontalPadding = compact ? 14.0 : 32.0;
     final tableSelectionMode =
         offlineReserveSelectionMode || enableOfflineSelectionMode;
+    Widget identityPill({required bool compact}) {
+      final identity = restaurantBranchIdentity;
+      if (identity == null) {
+        return AdminBranchIdentityPill.loading(
+          restaurantBranchId: FirestorePaths.restaurantBranchIdFromRoute(
+            restaurantId,
+            branchId,
+          ),
+          compact: compact,
+        );
+      }
+      return AdminBranchIdentityPill(identity: identity, compact: compact);
+    }
+
+    Widget compactHeaderActions() {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'QR management',
+            onPressed: onQrManagement,
+            icon: const Icon(Icons.qr_code_2),
+          ),
+          IconButton(
+            tooltip: 'Daily summary',
+            onPressed: onReports,
+            icon: const Icon(Icons.bar_chart),
+          ),
+          IconButton(
+            tooltip: 'Logout',
+            onPressed: onLogout,
+            icon: const Icon(Icons.logout_rounded),
+          ),
+        ],
+      );
+    }
+
     return Container(
       padding: EdgeInsets.fromLTRB(
         horizontalPadding,
@@ -2726,38 +2768,28 @@ class _AdminTopBar extends StatelessWidget {
           ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    const BrandMark(size: 50),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AdminBranchIdentityPill(
-                        restaurantBranchId:
-                            FirestorePaths.restaurantBranchIdFromRoute(
-                              restaurantId,
-                              branchId,
-                            ),
-                        restaurantName: restaurantName,
-                        compact: true,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'QR management',
-                      onPressed: onQrManagement,
-                      icon: const Icon(Icons.qr_code_2),
-                    ),
-                    IconButton(
-                      tooltip: 'Daily summary',
-                      onPressed: onReports,
-                      icon: const Icon(Icons.bar_chart),
-                    ),
-                    IconButton(
-                      tooltip: 'Logout',
-                      onPressed: onLogout,
-                      icon: const Icon(Icons.logout_rounded),
-                    ),
-                  ],
-                ),
+                if (narrowMobile) ...[
+                  Row(
+                    children: [
+                      const BrandMark(size: 50),
+                      const Spacer(),
+                      compactHeaderActions(),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: identityPill(compact: true),
+                  ),
+                ] else
+                  Row(
+                    children: [
+                      const BrandMark(size: 50),
+                      const SizedBox(width: 12),
+                      Expanded(child: identityPill(compact: true)),
+                      compactHeaderActions(),
+                    ],
+                  ),
                 const SizedBox(height: 10),
                 Row(
                   children: [
@@ -2865,15 +2897,7 @@ class _AdminTopBar extends StatelessWidget {
                 children: [
                   BrandMark(size: tightDesktop ? 58 : 70),
                   SizedBox(width: tightDesktop ? 14 : 30),
-                  AdminBranchIdentityPill(
-                    restaurantBranchId:
-                        FirestorePaths.restaurantBranchIdFromRoute(
-                          restaurantId,
-                          branchId,
-                        ),
-                    restaurantName: restaurantName,
-                    compact: tightDesktop,
-                  ),
+                  identityPill(compact: tightDesktop),
                   const Spacer(),
                   _TopMetric(
                     label: 'Free',

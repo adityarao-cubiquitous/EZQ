@@ -8,39 +8,14 @@ import 'customer_join_location_gate.dart';
 import 'customer_join_queue_screen.dart';
 import 'customer_shell.dart';
 
-typedef CustomerBranchLinkArgs = ({String restaurantSlug, String branchSlug});
-
-final customerBranchLinkProvider =
-    FutureProvider.family<CustomerBranchLink, CustomerBranchLinkArgs>((
-      ref,
-      args,
-    ) {
-      return ref
-          .watch(branchIdentityRepositoryProvider)
-          .resolveCustomerBranch(
-            restaurantSlug: args.restaurantSlug,
-            branchSlug: args.branchSlug,
-          );
-    }, retry: (_, _) => null);
-
 class CustomerDeepLinkScreen extends ConsumerWidget {
-  const CustomerDeepLinkScreen({
-    super.key,
-    required this.restaurantSlug,
-    required this.branchSlug,
-  });
+  const CustomerDeepLinkScreen({super.key, required this.restaurantBranchId});
 
-  final String restaurantSlug;
-  final String branchSlug;
+  final String restaurantBranchId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final link = ref.watch(
-      customerBranchLinkProvider((
-        restaurantSlug: restaurantSlug,
-        branchSlug: branchSlug,
-      )),
-    );
+    final link = ref.watch(customerBranchLinkProvider(restaurantBranchId));
 
     return link.when(
       loading: () => const LoadingView(),

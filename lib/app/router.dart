@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/constants/app_constants.dart';
+import '../core/constants/firestore_paths.dart';
 import '../features/admin/presentation/admin_dashboard_screen.dart';
 import '../features/auth/presentation/customer_name_profile_screen.dart';
 import '../features/auth/presentation/customer_phone_auth_screen.dart';
@@ -25,13 +29,31 @@ import '../features/rest_onboarding/data/restaurant_onboarding_repository.dart';
 import '../features/rest_onboarding/domain/onboarding_provisioning.dart';
 import '../features/rest_onboarding/providers/restaurant_onboarding_controller.dart';
 import 'admin_branch_route_policy.dart';
+import 'customer_route_policy.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
+  const useFirebase = bool.fromEnvironment('USE_FIREBASE');
+  final authRefreshListenable = useFirebase || kIsWeb
+      ? _AuthRefreshListenable(FirebaseAuth.instance.authStateChanges())
+      : null;
+  if (authRefreshListenable != null) {
+    ref.onDispose(authRefreshListenable.dispose);
+  }
+  final router = GoRouter(
+    refreshListenable: authRefreshListenable,
+    redirect: (context, state) => _redirectApplicationRoute(state),
     routes: [
       GoRoute(
         path: '/',
         builder: (context, state) => const CustomerLandingScreen(),
+      ),
+      GoRoute(
+        path: invalidCustomerLinkPath,
+        builder: (context, state) => const RestaurantNotFoundScreen(),
+      ),
+      GoRoute(
+        path: '/customer/install',
+        builder: (context, state) => const AppInstallPrompt(),
       ),
       GoRoute(
         path: '/customer/:restaurantBranchId',
@@ -41,8 +63,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           return CustomerRouteGuard(
             restaurantBranchId: restaurantBranchId,
             child: CustomerDeepLinkScreen(
-              restaurantSlug: restaurantBranchId,
-              branchSlug: restaurantBranchId,
+              restaurantBranchId: restaurantBranchId,
             ),
           );
         },
@@ -121,10 +142,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           );
         },
-      ),
-      GoRoute(
-        path: '/customer/install',
-        builder: (context, state) => const AppInstallPrompt(),
       ),
       GoRoute(
         path: '/admin/login',
@@ -206,15 +223,43 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/app/queue/:queueEntryId',
-        builder: (context, state) => CustomerQueueStatusScreen(
-          restaurantId: AppConstants.demoRestaurantId,
-          branchId: AppConstants.demoBranchId,
-          queueEntryId: state.pathParameters['queueEntryId']!,
-        ),
+        builder: (context, state) {
+          final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
+            AppConstants.demoRestaurantId,
+            AppConstants.demoBranchId,
+          );
+          return CustomerQueueStatusScreen(
+            restaurantId: restaurantBranchId,
+            branchId: restaurantBranchId,
+            queueEntryId: state.pathParameters['queueEntryId']!,
+          );
+        },
       ),
     ],
   );
+  ref.onDispose(router.dispose);
+  return router;
 });
+
+Future<String?> _redirectApplicationRoute(GoRouterState state) async {
+  final customerRedirect = resolveLegacyCustomerRouteRedirect(state.uri.path);
+  if (customerRedirect != null) return customerRedirect;
+  return _redirectAdminAuthentication(state);
+}
+
+Future<String?> _redirectAdminAuthentication(GoRouterState state) async {
+  final currentPath = state.uri.path;
+  if (!currentPath.startsWith('/admin/') || currentPath == adminLoginPath) {
+    return null;
+  }
+  const useFirebase = bool.fromEnvironment('USE_FIREBASE');
+  if (!useFirebase && !kIsWeb) return adminLoginPath;
+  final user = await FirebaseAuth.instance.authStateChanges().first;
+  return resolveAdminAuthenticationRedirect(
+    currentPath: currentPath,
+    isAuthenticated: user != null,
+  );
+}
 
 Future<String> _redirectLegacyAdminOnboarding(
   RestaurantOnboardingRepository onboardingRepository,
@@ -244,8 +289,7 @@ Future<String?> _redirectAdminBranchRoute(
   try {
     adminContext = await onboardingRepository.loadAdminContext();
   } on AdminContextLoadException {
-    final onboardingPath = '/admin/$restaurantBranchId/register/onboarding';
-    return state.uri.path == onboardingPath ? null : onboardingPath;
+    return adminLoginPath;
   }
   if (adminContext == null || !adminContext.isActive) {
     return '/admin/login';
@@ -265,6 +309,20 @@ Future<String?> _redirectAdminBranchRoute(
     branchReady: adminContext.isProvisioningCompleted,
     allowCompletedOnboardingSummary: allowCompletedOnboardingSummary,
   );
+}
+
+class _AuthRefreshListenable extends ChangeNotifier {
+  _AuthRefreshListenable(Stream<User?> authStateChanges) {
+    _subscription = authStateChanges.listen((_) => notifyListeners());
+  }
+
+  late final StreamSubscription<User?> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
 }
 
 String _adminBranchDestination(RestaurantBranchAdminContext adminContext) {

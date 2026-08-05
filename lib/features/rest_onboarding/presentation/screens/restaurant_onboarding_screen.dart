@@ -8,6 +8,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/brand_mark.dart';
 import '../../../admin/presentation/widgets/admin_branch_identity_pill.dart';
 import '../../../auth/data/auth_repository.dart';
+import '../../../customer/domain/restaurant_branch_identity.dart';
 import '../../providers/restaurant_onboarding_controller.dart';
 import '../widgets/complete_onboarding_step.dart';
 import '../widgets/floors_tables_step.dart';
@@ -211,10 +212,13 @@ class _RestaurantOnboardingScreenState
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _OnboardingTopBar(
-                    restaurantBranchId: state.restaurantBranchId,
-                    restaurantName: state.trimmedRestaurantName.isEmpty
-                        ? state.restaurantBranchId
-                        : state.trimmedRestaurantName,
+                    identity: RestaurantBranchIdentity(
+                      restaurantBranchId: state.restaurantBranchId,
+                      restaurantName: state.trimmedRestaurantName.isEmpty
+                          ? state.restaurantBranchId
+                          : state.trimmedRestaurantName,
+                      branchName: state.trimmedBranchName,
+                    ),
                     onLogout: _logoutAdmin,
                   ),
                   if (!isLoading &&
@@ -436,14 +440,9 @@ class _RestaurantOnboardingScreenState
 }
 
 class _OnboardingTopBar extends StatelessWidget {
-  const _OnboardingTopBar({
-    required this.restaurantBranchId,
-    required this.restaurantName,
-    required this.onLogout,
-  });
+  const _OnboardingTopBar({required this.identity, required this.onLogout});
 
-  final String restaurantBranchId;
-  final String restaurantName;
+  final RestaurantBranchIdentity identity;
   final VoidCallback onLogout;
 
   @override
@@ -479,8 +478,7 @@ class _OnboardingTopBar extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: AdminBranchIdentityPill(
-                    restaurantBranchId: restaurantBranchId,
-                    restaurantName: restaurantName,
+                    identity: identity,
                     compact: true,
                   ),
                 ),
@@ -497,10 +495,7 @@ class _OnboardingTopBar extends StatelessWidget {
                 children: [
                   const BrandMark(size: 70),
                   const SizedBox(width: 30),
-                  AdminBranchIdentityPill(
-                    restaurantBranchId: restaurantBranchId,
-                    restaurantName: restaurantName,
-                  ),
+                  AdminBranchIdentityPill(identity: identity),
                   const Spacer(),
                   IconButton(
                     tooltip: 'Logout',

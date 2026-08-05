@@ -11,7 +11,11 @@ initializeApp();
 
 const db = getFirestore();
 const auth = getAuth();
-const temporaryAdminOtp = "123456";
+// Development bridge only. Set ENABLE_TEMPORARY_ADMIN_OTP=false when real
+// Firebase phone OTP delivery is enabled for administrators.
+const temporaryAdminOtpEnabled =
+  process.env.ENABLE_TEMPORARY_ADMIN_OTP !== "false";
+const temporaryAdminOtp = process.env.TEMPORARY_ADMIN_OTP ?? "123456";
 
 type QueueStatus =
   | "waiting"
@@ -312,14 +316,7 @@ async function createQueueEntry(input: JoinQueueInput, sessionType: string) {
   });
 }
 
-export const signInAdminWithTemporaryOtp = onCall(async (request) => {
-  const data = request.data as Record<string, unknown>;
-  const phone = normalizePhone(requireString(data, "phone"));
-  const code = requireString(data, "code");
-  if (code !== temporaryAdminOtp) {
-    throw new HttpsError("permission-denied", "Invalid temporary OTP");
-  }
-
+async function requireActiveAdminPhoneMapping(phone: string) {
   const adminQuery = await db
     .collection("admins")
     .where("phone", "==", phone)
@@ -356,8 +353,34 @@ export const signInAdminWithTemporaryOtp = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "Restaurant branch is inactive");
   }
 
+  return {adminUid: adminSnapshot.id, restaurantBranchId};
+}
+
+export const validateAdminPhoneForOtp = onCall(async (request) => {
+  const data = request.data as Record<string, unknown>;
+  const phone = normalizePhone(requireString(data, "phone"));
+  await requireActiveAdminPhoneMapping(phone);
+  return {eligible: true};
+});
+
+export const signInAdminWithTemporaryOtp = onCall(async (request) => {
+  if (!temporaryAdminOtpEnabled) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Temporary admin OTP authentication is disabled",
+    );
+  }
+  const data = request.data as Record<string, unknown>;
+  const phone = normalizePhone(requireString(data, "phone"));
+  const code = requireString(data, "code");
+  if (code !== temporaryAdminOtp) {
+    throw new HttpsError("permission-denied", "Invalid temporary OTP");
+  }
+
+  const mapping = await requireActiveAdminPhoneMapping(phone);
+
   return {
-    customToken: await auth.createCustomToken(adminSnapshot.id),
+    customToken: await auth.createCustomToken(mapping.adminUid),
   };
 });
 

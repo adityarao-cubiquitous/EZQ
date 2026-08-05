@@ -133,7 +133,7 @@
 2. Use **Riverpod** for state management and **go_router** for routing — no substitute state/routing libraries without explicit approval.
 3. Use **TypeScript** for all Cloud Functions.
 4. QR deep links must use the canonical web URL pattern:
-   `https://ezq.cubiquitous.in/customer/{restaurantId}/{branchId}`
+   `https://ezq.cubiquitous.in/customer/{restaurantBranchId}`
    — this same URL must later support Android App Links / iOS Universal Links without restructuring.
 5. Business date calculations must respect the **branch timezone** (`Asia/Kolkata` default), not server/device local time blindly.
 6. Wait-time formulas must remain simple and explainable (groupsAhead-based), clamped between 5–120 minutes — no opaque or ML-based estimation in MVP.

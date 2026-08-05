@@ -101,11 +101,12 @@ class _CustomerQueueStatusBody extends ConsumerWidget {
         queueEntryId: queueEntryId,
       )),
     );
+    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
+      restaurantId,
+      branchId,
+    );
     final branchLink = ref.watch(
-      customerStatusBranchProvider((
-        restaurantSlug: restaurantId,
-        branchSlug: branchId,
-      )),
+      customerBranchLinkProvider(restaurantBranchId),
     );
     return CustomerShell(
       restaurantId: restaurantId,
@@ -164,21 +165,6 @@ String _statusErrorMessage(Object error) {
   if (kDebugMode) return 'Queue status error: $error';
   return 'We could not load this queue status. Please try again.';
 }
-
-typedef CustomerStatusBranchArgs = ({String restaurantSlug, String branchSlug});
-
-final customerStatusBranchProvider =
-    FutureProvider.family<CustomerBranchLink, CustomerStatusBranchArgs>((
-      ref,
-      args,
-    ) {
-      return ref
-          .watch(branchIdentityRepositoryProvider)
-          .resolveCustomerBranch(
-            restaurantSlug: args.restaurantSlug,
-            branchSlug: args.branchSlug,
-          );
-    }, retry: (_, _) => null);
 
 class _StatusContent extends ConsumerWidget {
   const _StatusContent({
@@ -927,21 +913,13 @@ final hiddenObjectImageProvider = StreamProvider.autoDispose
       const useFirebase = bool.fromEnvironment('USE_FIREBASE');
       if (!useFirebase && !kIsWeb) return Stream.value(null);
 
-      return Stream.fromFuture(
-            ref
-                .read(branchIdentityRepositoryProvider)
-                .resolveBranchSlug(
-                  restaurantId: args.restaurantId,
-                  branchSlug: args.branchId,
-                ),
-          )
-          .asyncExpand((resolvedBranchSlug) {
-            return FirebaseFirestore.instance
-                .doc(
-                  FirestorePaths.branch(args.restaurantId, resolvedBranchSlug),
-                )
-                .snapshots();
-          })
+      final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
+        args.restaurantId,
+        args.branchId,
+      );
+      return FirebaseFirestore.instance
+          .doc(FirestorePaths.restaurantBranch(restaurantBranchId))
+          .snapshots()
           .map((snapshot) {
             final data = snapshot.data() ?? <String, dynamic>{};
             final puzzleUrls =
