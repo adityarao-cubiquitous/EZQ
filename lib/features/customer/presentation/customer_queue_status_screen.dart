@@ -211,43 +211,58 @@ class _StatusContent extends ConsumerWidget {
       ),
       QueueStatus.completed => _TerminalStatusCard(
         status: QueueStatus.completed,
-        title: '✓ Meal Completed',
+        title: 'Meal Completed',
         message:
-            'Thank you for dining at ${branchLink.restaurantName}, '
-            '${branchLink.branch.name}.',
+            'Your meal is complete. Thank you for dining at '
+            '${branchLink.restaurantName}, ${branchLink.branch.name}.',
         icon: Icons.check_circle_rounded,
-        iconColor: AppColors.successGreen,
+        accentColor: AppColors.successGreen,
+        surfaceColor: const Color(0xFFEAF8F1),
       ),
       QueueStatus.cancelled => _TerminalStatusCard(
         status: QueueStatus.cancelled,
         title: 'Queue Exited',
         message:
-            'You have exited the queue at ${branchLink.restaurantName}, '
-            '${branchLink.branch.name}.',
-        icon: Icons.cancel_rounded,
-        iconColor: Color(0xFFBA1A1A),
+            'You chose to exit this queue. Your place at '
+            '${branchLink.restaurantName}, ${branchLink.branch.name}, '
+            'is no longer being held.',
+        icon: Icons.logout_rounded,
+        accentColor: const Color(0xFFBA1A1A),
+        surfaceColor: const Color(0xFFFFF1F1),
       ),
       QueueStatus.skipped => _TerminalStatusCard(
         status: QueueStatus.skipped,
         title: 'Queue Token Skipped',
         message:
-            'Please contact the host at ${branchLink.restaurantName}, '
+            'The restaurant skipped your token before seating. Please speak '
+            'with the host at ${branchLink.restaurantName}, '
             '${branchLink.branch.name}, if you still wish to dine.',
         icon: Icons.skip_next_rounded,
-        iconColor: AppColors.warningOrange,
+        accentColor: AppColors.warningOrange,
+        surfaceColor: const Color(0xFFFFF6E8),
       ),
       QueueStatus.noShow => _TerminalStatusCard(
         status: QueueStatus.noShow,
         title: 'Queue Token Closed',
         message:
-            'Your queue token at ${branchLink.restaurantName}, '
-            '${branchLink.branch.name}, has been closed.',
+            'The restaurant closed your token after your party did not arrive '
+            'in time at ${branchLink.restaurantName}, '
+            '${branchLink.branch.name}.',
         icon: Icons.person_off_rounded,
-        iconColor: Color(0xFFBA1A1A),
+        accentColor: const Color(0xFF9B3C17),
+        surfaceColor: const Color(0xFFFFF0E8),
       ),
-      QueueStatus.expired => _AutoExpiredCard(
-        entry: entry,
-        branchLink: branchLink,
+      QueueStatus.expired => _TerminalStatusCard(
+        status: QueueStatus.expired,
+        title: 'Queue Token Expired',
+        message:
+            'This queue token at ${branchLink.restaurantName}, '
+            '${branchLink.branch.name}, is no longer active. Join again if '
+            'you still need a table.',
+        icon: Icons.timer_off_rounded,
+        accentColor: const Color(0xFFBA1A1A),
+        surfaceColor: const Color(0xFFFFF1F1),
+        detail: 'Token ${entry.tokenCode}',
       ),
     };
     final actions = switch (entry.status) {
@@ -261,17 +276,15 @@ class _StatusContent extends ConsumerWidget {
         entry: entry,
         showCancel: entry.status.canBeCancelledByCustomer,
       ),
-      QueueStatus.completed || QueueStatus.cancelled => _TerminalStatusActions(
-        restaurantId: restaurantId,
-        branchId: branchId,
-        showBrowseRestaurants: true,
-      ),
+      QueueStatus.completed ||
+      QueueStatus.cancelled ||
       QueueStatus.skipped ||
       QueueStatus.noShow ||
       QueueStatus.expired => _TerminalStatusActions(
         restaurantId: restaurantId,
         branchId: branchId,
-        showBrowseRestaurants: false,
+        queueEntryId: queueEntryId,
+        status: entry.status,
       ),
     };
     return Padding(
@@ -411,15 +424,19 @@ class _TerminalStatusActions extends StatelessWidget {
   const _TerminalStatusActions({
     required this.restaurantId,
     required this.branchId,
-    required this.showBrowseRestaurants,
+    required this.queueEntryId,
+    required this.status,
   });
 
   final String restaurantId;
   final String branchId;
-  final bool showBrowseRestaurants;
+  final String queueEntryId;
+  final QueueStatus status;
 
   @override
   Widget build(BuildContext context) {
+    final showMenu =
+        status == QueueStatus.completed || status == QueueStatus.skipped;
     return Column(
       children: [
         EzqButton(
@@ -429,30 +446,68 @@ class _TerminalStatusActions extends StatelessWidget {
           onPressed: () =>
               context.go(FirestorePaths.customerRoute(restaurantId, branchId)),
         ),
-        if (showBrowseRestaurants) ...[
+        if (showMenu) ...[
           const SizedBox(height: 10),
           SizedBox(
-            key: const ValueKey('queue-status-browse-restaurants'),
+            key: const ValueKey('queue-status-view-menu'),
             width: double.infinity,
             height: 50,
             child: OutlinedButton.icon(
-              onPressed: () => context.go('/'),
-              icon: const Icon(Icons.storefront_rounded, size: 18),
-              label: const Text('Browse Restaurants'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.deepTeal,
-                side: const BorderSide(color: AppColors.line),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                textStyle: const TextStyle(fontWeight: FontWeight.w700),
+              onPressed: () => context.go(
+                Uri(
+                  path:
+                      '${FirestorePaths.customerRoute(restaurantId, branchId)}/menu',
+                  queryParameters: {'queueEntryId': queueEntryId},
+                ).toString(),
               ),
+              icon: const Icon(Icons.restaurant_menu_rounded, size: 18),
+              label: const Text('View Menu'),
+              style: _terminalActionStyle(),
             ),
           ),
         ],
+        const SizedBox(height: 10),
+        SizedBox(
+          key: const ValueKey('queue-status-browse-restaurants'),
+          width: double.infinity,
+          height: 50,
+          child: OutlinedButton.icon(
+            onPressed: () => context.go(kIsWeb ? '/' : '/app/nearby'),
+            icon: const Icon(Icons.storefront_rounded, size: 18),
+            label: const Text('Browse Restaurants'),
+            style: _terminalActionStyle(),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          key: const ValueKey('queue-status-return-home'),
+          width: double.infinity,
+          height: 50,
+          child: TextButton.icon(
+            onPressed: () => context.go(kIsWeb ? '/' : '/app/home'),
+            icon: const Icon(Icons.home_rounded, size: 18),
+            label: const Text('Return Home'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.deepTeal,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+              textStyle: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
         const SizedBox(height: 14),
         const _InlinePoweredBy(),
       ],
+    );
+  }
+
+  ButtonStyle _terminalActionStyle() {
+    return OutlinedButton.styleFrom(
+      foregroundColor: AppColors.deepTeal,
+      side: const BorderSide(color: AppColors.line),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      textStyle: const TextStyle(fontWeight: FontWeight.w700),
     );
   }
 }
@@ -463,22 +518,54 @@ class _TerminalStatusCard extends StatelessWidget {
     required this.title,
     required this.message,
     required this.icon,
-    required this.iconColor,
+    required this.accentColor,
+    required this.surfaceColor,
+    this.detail,
   });
 
   final QueueStatus status;
   final String title;
   final String message;
   final IconData icon;
-  final Color iconColor;
+  final Color accentColor;
+  final Color surfaceColor;
+  final String? detail;
 
   @override
   Widget build(BuildContext context) {
-    return _Card(
+    return Container(
       key: ValueKey('queue-status-${status.wireName}'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.98),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: accentColor.withValues(alpha: 0.22)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1412A9DC),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
       child: Column(
         children: [
-          Icon(icon, color: iconColor, size: 88),
+          Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Icon(
+              icon,
+              key: ValueKey('queue-status-icon-${status.wireName}'),
+              color: accentColor,
+              size: 44,
+              semanticLabel: '$title status',
+            ),
+          ),
           const SizedBox(height: 20),
           Text(
             title,
@@ -500,93 +587,25 @@ class _TerminalStatusCard extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AutoExpiredCard extends StatelessWidget {
-  const _AutoExpiredCard({required this.entry, required this.branchLink});
-
-  final QueueEntry entry;
-  final CustomerBranchLink branchLink;
-
-  @override
-  Widget build(BuildContext context) {
-    final waitedMinutes = entry.waitingMinutesSince(DateTime.now());
-    return Container(
-      key: const ValueKey('queue-status-expired'),
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0x26BA1A1A)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1412A9DC),
-            blurRadius: 24,
-            offset: Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF1F1),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const Icon(
-              Icons.timer_off_rounded,
-              color: Color(0xFFBA1A1A),
-              size: 32,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            '${entry.tokenCode} exited the queue',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.navyText,
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              height: 1.15,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'This queue entry at ${branchLink.restaurantName}, '
-            '${branchLink.branch.name}, is no longer active. Please join the '
-            'queue again if you still need a table.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF607D8B),
-              fontSize: 15,
-              height: 1.45,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.softSurface,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: const Color(0x1A006687)),
-            ),
-            child: Text(
-              'Waited $waitedMinutes min',
-              style: const TextStyle(
-                color: AppColors.deepTeal,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
+          if (detail != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: accentColor.withValues(alpha: 0.18)),
+              ),
+              child: Text(
+                detail!,
+                style: TextStyle(
+                  color: accentColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

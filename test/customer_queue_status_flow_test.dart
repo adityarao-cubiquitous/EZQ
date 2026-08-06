@@ -59,7 +59,7 @@ void main() {
     QueueStatus.seated: (key: 'queue-status-seated', text: 'Enjoy your meal!'),
     QueueStatus.completed: (
       key: 'queue-status-completed',
-      text: '✓ Meal Completed',
+      text: 'Meal Completed',
     ),
     QueueStatus.cancelled: (
       key: 'queue-status-cancelled',
@@ -75,7 +75,7 @@ void main() {
     ),
     QueueStatus.expired: (
       key: 'queue-status-expired',
-      text: 'Q42 exited the queue',
+      text: 'Queue Token Expired',
     ),
   };
 
@@ -107,10 +107,52 @@ void main() {
           find.byKey(const ValueKey('queue-status-join-again')),
           findsOneWidget,
         );
+        expect(
+          find.byKey(ValueKey('queue-status-icon-${status.wireName}')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('queue-status-browse-restaurants')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('queue-status-return-home')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('queue-status-view-menu')),
+          status == QueueStatus.completed || status == QueueStatus.skipped
+              ? findsOneWidget
+              : findsNothing,
+        );
       }
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('terminal states explain why the customer journey ended', (
+    tester,
+  ) async {
+    final explanations = <QueueStatus, String>{
+      QueueStatus.completed: 'Your meal is complete.',
+      QueueStatus.cancelled: 'You chose to exit this queue.',
+      QueueStatus.skipped: 'The restaurant skipped your token before seating.',
+      QueueStatus.noShow:
+          'The restaurant closed your token after your party did not arrive in time',
+      QueueStatus.expired: 'This queue token at',
+    };
+
+    for (final MapEntry(key: status, value: explanation)
+        in explanations.entries) {
+      final repository = ControlledCustomerQueueRepository(status);
+      await pumpStatusScreen(tester, repository);
+
+      expect(find.textContaining(explanation), findsOneWidget);
+      expect(find.textContaining('State Machine Restaurant'), findsWidgets);
+      expect(find.textContaining('State Machine Branch'), findsWidgets);
+      await repository.close();
+    }
+  });
 
   testWidgets('waiting uses Party and Parties for the live ahead count', (
     tester,
@@ -134,20 +176,6 @@ void main() {
     expect(partiesAheadLabel(1), '1 Party Ahead');
     expect(partiesAheadLabel(5), '5 Parties Ahead');
     expect(partiesAheadLabel(0), '0 Parties Ahead');
-  });
-
-  testWidgets('completed and cancelled states offer restaurant browsing', (
-    tester,
-  ) async {
-    for (final status in [QueueStatus.completed, QueueStatus.cancelled]) {
-      final repository = ControlledCustomerQueueRepository(status);
-      await pumpStatusScreen(tester, repository);
-      expect(
-        find.byKey(const ValueKey('queue-status-browse-restaurants')),
-        findsOneWidget,
-      );
-      await repository.close();
-    }
   });
 
   testWidgets('exit queue confirmation uses standardized customer copy', (
@@ -288,29 +316,123 @@ void main() {
     );
   });
 
-  testWidgets('browser and mobile reload reconstruct terminal status', (
+  testWidgets('reopening reconstructs every persisted terminal status', (
     tester,
   ) async {
-    var repository = ControlledCustomerQueueRepository(QueueStatus.completed);
-    await pumpStatusScreen(tester, repository);
-    expect(
-      find.byKey(const ValueKey('queue-status-completed')),
-      findsOneWidget,
+    final terminalStatuses = QueueStatus.values.where(
+      (status) => status.isTerminal,
     );
-    await repository.close();
 
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
+    for (final status in terminalStatuses) {
+      var repository = ControlledCustomerQueueRepository(status);
+      await pumpStatusScreen(tester, repository);
+      expect(
+        find.byKey(ValueKey('queue-status-${status.wireName}')),
+        findsOneWidget,
+      );
+      await repository.close();
 
-    repository = ControlledCustomerQueueRepository(QueueStatus.completed);
-    addTearDown(repository.close);
-    await pumpStatusScreen(tester, repository, size: const Size(390, 844));
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
 
-    expect(
-      find.byKey(const ValueKey('queue-status-completed')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const ValueKey('queue-status-waiting')), findsNothing);
+      repository = ControlledCustomerQueueRepository(status);
+      await pumpStatusScreen(tester, repository, size: const Size(390, 844));
+      expect(
+        find.byKey(ValueKey('queue-status-${status.wireName}')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('queue-status-waiting')), findsNothing);
+      await repository.close();
+    }
+  });
+
+  testWidgets('terminal actions navigate to their intended destinations', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final cases =
+        <({QueueStatus status, String actionKey, String destinationText})>[
+          (
+            status: QueueStatus.expired,
+            actionKey: 'queue-status-join-again',
+            destinationText: 'join-destination',
+          ),
+          (
+            status: QueueStatus.skipped,
+            actionKey: 'queue-status-view-menu',
+            destinationText: 'menu-destination',
+          ),
+          (
+            status: QueueStatus.noShow,
+            actionKey: 'queue-status-browse-restaurants',
+            destinationText: 'browse-destination',
+          ),
+          (
+            status: QueueStatus.completed,
+            actionKey: 'queue-status-return-home',
+            destinationText: 'home-destination',
+          ),
+        ];
+
+    for (final testCase in cases) {
+      final repository = ControlledCustomerQueueRepository(testCase.status);
+      final router = GoRouter(
+        initialLocation: '/customer/$branchId/status/$queueEntryId',
+        routes: [
+          GoRoute(
+            path: '/customer/:branchId/status/:queueEntryId',
+            builder: (context, state) => CustomerQueueStatusScreen(
+              restaurantId: state.pathParameters['branchId']!,
+              branchId: state.pathParameters['branchId']!,
+              queueEntryId: state.pathParameters['queueEntryId']!,
+            ),
+          ),
+          GoRoute(
+            path: '/customer/:branchId',
+            builder: (context, state) => const Text('join-destination'),
+          ),
+          GoRoute(
+            path: '/customer/:branchId/menu',
+            builder: (context, state) => const Text('menu-destination'),
+          ),
+          GoRoute(
+            path: '/app/nearby',
+            builder: (context, state) => const Text('browse-destination'),
+          ),
+          GoRoute(
+            path: '/app/home',
+            builder: (context, state) => const Text('home-destination'),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            customerQueueRepositoryProvider.overrideWithValue(repository),
+            branchIdentityRepositoryProvider.overrideWithValue(
+              PassthroughBranchIdentityRepository(),
+            ),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.byKey(ValueKey(testCase.actionKey)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text(testCase.destinationText), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      router.dispose();
+      await repository.close();
+    }
   });
 
   testWidgets('stream mapping errors render an error instead of waiting', (
