@@ -28,10 +28,8 @@ class FirebaseMenuRepository implements MenuRepository {
           return MenuDocument(
             restaurantName: branch.restaurantName!,
             branchName: branch.name,
-            pdfUrl: branchData['menuPdfUrl'] as String? ?? '/demo-menu.pdf',
-            previewImageUrl:
-                branchData['menuPreviewImageUrl'] as String? ??
-                '/demo-menu-page-1.png',
+            pdfUrl: branchData['menuPdfUrl'] as String?,
+            previewImageUrl: branchData['menuPreviewImageUrl'] as String?,
           );
         });
   }

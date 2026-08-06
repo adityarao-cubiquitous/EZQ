@@ -9,9 +9,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/brand_mark.dart';
-import '../../../core/widgets/restaurant_logo.dart';
 import '../../auth/data/auth_repository.dart';
-import '../data/branch_identity_repository.dart';
 
 enum CustomerTab { join, status, menu, support }
 
@@ -38,73 +36,86 @@ class CustomerShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final safePadding = MediaQuery.paddingOf(context);
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final isCompactPhone = screenWidth < 430;
-    final shellWidth = isCompactPhone ? screenWidth : 390.0;
-    final horizontalInset = isCompactPhone ? 6.0 : 0.0;
+    final shellWidth = screenWidth < 600 ? screenWidth : 600.0;
+    final horizontalInset = screenWidth < 430 ? 6.0 : 0.0;
 
-    return Scaffold(
-      body: ColoredBox(
-        color: const Color(0xFF1E1E1E),
-        child: Center(
-          child: SizedBox(
-            width: shellWidth,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0xFFF4FBFF),
-                          Color(0xFFF9FAFF),
-                          Color(0xFFFFFFFF),
+    return PopScope(
+      canPop: kIsWeb || appBackRoute == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !kIsWeb && appBackRoute != null) {
+          context.go(appBackRoute!);
+        }
+      },
+      child: Scaffold(
+        resizeToAvoidBottomInset: true,
+        body: ColoredBox(
+          color: const Color(0xFF1E1E1E),
+          child: Center(
+            child: SizedBox(
+              width: shellWidth,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0xFFF4FBFF),
+                            Color(0xFFF9FAFF),
+                            Color(0xFFFFFFFF),
+                          ],
+                        ),
+                      ),
+                      child: Stack(
+                        children: [
+                          const _CustomerBackdrop(),
+                          SingleChildScrollView(
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            padding: EdgeInsets.only(top: safePadding.top + 86),
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: horizontalInset,
+                              ),
+                              child: Column(
+                                children: [
+                                  child,
+                                  ?footer,
+                                  SizedBox(
+                                    height:
+                                        (showBottomNav
+                                            ? safePadding.bottom + 128
+                                            : safePadding.bottom + 24) +
+                                        keyboardInset,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          _CustomerTopBar(
+                            restaurantBranchId: restaurantBranchId,
+                            topInset: safePadding.top,
+                            horizontalInset: horizontalInset,
+                            appBackRoute: appBackRoute,
+                          ),
+                          if (showBottomNav && keyboardInset == 0)
+                            _BottomNavBar(
+                              restaurantBranchId: restaurantBranchId,
+                              activeTab: activeTab,
+                              queueEntryId: queueEntryId,
+                              bottomInset: safePadding.bottom,
+                              horizontalInset: horizontalInset,
+                            ),
                         ],
                       ),
                     ),
-                    child: Stack(
-                      children: [
-                        const _CustomerBackdrop(),
-                        SingleChildScrollView(
-                          padding: EdgeInsets.only(top: safePadding.top + 86),
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: horizontalInset,
-                            ),
-                            child: Column(
-                              children: [
-                                child,
-                                ?footer,
-                                SizedBox(
-                                  height: showBottomNav
-                                      ? safePadding.bottom + 128
-                                      : 24,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        _CustomerTopBar(
-                          restaurantBranchId: restaurantBranchId,
-                          topInset: safePadding.top,
-                          horizontalInset: horizontalInset,
-                          appBackRoute: appBackRoute,
-                        ),
-                        if (showBottomNav)
-                          _BottomNavBar(
-                            restaurantBranchId: restaurantBranchId,
-                            activeTab: activeTab,
-                            queueEntryId: queueEntryId,
-                            bottomInset: safePadding.bottom,
-                            horizontalInset: horizontalInset,
-                          ),
-                      ],
-                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -213,14 +224,6 @@ class _CustomerTopBar extends ConsumerWidget {
     final installReturnTo = restaurantBranchId.isEmpty
         ? null
         : FirestorePaths.customerRoute(restaurantBranchId);
-    final identity = restaurantBranchId.isEmpty
-        ? null
-        : ref
-              .watch(customerBranchLinkProvider(restaurantBranchId))
-              .asData
-              ?.value
-              .identity;
-
     return Positioned(
       top: 0,
       left: 0,
@@ -256,17 +259,7 @@ class _CustomerTopBar extends ConsumerWidget {
                       _AppBackButton(route: appBackRoute!),
                       const SizedBox(width: 8),
                     ],
-                    if (restaurantBranchId.isEmpty)
-                      const BrandMark(size: 25)
-                    else
-                      RestaurantLogo(
-                        restaurantBranchId: restaurantBranchId,
-                        restaurantName: identity?.restaurantName,
-                        logoUrl: identity?.logoUrl,
-                        size: 25,
-                        shape: RestaurantLogoShape.circle,
-                        showShadow: false,
-                      ),
+                    const BrandMark(size: 25),
                     const SizedBox(width: 8),
                     const Text(
                       'EZQ',

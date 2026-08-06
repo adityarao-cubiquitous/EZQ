@@ -52,7 +52,7 @@ void main() {
       find.byKey(
         const ValueKey('restaurant-logo-asset-noodle-yard-indiranagar'),
       ),
-      findsWidgets,
+      findsOneWidget,
     );
   }
 
@@ -78,23 +78,24 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('table-ready view uses the shared restaurant identity', (
-    tester,
-  ) async {
-    await pumpSurface(
-      tester,
-      const TableReadyView(
-        restaurantBranchId: restaurantBranchId,
-        queueEntryId: 'queue-entry',
-      ),
-    );
+  testWidgets(
+    'arbitrary table-ready link is rejected without fabricated data',
+    (tester) async {
+      await pumpSurface(
+        tester,
+        const TableReadyView(
+          restaurantBranchId: restaurantBranchId,
+          queueEntryId: 'queue-entry',
+        ),
+      );
 
-    expectIdentity();
-    expect(find.text('Your table is ready!'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.text('Invalid Queue Link'), findsOneWidget);
+      expect(find.textContaining('Table T4'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
-  testWidgets('seated view uses the shared restaurant identity', (
+  testWidgets('arbitrary seated link is rejected without fabricated data', (
     tester,
   ) async {
     await pumpSurface(
@@ -105,8 +106,8 @@ void main() {
       ),
     );
 
-    expectIdentity();
-    expect(find.text('Enjoy your meal!'), findsOneWidget);
+    expect(find.text('Invalid Queue Link'), findsOneWidget);
+    expect(find.textContaining('Table T4'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

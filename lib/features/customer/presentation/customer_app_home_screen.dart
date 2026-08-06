@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +12,7 @@ import '../../queue/domain/queue_status.dart';
 import '../data/branch_identity_repository.dart';
 import '../data/customer_queue_repository.dart';
 import '../domain/party_ahead_copy.dart';
+import '../domain/queue_eta.dart';
 import '../domain/restaurant_branch_identity.dart';
 import 'customer_restaurant_identity.dart';
 import 'customer_shell.dart';
@@ -562,9 +565,8 @@ class _ActiveVisitCard extends StatelessWidget {
                 Expanded(
                   child: _VisitMetric(
                     label: seated ? 'Status' : 'Estimated wait',
-                    value: seated
-                        ? 'Seated'
-                        : '~${entry.estimatedWaitMinutes} min',
+                    value: seated ? 'Seated' : null,
+                    valueWidget: seated ? null : _QueueWaitValue(entry: entry),
                   ),
                 ),
               ],
@@ -591,10 +593,15 @@ class _ActiveVisitCard extends StatelessWidget {
 }
 
 class _VisitMetric extends StatelessWidget {
-  const _VisitMetric({required this.label, required this.value});
+  const _VisitMetric({
+    required this.label,
+    required this.value,
+    this.valueWidget,
+  });
 
   final String label;
-  final String value;
+  final String? value;
+  final Widget? valueWidget;
 
   @override
   Widget build(BuildContext context) {
@@ -612,17 +619,79 @@ class _VisitMetric extends StatelessWidget {
             style: const TextStyle(color: AppColors.mutedText, fontSize: 12),
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.navyText,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          valueWidget ??
+              Text(
+                value ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.navyText,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
         ],
+      ),
+    );
+  }
+}
+
+class _QueueWaitValue extends StatefulWidget {
+  const _QueueWaitValue({required this.entry});
+
+  final QueueEntry entry;
+
+  @override
+  State<_QueueWaitValue> createState() => _QueueWaitValueState();
+}
+
+class _QueueWaitValueState extends State<_QueueWaitValue> {
+  Timer? _timer;
+  late int _minutes;
+
+  @override
+  void initState() {
+    super.initState();
+    _minutes = remainingQueueWaitMinutes(widget.entry);
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
+  }
+
+  @override
+  void didUpdateWidget(covariant _QueueWaitValue oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.entry.id != widget.entry.id ||
+        oldWidget.entry.estimatedWaitMinutes !=
+            widget.entry.estimatedWaitMinutes ||
+        oldWidget.entry.joinedAt != widget.entry.joinedAt) {
+      _refresh();
+    }
+  }
+
+  void _refresh() {
+    final next = remainingQueueWaitMinutes(widget.entry);
+    if (mounted && next != _minutes) setState(() => _minutes = next);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: Text(
+        '~$_minutes min',
+        key: ValueKey(_minutes),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.navyText,
+          fontSize: 16,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }

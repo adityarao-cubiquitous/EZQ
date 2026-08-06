@@ -31,10 +31,14 @@ class CustomerJoinQueueScreen extends ConsumerStatefulWidget {
     super.key,
     required this.restaurantBranchId,
     required this.identity,
+    this.initialEntry,
+    this.appBackRoute,
   });
 
   final String restaurantBranchId;
   final RestaurantBranchIdentity identity;
+  final QueueEntry? initialEntry;
+  final String? appBackRoute;
 
   @override
   ConsumerState<CustomerJoinQueueScreen> createState() =>
@@ -44,11 +48,11 @@ class CustomerJoinQueueScreen extends ConsumerStatefulWidget {
 class _CustomerJoinQueueScreenState
     extends ConsumerState<CustomerJoinQueueScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController(text: '');
-  final _phoneController = TextEditingController(text: '98765 43210');
-  final _notesController = TextEditingController();
-  int _partySize = 4;
-  bool _emptyTableOnly = false;
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _notesController;
+  late int _partySize;
+  late bool _emptyTableOnly;
   bool _submitting = false;
   bool _profilePrefilled = false;
   bool _checkingActiveQueue = !kIsWeb;
@@ -58,6 +62,18 @@ class _CustomerJoinQueueScreenState
   @override
   void initState() {
     super.initState();
+    final initialEntry = widget.initialEntry;
+    _nameController = TextEditingController(
+      text: initialEntry?.customerName ?? '',
+    );
+    _phoneController = TextEditingController(
+      text: _mobileNumberForForm(initialEntry?.phone) ?? '98765 43210',
+    );
+    _notesController = TextEditingController(text: initialEntry?.notes ?? '');
+    _partySize = initialEntry?.partySize ?? 4;
+    _emptyTableOnly =
+        initialEntry?.customerPreferences?.seatingPreference ==
+        SeatingPreference.emptyTableOnly;
     _eta = ref
         .read(seatingPreferenceServiceProvider)
         .computeEtaEstimate(partySize: _partySize);
@@ -117,7 +133,9 @@ class _CustomerJoinQueueScreenState
     if (displayName.isNotEmpty && _nameController.text.trim().isEmpty) {
       _nameController.text = displayName;
     }
-    if (phone != null && _phoneController.text.trim() == '98765 43210') {
+    if (phone != null &&
+        widget.initialEntry == null &&
+        _phoneController.text.trim() == '98765 43210') {
       _phoneController.text = phone;
     }
 
@@ -392,7 +410,7 @@ class _CustomerJoinQueueScreenState
     return CustomerShell(
       restaurantBranchId: widget.restaurantBranchId,
       activeTab: CustomerTab.join,
-      appBackRoute: '/app/home',
+      appBackRoute: widget.appBackRoute ?? '/app/home',
       footer: const CustomerFooter(),
       showBottomNav: false,
       child: Padding(

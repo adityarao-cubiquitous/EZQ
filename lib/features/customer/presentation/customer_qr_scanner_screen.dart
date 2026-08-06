@@ -83,7 +83,9 @@ class _CustomerQrScannerScreenState
         });
         return;
       }
-      context.go(route);
+      context.go(
+        Uri(path: route, queryParameters: {'returnTo': '/app/scan'}).toString(),
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() {

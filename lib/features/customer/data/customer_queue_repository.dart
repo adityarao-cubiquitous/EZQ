@@ -113,6 +113,11 @@ abstract class CustomerQueueRepository {
     required String queueEntryId,
   });
 
+  Future<bool> validateAssignedTables({
+    required String restaurantBranchId,
+    required QueueEntry entry,
+  });
+
   Future<void> markOnTheWay({
     required String restaurantBranchId,
     required String queueEntryId,
@@ -303,6 +308,41 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
             currentEntryId: queueEntryId,
           );
         });
+  }
+
+  @override
+  Future<bool> validateAssignedTables({
+    required String restaurantBranchId,
+    required QueueEntry entry,
+  }) async {
+    final assignedTableIds = entry.assignedTableIds.isNotEmpty
+        ? entry.assignedTableIds
+        : [
+            if (entry.assignedTableId != null &&
+                entry.assignedTableId!.trim().isNotEmpty)
+              entry.assignedTableId!,
+          ];
+    if (assignedTableIds.isEmpty) return false;
+
+    final snapshots = await Future.wait(
+      assignedTableIds.map(
+        (tableId) => _firestore
+            .doc(
+              FirestorePaths.table(
+                restaurantBranchId,
+                restaurantBranchId,
+                tableId,
+              ),
+            )
+            .get(),
+      ),
+    );
+    return snapshots.every((snapshot) {
+      final data = snapshot.data();
+      return snapshot.exists &&
+          data != null &&
+          data['currentQueueEntryId'] == entry.id;
+    });
   }
 
   @override
@@ -595,6 +635,17 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
     required String queueEntryId,
   }) async* {
     yield (_entry.queuePosition - 1).clamp(0, 999999);
+  }
+
+  @override
+  Future<bool> validateAssignedTables({
+    required String restaurantBranchId,
+    required QueueEntry entry,
+  }) async {
+    return restaurantBranchId == _restaurantBranchId &&
+        entry.id == _entry.id &&
+        (entry.assignedTableIds.isNotEmpty ||
+            (entry.assignedTableId?.trim().isNotEmpty ?? false));
   }
 
   @override

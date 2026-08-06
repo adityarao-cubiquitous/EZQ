@@ -62,6 +62,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             restaurantBranchId: restaurantBranchId,
             child: CustomerDeepLinkScreen(
               restaurantBranchId: restaurantBranchId,
+              previousQueueEntryId: state.uri.queryParameters['rejoinFrom'],
+              appBackRoute: _customerBackRoute(
+                state.uri.queryParameters['returnTo'],
+                fallback: '/app/home',
+              ),
             ),
           );
         },
@@ -211,14 +216,23 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/app/scan',
-        builder: (context, state) =>
-            const CustomerQrScannerScreen(appBackRoute: '/app/home'),
+        builder: (context, state) => CustomerQrScannerScreen(
+          appBackRoute: _customerBackRoute(
+            state.uri.queryParameters['returnTo'],
+            fallback: '/app/home',
+          ),
+        ),
       ),
     ],
   );
   ref.onDispose(router.dispose);
   return router;
 });
+
+String _customerBackRoute(String? candidate, {required String fallback}) {
+  const allowedRoutes = {'/', '/app/home', '/app/nearby', '/app/scan'};
+  return allowedRoutes.contains(candidate) ? candidate! : fallback;
+}
 
 Future<String?> _redirectApplicationRoute(GoRouterState state) async {
   final customerRedirect = resolveLegacyCustomerRouteRedirect(state.uri.path);

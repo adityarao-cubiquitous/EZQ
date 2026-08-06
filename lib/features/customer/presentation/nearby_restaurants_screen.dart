@@ -318,7 +318,12 @@ class _NearbyRestaurantCard extends StatelessWidget {
             label: 'Join Queue',
             icon: Icons.arrow_forward_rounded,
             onPressed: () => context.go(
-              FirestorePaths.customerRoute(restaurant.restaurantBranchId),
+              Uri(
+                path: FirestorePaths.customerRoute(
+                  restaurant.restaurantBranchId,
+                ),
+                queryParameters: {'returnTo': '/app/nearby'},
+              ).toString(),
             ),
           ),
         ],

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../../core/widgets/ezq_text_field.dart';
 import '../data/auth_repository.dart';
@@ -120,6 +119,7 @@ class _CustomerNameProfileScreenState
     return CustomerShell(
       restaurantBranchId: '',
       showBottomNav: false,
+      appBackRoute: widget.editing ? '/app/home' : '/app/login',
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Container(
@@ -149,8 +149,6 @@ class _CustomerNameProfileScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Center(child: _ProfileBrandBadge()),
-          const SizedBox(height: 20),
           Text(
             widget.editing ? 'Your profile' : 'Tell us your name',
             style: const TextStyle(
@@ -217,24 +215,6 @@ class _ProfileLoading extends StatelessWidget {
     return const Padding(
       padding: EdgeInsets.all(20),
       child: Center(child: CircularProgressIndicator()),
-    );
-  }
-}
-
-class _ProfileBrandBadge extends StatelessWidget {
-  const _ProfileBrandBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: AppColors.softSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x33BDEAF8)),
-      ),
-      child: const Center(child: BrandMark(size: 28)),
     );
   }
 }

@@ -33,7 +33,9 @@ class CustomerMenuScreen extends ConsumerWidget {
       restaurantBranchId: restaurantBranchId,
       activeTab: CustomerTab.menu,
       queueEntryId: queueEntryId,
-      appBackRoute: '/app/home',
+      appBackRoute: queueEntryId == null
+          ? '/app/home'
+          : '/customer/$restaurantBranchId/status/$queueEntryId',
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: menu.when(
@@ -44,6 +46,8 @@ class CustomerMenuScreen extends ConsumerWidget {
             identity: identity,
             title: 'Menu is unavailable',
             message: 'Please ask the host for the menu while we reconnect.',
+            onRetry: () =>
+                ref.invalidate(menuDocumentProvider(restaurantBranchId)),
           ),
         ),
       ),
@@ -59,8 +63,7 @@ class _MenuPdfCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pdfUrl = document.pdfUrl?.trim();
-    final previewImageUrl = document.previewImageUrl?.trim();
+    final pdfUri = resolveCustomerMenuUri(document.pdfUrl);
 
     return Container(
       width: double.infinity,
@@ -83,36 +86,12 @@ class _MenuPdfCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          if (pdfUrl == null || pdfUrl.isEmpty)
+          if (pdfUri == null)
             _MenuUnavailableCard(
               identity: identity,
               title: 'Menu PDF pending',
               message: 'The restaurant has not uploaded a menu PDF yet.',
               nested: true,
-            )
-          else if (previewImageUrl != null && previewImageUrl.isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                height: 620,
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.line),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: SingleChildScrollView(
-                  child: Image.network(
-                    previewImageUrl,
-                    width: double.infinity,
-                    fit: BoxFit.fitWidth,
-                    errorBuilder: (context, error, stackTrace) {
-                      return SizedBox(
-                        height: 620,
-                        child: PdfMenuViewer(uri: Uri.parse(pdfUrl)),
-                      );
-                    },
-                  ),
-                ),
-              ),
             )
           else
             ClipRRect(
@@ -123,7 +102,7 @@ class _MenuPdfCard extends StatelessWidget {
                   border: Border.all(color: AppColors.line),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: PdfMenuViewer(uri: Uri.parse(pdfUrl)),
+                child: PdfMenuViewer(uri: pdfUri),
               ),
             ),
         ],
@@ -163,12 +142,14 @@ class _MenuUnavailableCard extends StatelessWidget {
     required this.title,
     required this.message,
     this.nested = false,
+    this.onRetry,
   });
 
   final RestaurantBranchIdentity identity;
   final String title;
   final String message;
   final bool nested;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -196,6 +177,14 @@ class _MenuUnavailableCard extends StatelessWidget {
             height: 1.4,
           ),
         ),
+        if (onRetry != null) ...[
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Retry'),
+          ),
+        ],
       ],
     );
 

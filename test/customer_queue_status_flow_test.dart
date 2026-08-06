@@ -21,6 +21,8 @@ void main() {
     WidgetTester tester,
     ControlledCustomerQueueRepository repository, {
     Size size = const Size(430, 1400),
+    CustomerQueueRouteExpectation routeExpectation =
+        CustomerQueueRouteExpectation.any,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -34,10 +36,11 @@ void main() {
             PassthroughBranchIdentityRepository(),
           ),
         ],
-        child: const MaterialApp(
+        child: MaterialApp(
           home: CustomerQueueStatusScreen(
             restaurantBranchId: restaurantBranchId,
             queueEntryId: queueEntryId,
+            routeExpectation: routeExpectation,
           ),
         ),
       ),
@@ -152,7 +155,7 @@ void main() {
       QueueStatus.skipped: 'The restaurant skipped your token before seating.',
       QueueStatus.noShow:
           'The restaurant closed your token after your party did not arrive in time',
-      QueueStatus.expired: 'This queue token at',
+      QueueStatus.expired: 'This queue token is no longer active.',
     };
 
     for (final MapEntry(key: status, value: explanation)
@@ -165,6 +168,46 @@ void main() {
       expect(find.textContaining('State Machine Branch'), findsWidgets);
       await repository.close();
     }
+  });
+
+  testWidgets('ready and seated deep links enforce persisted queue status', (
+    tester,
+  ) async {
+    var repository = ControlledCustomerQueueRepository(QueueStatus.waiting);
+    await pumpStatusScreen(
+      tester,
+      repository,
+      routeExpectation: CustomerQueueRouteExpectation.tableReady,
+    );
+    expect(find.byKey(const ValueKey('invalid-queue-link')), findsOneWidget);
+    expect(find.text('Your table is ready!'), findsNothing);
+    await repository.close();
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    repository = ControlledCustomerQueueRepository(QueueStatus.reserved);
+    await pumpStatusScreen(
+      tester,
+      repository,
+      routeExpectation: CustomerQueueRouteExpectation.tableReady,
+    );
+    expect(find.text('Your table is ready!'), findsOneWidget);
+    expect(find.text('F1-T4'), findsOneWidget);
+    await repository.close();
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    repository = ControlledCustomerQueueRepository(QueueStatus.seated);
+    await pumpStatusScreen(
+      tester,
+      repository,
+      routeExpectation: CustomerQueueRouteExpectation.seated,
+    );
+    expect(find.text('Enjoy your meal!'), findsOneWidget);
+    expect(find.textContaining('F1-T4'), findsOneWidget);
+    await repository.close();
   });
 
   testWidgets('waiting uses the shared Parties Ahead copy for every count', (
@@ -516,7 +559,55 @@ void main() {
     }
   });
 
-  testWidgets('stream mapping errors render an error instead of waiting', (
+  testWidgets('Android back from queue status returns to customer home', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = ControlledCustomerQueueRepository(QueueStatus.waiting);
+    final router = GoRouter(
+      initialLocation: '/customer/$restaurantBranchId/status/$queueEntryId',
+      routes: [
+        GoRoute(
+          path: '/customer/:restaurantBranchId/status/:queueEntryId',
+          builder: (context, state) => CustomerQueueStatusScreen(
+            restaurantBranchId: state.pathParameters['restaurantBranchId']!,
+            queueEntryId: state.pathParameters['queueEntryId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/app/home',
+          builder: (context, state) => const Text('authenticated-home'),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          customerQueueRepositoryProvider.overrideWithValue(repository),
+          branchIdentityRepositoryProvider.overrideWithValue(
+            PassthroughBranchIdentityRepository(),
+          ),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('authenticated-home'), findsOneWidget);
+    router.dispose();
+    await repository.close();
+  });
+
+  testWidgets('missing or malformed queue links render invalid-link UI', (
     tester,
   ) async {
     final repository = ControlledCustomerQueueRepository(
@@ -528,7 +619,7 @@ void main() {
     await pumpStatusScreen(tester, repository);
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.byKey(const ValueKey('queue-status-error')), findsOneWidget);
+    expect(find.byKey(const ValueKey('invalid-queue-link')), findsOneWidget);
     expect(find.textContaining('Unknown queue status'), findsOneWidget);
     expect(find.byKey(const ValueKey('queue-status-waiting')), findsNothing);
   });
@@ -607,6 +698,17 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
     required String phone,
   }) async {
     emitStatus(QueueStatus.onTheWay);
+  }
+
+  @override
+  Future<bool> validateAssignedTables({
+    required String restaurantBranchId,
+    required QueueEntry entry,
+  }) async {
+    return restaurantBranchId ==
+            'state-machine-restaurant-state-machine-branch' &&
+        entry.id == 'state-machine-entry' &&
+        entry.assignedTableId == 'table-4';
   }
 
   @override

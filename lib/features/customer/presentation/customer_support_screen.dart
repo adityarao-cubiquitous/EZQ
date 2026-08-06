@@ -24,7 +24,9 @@ class CustomerSupportScreen extends ConsumerWidget {
       restaurantBranchId: restaurantBranchId,
       activeTab: CustomerTab.support,
       queueEntryId: queueEntryId,
-      appBackRoute: '/app/home',
+      appBackRoute: queueEntryId == null
+          ? '/app/home'
+          : '/customer/$restaurantBranchId/status/$queueEntryId',
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: branch.when(
