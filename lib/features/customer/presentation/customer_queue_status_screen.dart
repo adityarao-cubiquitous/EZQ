@@ -1415,9 +1415,9 @@ class _QueueStatusCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _MetricBlock(
-                    label: 'Ahead',
-                    value: '$aheadCount',
-                    suffix: partyNounForCount(aheadCount),
+                    label: 'Queue position',
+                    value: partiesAheadLabel(aheadCount),
+                    suffix: '',
                   ),
                 ),
                 Container(width: 1, height: 46, color: const Color(0x1A006687)),
@@ -1687,15 +1687,17 @@ class _MetricBlock extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(width: 5),
-              Text(
-                suffix,
-                style: const TextStyle(
-                  color: AppColors.navyText,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+              if (suffix.isNotEmpty) ...[
+                const SizedBox(width: 5),
+                Text(
+                  suffix,
+                  style: const TextStyle(
+                    color: AppColors.navyText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

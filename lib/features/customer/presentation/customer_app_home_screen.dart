@@ -567,10 +567,10 @@ class _ActiveVisitCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _VisitMetric(
-                    label: seated ? 'Table' : 'Ahead',
+                    label: seated ? 'Table' : 'Queue position',
                     value: seated
                         ? (entry.assignedTableNumber ?? 'Assigned')
-                        : partyCountLabel(aheadCount),
+                        : partiesAheadLabel(aheadCount),
                   ),
                 ),
                 const SizedBox(width: 10),

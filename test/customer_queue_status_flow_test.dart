@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:ezq/features/auth/data/auth_repository.dart';
 import 'package:ezq/features/customer/data/branch_identity_repository.dart';
 import 'package:ezq/features/customer/data/customer_queue_repository.dart';
 import 'package:ezq/features/customer/domain/party_ahead_copy.dart';
+import 'package:ezq/features/customer/presentation/customer_app_home_screen.dart';
 import 'package:ezq/features/customer/presentation/customer_queue_status_screen.dart';
 import 'package:ezq/features/queue/domain/queue_entry.dart';
 import 'package:ezq/features/queue/domain/queue_status.dart';
@@ -47,7 +49,7 @@ void main() {
   }
 
   final expectations = <QueueStatus, ({String key, String text})>{
-    QueueStatus.waiting: (key: 'queue-status-waiting', text: 'Ahead'),
+    QueueStatus.waiting: (key: 'queue-status-waiting', text: 'Queue position'),
     QueueStatus.reserved: (
       key: 'queue-status-reserved',
       text: 'Your table is ready!',
@@ -154,28 +156,92 @@ void main() {
     }
   });
 
-  testWidgets('waiting uses Party and Parties for the live ahead count', (
+  testWidgets('waiting uses the shared Parties Ahead copy for every count', (
     tester,
   ) async {
-    for (final (count, noun) in <(int, String)>[(1, 'Party'), (5, 'Parties')]) {
+    for (final (count, label) in <(int, String)>[
+      (0, '0 Parties Ahead'),
+      (1, '1 Party Ahead'),
+      (2, '2 Parties Ahead'),
+      (5, '5 Parties Ahead'),
+    ]) {
       final repository = ControlledCustomerQueueRepository(
         QueueStatus.waiting,
         aheadCount: count,
       );
       await pumpStatusScreen(tester, repository);
 
-      expect(find.text('$count'), findsOneWidget);
-      expect(find.text(noun), findsOneWidget);
-      expect(find.text('person'), findsNothing);
-      expect(find.text('people'), findsNothing);
+      expect(find.text(label), findsOneWidget);
+      expect(
+        find.textContaining(RegExp('person|people', caseSensitive: false)),
+        findsNothing,
+      );
       await repository.close();
     }
   });
 
   test('party-ahead copy uses correct singular and plural grammar', () {
-    expect(partiesAheadLabel(1), '1 Party Ahead');
-    expect(partiesAheadLabel(5), '5 Parties Ahead');
     expect(partiesAheadLabel(0), '0 Parties Ahead');
+    expect(partiesAheadLabel(1), '1 Party Ahead');
+    expect(partiesAheadLabel(2), '2 Parties Ahead');
+    expect(partiesAheadLabel(5), '5 Parties Ahead');
+  });
+
+  testWidgets('active visit card uses the shared Parties Ahead copy', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final (count, label) in <(int, String)>[
+      (1, '1 Party Ahead'),
+      (2, '2 Parties Ahead'),
+      (5, '5 Parties Ahead'),
+    ]) {
+      final repository = ControlledCustomerQueueRepository(
+        QueueStatus.waiting,
+        aheadCount: count,
+        currentVisit: const CustomerQueueVisit(
+          restaurantId: restaurantId,
+          branchId: branchId,
+          queueEntryId: queueEntryId,
+          tokenCode: 'Q42',
+          status: QueueStatus.waiting,
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            customerQueueRepositoryProvider.overrideWithValue(repository),
+            branchIdentityRepositoryProvider.overrideWithValue(
+              PassthroughBranchIdentityRepository(),
+            ),
+            debugCustomerPhoneSessionProvider.overrideWithValue(
+              ValueNotifier<String?>('+919999999999'),
+            ),
+          ],
+          child: const MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(textScaler: TextScaler.linear(0.7)),
+              child: CustomerAppHomeScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Queue position'), findsOneWidget);
+      expect(find.text(label), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      await repository.close();
+    }
   });
 
   testWidgets('exit queue confirmation uses standardized customer copy', (
@@ -459,11 +525,13 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
     this.streamError,
     this.exitError,
     this.aheadCount = 2,
+    this.currentVisit,
   }) : _entry = _entryFor(initialStatus);
 
   final Object? streamError;
   final Object? exitError;
   final int aheadCount;
+  final CustomerQueueVisit? currentVisit;
   final StreamController<QueueEntry> _controller =
       StreamController<QueueEntry>.broadcast();
   QueueEntry _entry;
@@ -511,7 +579,7 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
     required String phone,
     String? customerId,
   }) async {
-    return null;
+    return currentVisit;
   }
 
   @override
