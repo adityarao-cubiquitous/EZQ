@@ -94,6 +94,19 @@ void main() {
       expect(find.textContaining('State Machine Restaurant'), findsWidgets);
       expect(find.textContaining('State Machine Branch'), findsWidgets);
       expect(
+        find.byKey(const ValueKey('customer-identity-restaurant-name')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('customer-identity-branch-name')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('customer-identity-address')),
+        findsOneWidget,
+      );
+      expect(find.text('Address unavailable'), findsOneWidget);
+      expect(
         find.byKey(const ValueKey('queue-status-cancel-action')),
         status.canBeCancelledByCustomer ? findsOneWidget : findsNothing,
       );

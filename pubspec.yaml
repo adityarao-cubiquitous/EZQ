@@ -76,7 +76,6 @@ flutter:
   assets:
     - assets/brand/cubiquitous.png
     - assets/brand/ezq_logo.png
-    - assets/brand/restaurant_logo.png
     - assets/restaurant_logos/
     - assets/qr/
     - assets/analytics/ezq_analytics_v5.html

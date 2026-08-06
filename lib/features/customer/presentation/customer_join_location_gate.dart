@@ -9,6 +9,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../data/branch_identity_repository.dart';
+import 'customer_restaurant_identity.dart';
 import 'customer_shell.dart';
 
 const customerJoinRadiusMeters = 2000.0;
@@ -231,8 +232,8 @@ class _JoinLocationBlockedScreen extends StatelessWidget {
       activeTab: CustomerTab.join,
       showBottomNav: false,
       appBackRoute: '/app/nearby',
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 86, 20, 24),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 64, 20, 24),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(22),
@@ -250,16 +251,21 @@ class _JoinLocationBlockedScreen extends StatelessWidget {
           ),
           child: Column(
             children: [
+              CustomerRestaurantIdentityView(
+                identity: branchLink.identity,
+                layout: CustomerRestaurantIdentityLayout.compact,
+              ),
+              const SizedBox(height: 18),
               Container(
-                width: 68,
-                height: 68,
+                width: 60,
+                height: 60,
                 decoration: BoxDecoration(
                   color: AppColors.softSurface,
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: Icon(copy.icon, color: AppColors.deepTeal, size: 34),
+                child: Icon(copy.icon, color: AppColors.deepTeal, size: 30),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               Text(
                 copy.title,
                 textAlign: TextAlign.center,
@@ -279,7 +285,7 @@ class _JoinLocationBlockedScreen extends StatelessWidget {
                   height: 1.45,
                 ),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 18),
               EzqButton(
                 label: 'Check location again',
                 icon: Icons.my_location_rounded,

@@ -3,6 +3,7 @@ import 'package:ezq/features/auth/data/auth_repository.dart';
 import 'package:ezq/features/auth/presentation/customer_name_profile_screen.dart';
 import 'package:ezq/features/customer/data/nearby_restaurants_repository.dart';
 import 'package:ezq/features/customer/domain/branch.dart';
+import 'package:ezq/features/customer/domain/restaurant_branch_identity.dart';
 import 'package:ezq/features/customer/presentation/customer_join_queue_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,8 +43,12 @@ void main() {
           child: MaterialApp(
             home: CustomerJoinQueueScreen(
               restaurantBranchId: 'salad-studio-12th-main',
-              restaurantName: 'Salad Studio',
-              branchName: '12th Main',
+              identity: RestaurantBranchIdentity(
+                restaurantBranchId: 'salad-studio-12th-main',
+                restaurantName: 'Salad Studio',
+                branchName: '12th Main',
+                address: '12th Main Road, Indiranagar, Bengaluru',
+              ),
             ),
           ),
         ),

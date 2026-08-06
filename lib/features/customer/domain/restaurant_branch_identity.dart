@@ -3,11 +3,37 @@ class RestaurantBranchIdentity {
     required this.restaurantBranchId,
     required this.restaurantName,
     required this.branchName,
+    this.address = '',
+    this.logoUrl,
   });
 
   final String restaurantBranchId;
   final String restaurantName;
   final String branchName;
+  final String address;
+  final String? logoUrl;
+
+  String get branchLabel {
+    final normalized = branchName.trim();
+    if (normalized.toLowerCase().endsWith(' branch')) return normalized;
+    return '$normalized Branch';
+  }
+
+  String get addressLabel {
+    final normalized = address.trim();
+    return normalized.isEmpty ? 'Address unavailable' : normalized;
+  }
+
+  String get initials {
+    final words = restaurantName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .take(2)
+        .toList();
+    if (words.isEmpty) return '';
+    return words.map((word) => word[0].toUpperCase()).join();
+  }
 }
 
 RestaurantBranchIdentity resolveRestaurantBranchIdentity({
@@ -18,6 +44,8 @@ RestaurantBranchIdentity resolveRestaurantBranchIdentity({
   String? displayName,
   String? restaurantSlug,
   String? branchSlug,
+  String? address,
+  String? logoUrl,
 }) {
   var resolvedRestaurantName = _nonEmpty(restaurantName);
   var resolvedBranchName = _nonEmpty(branchName) ?? _nonEmpty(legacyBranchName);
@@ -43,6 +71,8 @@ RestaurantBranchIdentity resolveRestaurantBranchIdentity({
         resolvedRestaurantName ??
         _titleFromSlug(canonicalId, fallback: 'Restaurant'),
     branchName: resolvedBranchName ?? 'Main',
+    address: _nonEmpty(address) ?? '',
+    logoUrl: _nonEmpty(logoUrl),
   );
 }
 

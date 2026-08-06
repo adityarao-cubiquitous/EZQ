@@ -18,6 +18,16 @@ enum CustomerDeepLinkFailure {
 class CustomerBranchLink {
   const CustomerBranchLink({required this.identity, required this.branch});
 
+  factory CustomerBranchLink.fromBranch(Branch branch) {
+    return CustomerBranchLink(identity: branch.identity, branch: branch);
+  }
+
+  factory CustomerBranchLink.fallback(String restaurantBranchId) {
+    return CustomerBranchLink.fromBranch(
+      Branch.fromMap(restaurantBranchId, {'isActive': true}),
+    );
+  }
+
   final RestaurantBranchIdentity identity;
   final Branch branch;
 
@@ -96,14 +106,7 @@ class FirebaseBranchIdentityRepository implements BranchIdentityRepository {
     }
 
     final branch = Branch.fromMap(branchSnapshot.id, branchData);
-    return CustomerBranchLink(
-      identity: resolveRestaurantBranchIdentity(
-        restaurantBranchId: restaurantBranchId,
-        restaurantName: branch.restaurantName,
-        branchName: branch.name,
-      ),
-      branch: branch,
-    );
+    return CustomerBranchLink.fromBranch(branch);
   }
 }
 
@@ -113,14 +116,7 @@ class PassthroughBranchIdentityRepository implements BranchIdentityRepository {
     required String restaurantBranchId,
   }) async {
     final branch = Branch.fromMap(restaurantBranchId, {'isActive': true});
-    return CustomerBranchLink(
-      identity: resolveRestaurantBranchIdentity(
-        restaurantBranchId: restaurantBranchId,
-        restaurantName: branch.restaurantName,
-        branchName: branch.name,
-      ),
-      branch: branch,
-    );
+    return CustomerBranchLink.fromBranch(branch);
   }
 }
 

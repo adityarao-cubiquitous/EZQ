@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../data/branch_identity_repository.dart';
+import 'customer_restaurant_identity.dart';
 import 'customer_shell.dart';
 
 class SeatedView extends ConsumerWidget {
@@ -29,11 +29,10 @@ class SeatedView extends ConsumerWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: branch.when(
-          data: (branch) => _SeatedCard(
-            restaurantName: branch.restaurantName,
-            branchName: branch.branch.name,
+          data: (branch) => _SeatedCard(branchLink: branch),
+          error: (_, _) => _SeatedCard(
+            branchLink: CustomerBranchLink.fallback(restaurantBranchId),
           ),
-          error: (error, _) => ErrorView(message: error.toString()),
           loading: () => const LoadingView(),
         ),
       ),
@@ -42,10 +41,9 @@ class SeatedView extends ConsumerWidget {
 }
 
 class _SeatedCard extends StatelessWidget {
-  const _SeatedCard({required this.restaurantName, required this.branchName});
+  const _SeatedCard({required this.branchLink});
 
-  final String restaurantName;
-  final String branchName;
+  final CustomerBranchLink branchLink;
 
   @override
   Widget build(BuildContext context) {
@@ -79,11 +77,13 @@ class _SeatedCard extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'You are seated at Table T4 at $restaurantName, $branchName.',
+          const SizedBox(height: 18),
+          CustomerRestaurantIdentityView(identity: branchLink.identity),
+          const SizedBox(height: 14),
+          const Text(
+            'You are seated at Table T4.',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFF3E484F), fontSize: 18),
+            style: TextStyle(color: Color(0xFF3E484F), fontSize: 18),
           ),
           const SizedBox(height: 24),
           const Text(

@@ -5,10 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/ezq_button.dart';
-import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../data/branch_identity_repository.dart';
 import '../data/customer_queue_repository.dart';
+import 'customer_restaurant_identity.dart';
 import 'customer_shell.dart';
 
 class TableReadyView extends ConsumerWidget {
@@ -37,7 +37,11 @@ class TableReadyView extends ConsumerWidget {
             queueEntryId: queueEntryId,
             branchLink: branch,
           ),
-          error: (error, _) => ErrorView(message: error.toString()),
+          error: (_, _) => _TableReadyCard(
+            restaurantBranchId: restaurantBranchId,
+            queueEntryId: queueEntryId,
+            branchLink: CustomerBranchLink.fallback(restaurantBranchId),
+          ),
           loading: () => const LoadingView(),
         ),
       ),
@@ -96,10 +100,11 @@ class _TableReadyCard extends ConsumerWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 18),
+          CustomerRestaurantIdentityView(identity: branchLink.identity),
+          const SizedBox(height: 14),
           Text(
-            'Table T4 at ${branchLink.restaurantName}, '
-            '${branchLink.branch.name} is being held for you.',
+            'Table T4 is being held for you.',
             textAlign: TextAlign.center,
             style: const TextStyle(color: Color(0xFF3E484F), fontSize: 18),
           ),

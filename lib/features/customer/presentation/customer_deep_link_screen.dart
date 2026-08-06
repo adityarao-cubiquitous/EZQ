@@ -24,8 +24,7 @@ class CustomerDeepLinkScreen extends ConsumerWidget {
         branchLink: data,
         child: CustomerJoinQueueScreen(
           restaurantBranchId: restaurantBranchId,
-          restaurantName: data.restaurantName,
-          branchName: data.branch.name,
+          identity: data.identity,
         ),
       ),
     );

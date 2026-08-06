@@ -10,6 +10,8 @@ import '../../queue/domain/queue_status.dart';
 import '../data/branch_identity_repository.dart';
 import '../data/customer_queue_repository.dart';
 import '../domain/party_ahead_copy.dart';
+import '../domain/restaurant_branch_identity.dart';
+import 'customer_restaurant_identity.dart';
 import 'customer_shell.dart';
 import 'nearby_restaurants_screen.dart';
 
@@ -379,16 +381,23 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
                       );
             return branchState.when(
               loading: () => const _CurrentVisitLoadingPanel(),
-              error: (error, _) => _CurrentVisitErrorPanel(
-                onRetry: () => ref.invalidate(
-                  customerBranchLinkProvider(restaurantBranchId),
-                ),
+              error: (error, _) => _ActiveVisitCard(
+                visit: visit,
+                entry: entry,
+                identity: CustomerBranchLink.fallback(
+                  restaurantBranchId,
+                ).identity,
+                aheadCount: aheadCount,
+                cancelling: _cancelling,
+                onView: () => context.go(visit.statusRoute),
+                onCancel: entry.status == QueueStatus.seated
+                    ? null
+                    : () => _cancelVisit(visit, entry),
               ),
               data: (branch) => _ActiveVisitCard(
                 visit: visit,
                 entry: entry,
-                restaurantName: branch.restaurantName,
-                branchName: branch.branch.name,
+                identity: branch.identity,
                 aheadCount: aheadCount,
                 cancelling: _cancelling,
                 onView: () => context.go(visit.statusRoute),
@@ -456,8 +465,7 @@ class _ActiveVisitCard extends StatelessWidget {
   const _ActiveVisitCard({
     required this.visit,
     required this.entry,
-    required this.restaurantName,
-    required this.branchName,
+    required this.identity,
     required this.aheadCount,
     required this.cancelling,
     required this.onView,
@@ -466,8 +474,7 @@ class _ActiveVisitCard extends StatelessWidget {
 
   final CustomerQueueVisit visit;
   final QueueEntry entry;
-  final String restaurantName;
-  final String branchName;
+  final RestaurantBranchIdentity identity;
   final int aheadCount;
   final bool cancelling;
   final VoidCallback onView;
@@ -482,6 +489,11 @@ class _ActiveVisitCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            CustomerRestaurantIdentityView(
+              identity: identity,
+              layout: CustomerRestaurantIdentityLayout.compact,
+            ),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Container(
@@ -511,14 +523,6 @@ class _ActiveVisitCard extends StatelessWidget {
                           color: AppColors.navyText,
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$restaurantName · $branchName',
-                        style: const TextStyle(
-                          color: AppColors.mutedText,
-                          fontSize: 13,
                         ),
                       ),
                     ],

@@ -10,12 +10,16 @@ class RestaurantLogo extends StatelessWidget {
   const RestaurantLogo({
     super.key,
     required this.restaurantBranchId,
+    this.restaurantName,
+    this.logoUrl,
     this.size = 72,
     this.shape = RestaurantLogoShape.roundedSquare,
     this.showShadow = true,
   });
 
   final String restaurantBranchId;
+  final String? restaurantName;
+  final String? logoUrl;
   final double size;
   final RestaurantLogoShape shape;
   final bool showShadow;
@@ -23,25 +27,16 @@ class RestaurantLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCircle = shape == RestaurantLogoShape.circle;
-    final assetPath = RestaurantLogoAssets.forBranch(restaurantBranchId);
     final borderRadius = BorderRadius.circular(size * 0.28);
-
-    final image = Image.asset(
-      assetPath,
-      key: ValueKey('restaurant-logo-$restaurantBranchId'),
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        return const ColoredBox(
-          color: Colors.white,
-          child: Icon(Icons.restaurant_rounded, color: Color(0xFF006B7A)),
-        );
-      },
-    );
+    final image = _resolvedImage();
 
     return Semantics(
       image: true,
-      label: 'Restaurant logo',
+      label: restaurantName?.trim().isNotEmpty == true
+          ? '${restaurantName!.trim()} logo'
+          : 'Restaurant logo',
       child: Container(
+        key: ValueKey('restaurant-logo-$restaurantBranchId'),
         width: size,
         height: size,
         padding: EdgeInsets.all(isCircle ? 2 : 0),
@@ -67,4 +62,79 @@ class RestaurantLogo extends StatelessWidget {
       ),
     );
   }
+
+  Widget _resolvedImage() {
+    final fallback = _initialsOrEzqLogo();
+    final normalizedLogoUrl = logoUrl?.trim();
+    final parsedLogoUrl = normalizedLogoUrl == null
+        ? null
+        : Uri.tryParse(normalizedLogoUrl);
+    final networkImage =
+        normalizedLogoUrl != null &&
+            normalizedLogoUrl.isNotEmpty &&
+            parsedLogoUrl?.hasScheme == true &&
+            (parsedLogoUrl?.scheme == 'https' ||
+                parsedLogoUrl?.scheme == 'http')
+        ? Image.network(
+            normalizedLogoUrl,
+            key: ValueKey('restaurant-logo-network-$restaurantBranchId'),
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => fallback,
+          )
+        : fallback;
+    final assetPath = RestaurantLogoAssets.specificForBranch(
+      restaurantBranchId,
+    );
+    if (assetPath == null) return networkImage;
+    return Image.asset(
+      assetPath,
+      key: ValueKey('restaurant-logo-asset-$restaurantBranchId'),
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => networkImage,
+    );
+  }
+
+  Widget _initialsOrEzqLogo() {
+    final initials = _restaurantInitials(restaurantName);
+    if (initials.isNotEmpty) {
+      return ColoredBox(
+        key: ValueKey('restaurant-logo-initials-$restaurantBranchId'),
+        color: const Color(0xFFE7F8FC),
+        child: Center(
+          child: Text(
+            initials,
+            style: TextStyle(
+              color: const Color(0xFF006B7A),
+              fontSize: size * 0.34,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      );
+    }
+    return ColoredBox(
+      key: ValueKey('restaurant-logo-generic-$restaurantBranchId'),
+      color: Colors.white,
+      child: Padding(
+        padding: EdgeInsets.all(size * 0.14),
+        child: Image.asset(
+          'assets/brand/ezq_logo.png',
+          fit: BoxFit.contain,
+          errorBuilder: (_, _, _) =>
+              const Icon(Icons.restaurant_rounded, color: Color(0xFF006B7A)),
+        ),
+      ),
+    );
+  }
+}
+
+String _restaurantInitials(String? restaurantName) {
+  final words = restaurantName
+      ?.trim()
+      .split(RegExp(r'\s+'))
+      .where((word) => word.isNotEmpty)
+      .take(2)
+      .toList();
+  if (words == null || words.isEmpty) return '';
+  return words.map((word) => word[0].toUpperCase()).join();
 }

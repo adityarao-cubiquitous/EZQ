@@ -24,7 +24,12 @@ abstract final class RestaurantLogoAssets {
   };
 
   static String forBranch(String restaurantBranchId) {
+    return specificForBranch(restaurantBranchId) ?? defaultLogo;
+  }
+
+  static String? specificForBranch(String restaurantBranchId) {
     final normalizedId = restaurantBranchId.trim().toLowerCase();
-    return branchAssets[normalizedId] ?? defaultLogo;
+    final asset = branchAssets[normalizedId];
+    return asset == null || asset == defaultLogo ? null : asset;
   }
 }

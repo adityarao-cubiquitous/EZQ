@@ -9,10 +9,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/ezq_button.dart';
-import '../../../core/widgets/restaurant_logo.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/customer_queue_repository.dart';
 import '../data/nearby_restaurants_repository.dart';
+import 'customer_restaurant_identity.dart';
 import 'customer_shell.dart';
 
 class NearbyUseDemoLocationController extends Notifier<bool> {
@@ -248,7 +248,6 @@ class _NearbyRestaurantCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final branch = restaurant.branch;
-    final restaurantName = branch.restaurantName ?? branch.name;
     final distanceLabel = restaurant.distanceKm < 1
         ? '${restaurant.distanceMeters.round()} m'
         : '${restaurant.distanceKm.toStringAsFixed(1)} km';
@@ -277,43 +276,27 @@ class _NearbyRestaurantCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              RestaurantLogo(
-                restaurantBranchId: branch.id,
-                size: 46,
-                showShadow: false,
-              ),
-              const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      restaurantName,
-                      style: const TextStyle(
-                        color: AppColors.navyText,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      [
-                        if (branch.cuisine != null) branch.cuisine,
-                        branch.name,
-                      ].whereType<String>().join(' - '),
-                      style: const TextStyle(
-                        color: AppColors.mutedText,
-                        fontSize: 13,
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
+                child: CustomerRestaurantIdentityView(
+                  identity: branch.identity,
+                  layout: CustomerRestaurantIdentityLayout.compact,
                 ),
               ),
               const SizedBox(width: 8),
               _DistancePill(label: distanceLabel),
             ],
           ),
+          if (branch.cuisine?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            Text(
+              branch.cuisine!.trim(),
+              style: const TextStyle(
+                color: AppColors.mutedText,
+                fontSize: 13,
+                height: 1.3,
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -329,15 +312,6 @@ class _NearbyRestaurantCard extends StatelessWidget {
                 label: '${restaurant.waitingCount} waiting',
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            branch.address,
-            style: const TextStyle(
-              color: Color(0xFF44515B),
-              fontSize: 14,
-              height: 1.35,
-            ),
           ),
           const SizedBox(height: 16),
           EzqButton(

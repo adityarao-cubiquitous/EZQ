@@ -11,6 +11,7 @@ import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/restaurant_logo.dart';
 import '../../auth/data/auth_repository.dart';
+import '../data/branch_identity_repository.dart';
 
 enum CustomerTab { join, status, menu, support }
 
@@ -212,6 +213,13 @@ class _CustomerTopBar extends ConsumerWidget {
     final installReturnTo = restaurantBranchId.isEmpty
         ? null
         : FirestorePaths.customerRoute(restaurantBranchId);
+    final identity = restaurantBranchId.isEmpty
+        ? null
+        : ref
+              .watch(customerBranchLinkProvider(restaurantBranchId))
+              .asData
+              ?.value
+              .identity;
 
     return Positioned(
       top: 0,
@@ -253,6 +261,8 @@ class _CustomerTopBar extends ConsumerWidget {
                     else
                       RestaurantLogo(
                         restaurantBranchId: restaurantBranchId,
+                        restaurantName: identity?.restaurantName,
+                        logoUrl: identity?.logoUrl,
                         size: 25,
                         shape: RestaurantLogoShape.circle,
                         showShadow: false,

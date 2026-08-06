@@ -10,7 +10,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../../core/widgets/ezq_text_field.dart';
-import '../../../core/widgets/status_badge.dart';
 import '../../../core/utils/validators.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../queue/data/queue_repository.dart';
@@ -22,21 +21,20 @@ import '../../tables/data/table_repository.dart';
 import '../../tables/domain/restaurant_table.dart';
 import '../../tables/domain/table_status.dart';
 import '../data/customer_queue_repository.dart';
+import '../domain/restaurant_branch_identity.dart';
 import '../domain/seating_preference_service.dart';
+import 'customer_restaurant_identity.dart';
 import 'customer_shell.dart';
-import 'restaurant_logo.dart';
 
 class CustomerJoinQueueScreen extends ConsumerStatefulWidget {
   const CustomerJoinQueueScreen({
     super.key,
     required this.restaurantBranchId,
-    required this.restaurantName,
-    required this.branchName,
+    required this.identity,
   });
 
   final String restaurantBranchId;
-  final String restaurantName;
-  final String branchName;
+  final RestaurantBranchIdentity identity;
 
   @override
   ConsumerState<CustomerJoinQueueScreen> createState() =>
@@ -401,11 +399,7 @@ class _CustomerJoinQueueScreenState
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Column(
           children: [
-            _HeroHeader(
-              restaurantBranchId: widget.restaurantBranchId,
-              restaurantName: widget.restaurantName,
-              branchName: widget.branchName,
-            ),
+            _HeroHeader(identity: widget.identity),
             const SizedBox(height: 24),
             _JoinQueueCard(
               formKey: _formKey,
@@ -540,38 +534,16 @@ bool _tableCanFitParty(
 // ─────────────────────────── Hero header ─────────────────────────────────────
 
 class _HeroHeader extends StatelessWidget {
-  const _HeroHeader({
-    required this.restaurantBranchId,
-    required this.restaurantName,
-    required this.branchName,
-  });
+  const _HeroHeader({required this.identity});
 
-  final String restaurantBranchId;
-  final String restaurantName;
-  final String branchName;
+  final RestaurantBranchIdentity identity;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        RestaurantLogo(restaurantBranchId: restaurantBranchId, size: 66),
-        const SizedBox(height: 14),
-        StatusBadge(
-          label: '$branchName Branch',
-          foreground: const Color(0xFF006B79),
-          background: const Color(0x8090EAFD),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          restaurantName,
-          style: const TextStyle(
-            color: AppColors.navyText,
-            fontSize: 27,
-            fontWeight: FontWeight.w800,
-            height: 34 / 27,
-          ),
-        ),
-        const SizedBox(height: 3),
+        CustomerRestaurantIdentityView(identity: identity),
+        const SizedBox(height: 10),
         const Text(
           'Skip the wait, join the queue.',
           style: TextStyle(
