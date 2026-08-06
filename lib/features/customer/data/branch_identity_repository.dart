@@ -21,7 +21,7 @@ class CustomerBranchLink {
   final RestaurantBranchIdentity identity;
   final Branch branch;
 
-  String get restaurantId => identity.restaurantBranchId;
+  String get restaurantBranchId => identity.restaurantBranchId;
   String get restaurantName => identity.restaurantName;
 }
 
@@ -98,7 +98,7 @@ class FirebaseBranchIdentityRepository implements BranchIdentityRepository {
     final branch = Branch.fromMap(branchSnapshot.id, branchData);
     return CustomerBranchLink(
       identity: resolveRestaurantBranchIdentity(
-        restaurantBranchSlug: restaurantBranchId,
+        restaurantBranchId: restaurantBranchId,
         restaurantName: branch.restaurantName,
         branchName: branch.name,
       ),
@@ -115,7 +115,7 @@ class PassthroughBranchIdentityRepository implements BranchIdentityRepository {
     final branch = Branch.fromMap(restaurantBranchId, {'isActive': true});
     return CustomerBranchLink(
       identity: resolveRestaurantBranchIdentity(
-        restaurantBranchSlug: restaurantBranchId,
+        restaurantBranchId: restaurantBranchId,
         restaurantName: branch.restaurantName,
         branchName: branch.name,
       ),

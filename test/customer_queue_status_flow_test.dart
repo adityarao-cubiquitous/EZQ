@@ -14,8 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 void main() {
-  const restaurantId = 'state-machine-restaurant';
-  const branchId = 'state-machine-branch';
+  const restaurantBranchId = 'state-machine-restaurant-state-machine-branch';
   const queueEntryId = 'state-machine-entry';
 
   Future<void> pumpStatusScreen(
@@ -37,8 +36,7 @@ void main() {
         ],
         child: const MaterialApp(
           home: CustomerQueueStatusScreen(
-            restaurantId: restaurantId,
-            branchId: branchId,
+            restaurantBranchId: restaurantBranchId,
             queueEntryId: queueEntryId,
           ),
         ),
@@ -204,8 +202,7 @@ void main() {
         QueueStatus.waiting,
         aheadCount: count,
         currentVisit: const CustomerQueueVisit(
-          restaurantId: restaurantId,
-          branchId: branchId,
+          restaurantBranchId: restaurantBranchId,
           queueEntryId: queueEntryId,
           tokenCode: 'Q42',
           status: QueueStatus.waiting,
@@ -348,13 +345,12 @@ void main() {
     final repository = ControlledCustomerQueueRepository(QueueStatus.cancelled);
     addTearDown(repository.close);
     final router = GoRouter(
-      initialLocation: '/customer/$branchId/status/$queueEntryId',
+      initialLocation: '/customer/$restaurantBranchId/status/$queueEntryId',
       routes: [
         GoRoute(
-          path: '/customer/:branchId/status/:queueEntryId',
+          path: '/customer/:restaurantBranchId/status/:queueEntryId',
           builder: (context, state) => CustomerQueueStatusScreen(
-            restaurantId: state.pathParameters['branchId']!,
-            branchId: state.pathParameters['branchId']!,
+            restaurantBranchId: state.pathParameters['restaurantBranchId']!,
             queueEntryId: state.pathParameters['queueEntryId']!,
           ),
         ),
@@ -425,12 +421,13 @@ void main() {
           (
             status: QueueStatus.expired,
             actionKey: 'queue-status-join-again',
-            destinationText: 'join-destination',
+            destinationText: 'join-destination:$restaurantBranchId',
           ),
           (
             status: QueueStatus.skipped,
             actionKey: 'queue-status-view-menu',
-            destinationText: 'menu-destination',
+            destinationText:
+                'menu-destination:$restaurantBranchId:$queueEntryId',
           ),
           (
             status: QueueStatus.noShow,
@@ -447,23 +444,28 @@ void main() {
     for (final testCase in cases) {
       final repository = ControlledCustomerQueueRepository(testCase.status);
       final router = GoRouter(
-        initialLocation: '/customer/$branchId/status/$queueEntryId',
+        initialLocation: '/customer/$restaurantBranchId/status/$queueEntryId',
         routes: [
           GoRoute(
-            path: '/customer/:branchId/status/:queueEntryId',
+            path: '/customer/:restaurantBranchId/status/:queueEntryId',
             builder: (context, state) => CustomerQueueStatusScreen(
-              restaurantId: state.pathParameters['branchId']!,
-              branchId: state.pathParameters['branchId']!,
+              restaurantBranchId: state.pathParameters['restaurantBranchId']!,
               queueEntryId: state.pathParameters['queueEntryId']!,
             ),
           ),
           GoRoute(
-            path: '/customer/:branchId',
-            builder: (context, state) => const Text('join-destination'),
+            path: '/customer/:restaurantBranchId',
+            builder: (context, state) => Text(
+              'join-destination:${state.pathParameters['restaurantBranchId']}',
+            ),
           ),
           GoRoute(
-            path: '/customer/:branchId/menu',
-            builder: (context, state) => const Text('menu-destination'),
+            path: '/customer/:restaurantBranchId/menu',
+            builder: (context, state) => Text(
+              'menu-destination:'
+              '${state.pathParameters['restaurantBranchId']}:'
+              '${state.uri.queryParameters['queueEntryId']}',
+            ),
           ),
           GoRoute(
             path: '/app/nearby',
@@ -545,8 +547,7 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Future<void> cancelQueueEntry({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
     required String phone,
   }) async {
@@ -560,8 +561,7 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Future<void> extendHold({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
     required String phone,
   }) async {}
@@ -589,8 +589,7 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Future<void> markOnTheWay({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
     required String phone,
   }) async {
@@ -599,8 +598,7 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Stream<int> watchQueueAheadCount({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
   }) async* {
     yield aheadCount;
@@ -608,8 +606,7 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Stream<QueueEntry> watchQueueEntry({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
   }) async* {
     final error = streamError;

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/widgets/ezq_button.dart';
 import 'customer_shell.dart';
 
@@ -14,8 +13,7 @@ class AppInstallPrompt extends StatelessWidget {
     final returnTo = _safeCustomerReturnPath(context);
 
     return CustomerShell(
-      restaurantId: AppConstants.demoRestaurantId,
-      branchId: AppConstants.demoBranchId,
+      restaurantBranchId: '',
       showBottomNav: false,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),

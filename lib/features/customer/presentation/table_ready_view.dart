@@ -14,25 +14,18 @@ import 'customer_shell.dart';
 class TableReadyView extends ConsumerWidget {
   const TableReadyView({
     super.key,
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.queueEntryId,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String queueEntryId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
-      restaurantId,
-      branchId,
-    );
     final branch = ref.watch(customerBranchLinkProvider(restaurantBranchId));
     return CustomerShell(
-      restaurantId: restaurantId,
-      branchId: branchId,
+      restaurantBranchId: restaurantBranchId,
       activeTab: CustomerTab.status,
       queueEntryId: queueEntryId,
       showBottomNav: false,
@@ -40,8 +33,7 @@ class TableReadyView extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: branch.when(
           data: (branch) => _TableReadyCard(
-            restaurantId: restaurantId,
-            branchId: branchId,
+            restaurantBranchId: restaurantBranchId,
             queueEntryId: queueEntryId,
             branchLink: branch,
           ),
@@ -55,14 +47,12 @@ class TableReadyView extends ConsumerWidget {
 
 class _TableReadyCard extends ConsumerWidget {
   const _TableReadyCard({
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.queueEntryId,
     required this.branchLink,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String queueEntryId;
   final CustomerBranchLink branchLink;
 
@@ -130,16 +120,14 @@ class _TableReadyCard extends ConsumerWidget {
               await ref
                   .read(customerQueueRepositoryProvider)
                   .markOnTheWay(
-                    restaurantId: restaurantId,
-                    branchId: branchId,
+                    restaurantBranchId: restaurantBranchId,
                     queueEntryId: queueEntryId,
                     phone: '+919876543210',
                   );
               if (!context.mounted) return;
               context.go(
                 FirestorePaths.customerStatusRoute(
-                  restaurantId,
-                  branchId,
+                  restaurantBranchId,
                   queueEntryId,
                 ),
               );
@@ -151,8 +139,7 @@ class _TableReadyCard extends ConsumerWidget {
               await ref
                   .read(customerQueueRepositoryProvider)
                   .extendHold(
-                    restaurantId: restaurantId,
-                    branchId: branchId,
+                    restaurantBranchId: restaurantBranchId,
                     queueEntryId: queueEntryId,
                     phone: '+919876543210',
                   );

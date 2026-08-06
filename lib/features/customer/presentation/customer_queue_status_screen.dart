@@ -25,13 +25,11 @@ const customerStatusRefreshInterval = Duration(seconds: 15);
 class CustomerQueueStatusScreen extends ConsumerStatefulWidget {
   const CustomerQueueStatusScreen({
     super.key,
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.queueEntryId,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String queueEntryId;
 
   @override
@@ -44,8 +42,7 @@ class _CustomerQueueStatusScreenState
   Timer? _refreshTimer;
 
   QueueEntryWatchArgs get _watchArgs => (
-    restaurantId: widget.restaurantId,
-    branchId: widget.branchId,
+    restaurantBranchId: widget.restaurantBranchId,
     queueEntryId: widget.queueEntryId,
   );
 
@@ -67,8 +64,7 @@ class _CustomerQueueStatusScreenState
   @override
   Widget build(BuildContext context) {
     return _CustomerQueueStatusBody(
-      restaurantId: widget.restaurantId,
-      branchId: widget.branchId,
+      restaurantBranchId: widget.restaurantBranchId,
       queueEntryId: widget.queueEntryId,
     );
   }
@@ -76,41 +72,32 @@ class _CustomerQueueStatusScreenState
 
 class _CustomerQueueStatusBody extends ConsumerWidget {
   const _CustomerQueueStatusBody({
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.queueEntryId,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String queueEntryId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final queueAheadCount = ref.watch(
       queueAheadCountProvider((
-        restaurantId: restaurantId,
-        branchId: branchId,
+        restaurantBranchId: restaurantBranchId,
         queueEntryId: queueEntryId,
       )),
     );
     final queueEntry = ref.watch(
       queueEntryProvider((
-        restaurantId: restaurantId,
-        branchId: branchId,
+        restaurantBranchId: restaurantBranchId,
         queueEntryId: queueEntryId,
       )),
-    );
-    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
-      restaurantId,
-      branchId,
     );
     final branchLink = ref.watch(
       customerBranchLinkProvider(restaurantBranchId),
     );
     return CustomerShell(
-      restaurantId: restaurantId,
-      branchId: branchId,
+      restaurantBranchId: restaurantBranchId,
       activeTab: CustomerTab.status,
       queueEntryId: queueEntryId,
       appBackRoute: '/app/home',
@@ -120,8 +107,7 @@ class _CustomerQueueStatusBody extends ConsumerWidget {
             return switch (entry.status) {
               QueueStatus.waiting => queueAheadCount.when(
                 data: (ahead) => _StatusContent(
-                  restaurantId: restaurantId,
-                  branchId: branchId,
+                  restaurantBranchId: restaurantBranchId,
                   queueEntryId: queueEntryId,
                   branchLink: branchLink,
                   entry: entry,
@@ -140,8 +126,7 @@ class _CustomerQueueStatusBody extends ConsumerWidget {
               QueueStatus.skipped ||
               QueueStatus.noShow ||
               QueueStatus.expired => _StatusContent(
-                restaurantId: restaurantId,
-                branchId: branchId,
+                restaurantBranchId: restaurantBranchId,
                 queueEntryId: queueEntryId,
                 branchLink: branchLink,
                 entry: entry,
@@ -168,16 +153,14 @@ String _statusErrorMessage(Object error) {
 
 class _StatusContent extends ConsumerWidget {
   const _StatusContent({
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.queueEntryId,
     required this.branchLink,
     required this.entry,
     this.aheadCount = 0,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String queueEntryId;
   final CustomerBranchLink branchLink;
   final QueueEntry entry;
@@ -192,15 +175,13 @@ class _StatusContent extends ConsumerWidget {
         aheadCount: aheadCount,
       ),
       QueueStatus.reserved => _InlineReadyCard(
-        restaurantId: restaurantId,
-        branchId: branchId,
+        restaurantBranchId: restaurantBranchId,
         branchLink: branchLink,
         entry: entry,
         onTheWay: false,
       ),
       QueueStatus.onTheWay => _InlineReadyCard(
-        restaurantId: restaurantId,
-        branchId: branchId,
+        restaurantBranchId: restaurantBranchId,
         branchLink: branchLink,
         entry: entry,
         onTheWay: true,
@@ -270,8 +251,7 @@ class _StatusContent extends ConsumerWidget {
       QueueStatus.reserved ||
       QueueStatus.onTheWay ||
       QueueStatus.seated => _StatusActions(
-        restaurantId: restaurantId,
-        branchId: branchId,
+        restaurantBranchId: restaurantBranchId,
         queueEntryId: queueEntryId,
         entry: entry,
         showCancel: entry.status.canBeCancelledByCustomer,
@@ -281,8 +261,7 @@ class _StatusContent extends ConsumerWidget {
       QueueStatus.skipped ||
       QueueStatus.noShow ||
       QueueStatus.expired => _TerminalStatusActions(
-        restaurantId: restaurantId,
-        branchId: branchId,
+        restaurantBranchId: restaurantBranchId,
         queueEntryId: queueEntryId,
         status: entry.status,
       ),
@@ -303,15 +282,13 @@ class _StatusContent extends ConsumerWidget {
 
 class _StatusActions extends ConsumerStatefulWidget {
   const _StatusActions({
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.queueEntryId,
     required this.entry,
     required this.showCancel,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String queueEntryId;
   final QueueEntry entry;
   final bool showCancel;
@@ -351,8 +328,7 @@ class _StatusActionsState extends ConsumerState<_StatusActions> {
       await ref
           .read(customerQueueRepositoryProvider)
           .cancelQueueEntry(
-            restaurantId: widget.restaurantId,
-            branchId: widget.branchId,
+            restaurantBranchId: widget.restaurantBranchId,
             queueEntryId: widget.queueEntryId,
             phone: widget.entry.phone,
           );
@@ -380,7 +356,7 @@ class _StatusActionsState extends ConsumerState<_StatusActions> {
           onPressed: () => context.go(
             Uri(
               path:
-                  '${FirestorePaths.customerRoute(widget.restaurantId, widget.branchId)}/menu',
+                  '${FirestorePaths.customerRoute(widget.restaurantBranchId)}/menu',
               queryParameters: {'queueEntryId': widget.queueEntryId},
             ).toString(),
           ),
@@ -411,10 +387,7 @@ class _StatusActionsState extends ConsumerState<_StatusActions> {
         const SizedBox(height: 14),
         const _SponsoredAdCard(),
         const SizedBox(height: 14),
-        _HiddenObjectImageCard(
-          restaurantId: widget.restaurantId,
-          branchId: widget.branchId,
-        ),
+        _HiddenObjectImageCard(restaurantBranchId: widget.restaurantBranchId),
       ],
     );
   }
@@ -422,14 +395,12 @@ class _StatusActionsState extends ConsumerState<_StatusActions> {
 
 class _TerminalStatusActions extends StatelessWidget {
   const _TerminalStatusActions({
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.queueEntryId,
     required this.status,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String queueEntryId;
   final QueueStatus status;
 
@@ -444,7 +415,7 @@ class _TerminalStatusActions extends StatelessWidget {
           label: 'Join Queue Again',
           icon: Icons.refresh_rounded,
           onPressed: () =>
-              context.go(FirestorePaths.customerRoute(restaurantId, branchId)),
+              context.go(FirestorePaths.customerRoute(restaurantBranchId)),
         ),
         if (showMenu) ...[
           const SizedBox(height: 10),
@@ -456,7 +427,7 @@ class _TerminalStatusActions extends StatelessWidget {
               onPressed: () => context.go(
                 Uri(
                   path:
-                      '${FirestorePaths.customerRoute(restaurantId, branchId)}/menu',
+                      '${FirestorePaths.customerRoute(restaurantBranchId)}/menu',
                   queryParameters: {'queueEntryId': queueEntryId},
                 ).toString(),
               ),
@@ -803,22 +774,13 @@ const _demoAds = [
 ];
 
 class _HiddenObjectImageCard extends ConsumerWidget {
-  const _HiddenObjectImageCard({
-    required this.restaurantId,
-    required this.branchId,
-  });
+  const _HiddenObjectImageCard({required this.restaurantBranchId});
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final imageUrl = ref.watch(
-      hiddenObjectImageProvider((
-        restaurantId: restaurantId,
-        branchId: branchId,
-      )),
-    );
+    final imageUrl = ref.watch(hiddenObjectImageProvider(restaurantBranchId));
 
     return Container(
       width: double.infinity,
@@ -962,17 +924,11 @@ class _HiddenObjectPlaceholder extends StatelessWidget {
   }
 }
 
-typedef HiddenObjectImageArgs = ({String restaurantId, String branchId});
-
 final hiddenObjectImageProvider = StreamProvider.autoDispose
-    .family<String?, HiddenObjectImageArgs>((ref, args) {
+    .family<String?, String>((ref, restaurantBranchId) {
       const useFirebase = bool.fromEnvironment('USE_FIREBASE');
       if (!useFirebase && !kIsWeb) return Stream.value(null);
 
-      final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
-        args.restaurantId,
-        args.branchId,
-      );
       return FirebaseFirestore.instance
           .doc(FirestorePaths.restaurantBranch(restaurantBranchId))
           .snapshots()
@@ -1849,15 +1805,13 @@ class _HourglassPainter extends CustomPainter {
 
 class _InlineReadyCard extends ConsumerWidget {
   const _InlineReadyCard({
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.branchLink,
     required this.entry,
     required this.onTheWay,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final CustomerBranchLink branchLink;
   final QueueEntry entry;
   final bool onTheWay;
@@ -1942,8 +1896,7 @@ class _InlineReadyCard extends ConsumerWidget {
                 await ref
                     .read(customerQueueRepositoryProvider)
                     .markOnTheWay(
-                      restaurantId: restaurantId,
-                      branchId: branchId,
+                      restaurantBranchId: restaurantBranchId,
                       queueEntryId: entry.id,
                       phone: entry.phone,
                     );
@@ -1988,8 +1941,7 @@ class _InlineReadyCard extends ConsumerWidget {
                   path: '/customer/install',
                   queryParameters: {
                     'returnTo': FirestorePaths.customerStatusRoute(
-                      restaurantId,
-                      branchId,
+                      restaurantBranchId,
                       entry.id,
                     ),
                   },

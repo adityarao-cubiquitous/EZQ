@@ -55,7 +55,7 @@ class Branch {
 
   factory Branch.fromMap(String id, Map<String, dynamic> data) {
     final identity = resolveRestaurantBranchIdentity(
-      restaurantBranchSlug: id,
+      restaurantBranchId: id,
       restaurantName: data['restaurantName'] as String?,
       branchName: data['branchName'] as String?,
       legacyBranchName: data['name'] as String?,

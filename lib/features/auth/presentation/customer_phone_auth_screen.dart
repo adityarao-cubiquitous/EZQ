@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/phone_utils.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/brand_mark.dart';
@@ -191,8 +190,7 @@ class _CustomerPhoneAuthScreenState
     });
 
     return CustomerShell(
-      restaurantId: AppConstants.demoRestaurantId,
-      branchId: AppConstants.demoBranchId,
+      restaurantBranchId: '',
       showBottomNav: false,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),

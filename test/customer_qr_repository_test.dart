@@ -30,5 +30,11 @@ void main() {
       ),
       isNull,
     );
+    expect(
+      customerRouteFromQrValue(
+        'https://ezq.example/scan?outletId=the-spice-house-indiranagar',
+      ),
+      isNull,
+    );
   });
 }

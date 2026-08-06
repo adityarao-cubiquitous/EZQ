@@ -29,14 +29,12 @@ import 'restaurant_logo.dart';
 class CustomerJoinQueueScreen extends ConsumerStatefulWidget {
   const CustomerJoinQueueScreen({
     super.key,
-    required this.restaurantId,
-    required this.branchSlug,
+    required this.restaurantBranchId,
     required this.restaurantName,
     required this.branchName,
   });
 
-  final String restaurantId;
-  final String branchSlug;
+  final String restaurantBranchId;
   final String restaurantName;
   final String branchName;
 
@@ -342,8 +340,7 @@ class _CustomerJoinQueueScreenState
     try {
       final result = await repository.joinQueue(
         JoinQueueRequest(
-          restaurantId: widget.restaurantId,
-          branchId: widget.branchSlug,
+          restaurantBranchId: widget.restaurantBranchId,
           customerName: _nameController.text,
           phone: _phoneController.text,
           partySize: _partySize,
@@ -363,8 +360,7 @@ class _CustomerJoinQueueScreenState
       ref.invalidate(currentCustomerVisitProvider);
       context.go(
         FirestorePaths.customerStatusRoute(
-          widget.restaurantId,
-          widget.branchSlug,
+          widget.restaurantBranchId,
           result.queueEntryId,
         ),
       );
@@ -388,8 +384,7 @@ class _CustomerJoinQueueScreenState
         ? null
         : ref.watch(
             _liveSeatingEtaProvider((
-              restaurantId: widget.restaurantId,
-              branchId: widget.branchSlug,
+              restaurantBranchId: widget.restaurantBranchId,
               partySize: _partySize,
             )),
           );
@@ -397,8 +392,7 @@ class _CustomerJoinQueueScreenState
     final eta = liveEta ?? _eta;
 
     return CustomerShell(
-      restaurantId: widget.restaurantId,
-      branchId: widget.branchSlug,
+      restaurantBranchId: widget.restaurantBranchId,
       activeTab: CustomerTab.join,
       appBackRoute: '/app/home',
       footer: const CustomerFooter(),
@@ -408,7 +402,7 @@ class _CustomerJoinQueueScreenState
         child: Column(
           children: [
             _HeroHeader(
-              restaurantBranchId: widget.restaurantId,
+              restaurantBranchId: widget.restaurantBranchId,
               restaurantName: widget.restaurantName,
               branchName: widget.branchName,
             ),
@@ -445,10 +439,10 @@ class _CustomerJoinQueueScreenState
 }
 
 final _liveSeatingEtaProvider = StreamProvider.autoDispose
-    .family<
-      SeatingEta,
-      ({String restaurantId, String branchId, int partySize})
-    >((ref, args) {
+    .family<SeatingEta, ({String restaurantBranchId, int partySize})>((
+      ref,
+      args,
+    ) {
       final queueRepository = ref.watch(queueRepositoryProvider);
       final tableRepository = ref.watch(tableRepositoryProvider);
       final controller = StreamController<SeatingEta>();
@@ -470,8 +464,8 @@ final _liveSeatingEtaProvider = StreamProvider.autoDispose
 
       final queueSubscription = queueRepository
           .watchTodayQueue(
-            restaurantId: args.restaurantId,
-            branchId: args.branchId,
+            restaurantId: args.restaurantBranchId,
+            branchId: args.restaurantBranchId,
           )
           .listen((queue) {
             latestQueue = queue;
@@ -479,7 +473,10 @@ final _liveSeatingEtaProvider = StreamProvider.autoDispose
           }, onError: controller.addError);
 
       final tableSubscription = tableRepository
-          .watchTables(restaurantId: args.restaurantId, branchId: args.branchId)
+          .watchTables(
+            restaurantId: args.restaurantBranchId,
+            branchId: args.restaurantBranchId,
+          )
           .listen((tables) {
             latestTables = tables;
             emitIfReady();

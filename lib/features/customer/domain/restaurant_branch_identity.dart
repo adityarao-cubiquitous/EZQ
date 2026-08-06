@@ -11,7 +11,7 @@ class RestaurantBranchIdentity {
 }
 
 RestaurantBranchIdentity resolveRestaurantBranchIdentity({
-  required String restaurantBranchSlug,
+  required String restaurantBranchId,
   String? restaurantName,
   String? branchName,
   String? legacyBranchName,
@@ -28,20 +28,20 @@ RestaurantBranchIdentity resolveRestaurantBranchIdentity({
 
   final separateRestaurantSlug = _nonEmpty(restaurantSlug);
   final separateBranchSlug = _nonEmpty(branchSlug);
-  final canonicalSlug = restaurantBranchSlug.trim().toLowerCase();
+  final canonicalId = restaurantBranchId.trim().toLowerCase();
   if (separateRestaurantSlug != null &&
       separateBranchSlug != null &&
-      (separateRestaurantSlug.toLowerCase() != canonicalSlug ||
-          separateBranchSlug.toLowerCase() != canonicalSlug)) {
+      (separateRestaurantSlug.toLowerCase() != canonicalId ||
+          separateBranchSlug.toLowerCase() != canonicalId)) {
     resolvedRestaurantName ??= _titleFromSlug(separateRestaurantSlug);
     resolvedBranchName ??= _titleFromSlug(separateBranchSlug);
   }
 
   return RestaurantBranchIdentity(
-    restaurantBranchId: canonicalSlug,
+    restaurantBranchId: canonicalId,
     restaurantName:
         resolvedRestaurantName ??
-        _titleFromSlug(canonicalSlug, fallback: 'Restaurant'),
+        _titleFromSlug(canonicalId, fallback: 'Restaurant'),
     branchName: resolvedBranchName ?? 'Main',
   );
 }

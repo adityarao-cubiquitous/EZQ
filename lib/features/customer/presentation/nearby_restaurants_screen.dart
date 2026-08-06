@@ -7,9 +7,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/widgets/restaurant_logo.dart';
-import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/ezq_button.dart';
+import '../../../core/widgets/restaurant_logo.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/customer_queue_repository.dart';
 import '../data/nearby_restaurants_repository.dart';
@@ -170,8 +170,7 @@ class NearbyRestaurantsScreen extends ConsumerWidget {
               ?.value;
 
     return CustomerShell(
-      restaurantId: currentVisit?.restaurantId ?? AppConstants.demoRestaurantId,
-      branchId: currentVisit?.branchId ?? AppConstants.demoBranchId,
+      restaurantBranchId: currentVisit?.restaurantBranchId ?? '',
       activeTab: CustomerTab.join,
       queueEntryId: currentVisit?.queueEntryId,
       showBottomNav: currentVisit != null,
@@ -344,8 +343,9 @@ class _NearbyRestaurantCard extends StatelessWidget {
           EzqButton(
             label: 'Join Queue',
             icon: Icons.arrow_forward_rounded,
-            onPressed: () =>
-                context.go('/customer/${restaurant.routeRestaurantBranchId}'),
+            onPressed: () => context.go(
+              FirestorePaths.customerRoute(restaurant.restaurantBranchId),
+            ),
           ),
         ],
       ),

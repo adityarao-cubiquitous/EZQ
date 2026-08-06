@@ -159,8 +159,8 @@ class _CustomerJoinLocationGateState
   @override
   void didUpdateWidget(CustomerJoinLocationGate oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.branchLink.restaurantId != widget.branchLink.restaurantId ||
-        oldWidget.branchLink.branch.id != widget.branchLink.branch.id) {
+    if (oldWidget.branchLink.restaurantBranchId !=
+        widget.branchLink.restaurantBranchId) {
       _check = _verify();
     }
   }
@@ -227,8 +227,7 @@ class _JoinLocationBlockedScreen extends StatelessWidget {
         result.failureType == CustomerJoinVicinityFailureType.serviceDisabled;
 
     return CustomerShell(
-      restaurantId: branchLink.restaurantId,
-      branchId: branchLink.branch.id,
+      restaurantBranchId: branchLink.restaurantBranchId,
       activeTab: CustomerTab.join,
       showBottomNav: false,
       appBackRoute: '/app/nearby',

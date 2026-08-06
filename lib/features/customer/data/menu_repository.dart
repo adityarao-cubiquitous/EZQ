@@ -7,10 +7,7 @@ import '../domain/branch.dart';
 import '../domain/menu_document.dart';
 
 abstract class MenuRepository {
-  Stream<MenuDocument> watchMenu({
-    required String restaurantId,
-    required String branchId,
-  });
+  Stream<MenuDocument> watchMenu({required String restaurantBranchId});
 }
 
 class FirebaseMenuRepository implements MenuRepository {
@@ -20,15 +17,7 @@ class FirebaseMenuRepository implements MenuRepository {
   final FirebaseFirestore _firestore;
 
   @override
-  Stream<MenuDocument> watchMenu({
-    required String restaurantId,
-    required String branchId,
-  }) {
-    final restaurantBranchId =
-        FirestorePaths.requireCanonicalRestaurantBranchId(
-          restaurantId,
-          branchId,
-        );
+  Stream<MenuDocument> watchMenu({required String restaurantBranchId}) {
     return _firestore
         .doc(FirestorePaths.restaurantBranch(restaurantBranchId))
         .snapshots()
@@ -50,10 +39,7 @@ class FirebaseMenuRepository implements MenuRepository {
 
 class MockMenuRepository implements MenuRepository {
   @override
-  Stream<MenuDocument> watchMenu({
-    required String restaurantId,
-    required String branchId,
-  }) async* {
+  Stream<MenuDocument> watchMenu({required String restaurantBranchId}) async* {
     yield const MenuDocument(
       restaurantName: 'The Spice House',
       branchName: 'Indiranagar',
@@ -71,14 +57,10 @@ final menuRepositoryProvider = Provider<MenuRepository>((ref) {
   return MockMenuRepository();
 });
 
-typedef MenuWatchArgs = ({String restaurantId, String branchId});
-
-final menuDocumentProvider = StreamProvider.family<MenuDocument, MenuWatchArgs>(
-  (ref, args) {
-    final repository = ref.watch(menuRepositoryProvider);
-    return repository.watchMenu(
-      restaurantId: args.restaurantId,
-      branchId: args.branchId,
-    );
-  },
-);
+final menuDocumentProvider = StreamProvider.family<MenuDocument, String>((
+  ref,
+  restaurantBranchId,
+) {
+  final repository = ref.watch(menuRepositoryProvider);
+  return repository.watchMenu(restaurantBranchId: restaurantBranchId);
+});

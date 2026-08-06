@@ -41,8 +41,7 @@ void main() {
         const ProviderScope(
           child: MaterialApp(
             home: CustomerJoinQueueScreen(
-              restaurantId: 'salad-studio',
-              branchSlug: '12th-main',
+              restaurantBranchId: 'salad-studio-12th-main',
               restaurantName: 'Salad Studio',
               branchName: '12th Main',
             ),
@@ -94,7 +93,7 @@ void main() {
 
       final routes = {
         for (final restaurant in restaurants)
-          '/customer/${restaurant.routeRestaurantBranchId}',
+          '/customer/${restaurant.restaurantBranchId}',
       };
 
       expect(restaurants, hasLength(10));
@@ -115,7 +114,10 @@ void main() {
       );
       expect(
         restaurants
-            .where((restaurant) => restaurant.branch.id == 'indiranagar')
+            .where(
+              (restaurant) =>
+                  restaurant.restaurantBranchId.endsWith('-indiranagar'),
+            )
             .map((restaurant) => restaurant.branch.restaurantId)
             .toSet(),
         containsAll({
@@ -142,12 +144,10 @@ void main() {
       usesAssumedWait: false,
     );
 
-    expect(restaurant.routeRestaurantId, 'biryani-bay-domlur-edge');
-    expect(restaurant.routeBranchId, 'biryani-bay-domlur-edge');
-    expect(restaurant.routeRestaurantBranchId, 'biryani-bay-domlur-edge');
+    expect(restaurant.restaurantBranchId, 'biryani-bay-domlur-edge');
   });
 
-  test('nearby branch uses explicit restaurant and branch slugs', () {
+  test('nearby routing ignores legacy restaurant and branch slugs', () {
     final restaurant = NearbyRestaurant(
       branch: Branch.fromMap('biryani-bay-domlur-edge', {
         'restaurantId': 'biryani-bay',
@@ -162,8 +162,6 @@ void main() {
       usesAssumedWait: false,
     );
 
-    expect(restaurant.routeRestaurantId, 'biryani-bay');
-    expect(restaurant.routeBranchId, 'domlur-edge');
-    expect(restaurant.routeRestaurantBranchId, 'biryani-bay-domlur-edge');
+    expect(restaurant.restaurantBranchId, 'biryani-bay-domlur-edge');
   });
 }

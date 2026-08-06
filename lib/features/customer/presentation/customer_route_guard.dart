@@ -63,8 +63,7 @@ class RestaurantSetupInProgressScreen extends StatelessWidget {
     };
 
     return CustomerShell(
-      restaurantId: '',
-      branchId: '',
+      restaurantBranchId: '',
       activeTab: CustomerTab.join,
       showBottomNav: false,
       appBackRoute: '/app/nearby',

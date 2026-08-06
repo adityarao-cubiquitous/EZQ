@@ -23,8 +23,7 @@ class CustomerDeepLinkScreen extends ConsumerWidget {
       data: (data) => CustomerJoinLocationGate(
         branchLink: data,
         child: CustomerJoinQueueScreen(
-          restaurantId: data.restaurantId,
-          branchSlug: data.branch.id,
+          restaurantBranchId: restaurantBranchId,
           restaurantName: data.restaurantName,
           branchName: data.branch.name,
         ),
@@ -113,8 +112,7 @@ class _DeepLinkErrorScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomerShell(
-      restaurantId: '',
-      branchId: '',
+      restaurantBranchId: '',
       activeTab: CustomerTab.join,
       showBottomNav: false,
       appBackRoute: '/app/nearby',

@@ -18,8 +18,7 @@ class CustomerShell extends StatelessWidget {
   const CustomerShell({
     super.key,
     required this.child,
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     this.activeTab = CustomerTab.join,
     this.queueEntryId,
     this.showBottomNav = true,
@@ -28,8 +27,7 @@ class CustomerShell extends StatelessWidget {
   });
 
   final Widget child;
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final CustomerTab activeTab;
   final String? queueEntryId;
   final bool showBottomNav;
@@ -88,16 +86,14 @@ class CustomerShell extends StatelessWidget {
                           ),
                         ),
                         _CustomerTopBar(
-                          restaurantId: restaurantId,
-                          branchId: branchId,
+                          restaurantBranchId: restaurantBranchId,
                           topInset: safePadding.top,
                           horizontalInset: horizontalInset,
                           appBackRoute: appBackRoute,
                         ),
                         if (showBottomNav)
                           _BottomNavBar(
-                            restaurantId: restaurantId,
-                            branchId: branchId,
+                            restaurantBranchId: restaurantBranchId,
                             activeTab: activeTab,
                             queueEntryId: queueEntryId,
                             bottomInset: safePadding.bottom,
@@ -194,15 +190,13 @@ class CustomerFooter extends StatelessWidget {
 
 class _CustomerTopBar extends ConsumerWidget {
   const _CustomerTopBar({
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.topInset,
     required this.horizontalInset,
     required this.appBackRoute,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final double topInset;
   final double horizontalInset;
   final String? appBackRoute;
@@ -215,9 +209,9 @@ class _CustomerTopBar extends ConsumerWidget {
         ref.watch(debugCustomerPhoneSessionProvider).value ??
         persistedDebugPhone.asData?.value;
     final showLogout = !kIsWeb && (authUser != null || debugPhone != null);
-    final installReturnTo = restaurantId.isEmpty || branchId.isEmpty
+    final installReturnTo = restaurantBranchId.isEmpty
         ? null
-        : FirestorePaths.customerRoute(restaurantId, branchId);
+        : FirestorePaths.customerRoute(restaurantBranchId);
 
     return Positioned(
       top: 0,
@@ -254,15 +248,11 @@ class _CustomerTopBar extends ConsumerWidget {
                       _AppBackButton(route: appBackRoute!),
                       const SizedBox(width: 8),
                     ],
-                    if (restaurantId.isEmpty || branchId.isEmpty)
+                    if (restaurantBranchId.isEmpty)
                       const BrandMark(size: 25)
                     else
                       RestaurantLogo(
-                        restaurantBranchId:
-                            FirestorePaths.restaurantBranchIdFromRoute(
-                              restaurantId,
-                              branchId,
-                            ),
+                        restaurantBranchId: restaurantBranchId,
                         size: 25,
                         shape: RestaurantLogoShape.circle,
                         showShadow: false,
@@ -424,16 +414,14 @@ class _InstallAppButton extends StatelessWidget {
 
 class _BottomNavBar extends StatelessWidget {
   const _BottomNavBar({
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.activeTab,
     required this.queueEntryId,
     required this.bottomInset,
     required this.horizontalInset,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final CustomerTab activeTab;
   final String? queueEntryId;
   final double bottomInset;
@@ -447,7 +435,7 @@ class _BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final customerBase = FirestorePaths.customerRoute(restaurantId, branchId);
+    final customerBase = FirestorePaths.customerRoute(restaurantBranchId);
     return Positioned(
       bottom: 0,
       left: 0,

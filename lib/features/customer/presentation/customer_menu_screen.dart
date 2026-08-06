@@ -11,24 +11,19 @@ import 'restaurant_logo.dart';
 class CustomerMenuScreen extends ConsumerWidget {
   const CustomerMenuScreen({
     super.key,
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     this.queueEntryId,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String? queueEntryId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final menu = ref.watch(
-      menuDocumentProvider((restaurantId: restaurantId, branchId: branchId)),
-    );
+    final menu = ref.watch(menuDocumentProvider(restaurantBranchId));
 
     return CustomerShell(
-      restaurantId: restaurantId,
-      branchId: branchId,
+      restaurantBranchId: restaurantBranchId,
       activeTab: CustomerTab.menu,
       queueEntryId: queueEntryId,
       appBackRoute: '/app/home',
@@ -36,12 +31,13 @@ class CustomerMenuScreen extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: menu.when(
           data: (document) => _MenuPdfCard(
-            restaurantBranchId: restaurantId,
+            restaurantBranchId: restaurantBranchId,
             document: document,
           ),
-          loading: () => _MenuLoadingCard(restaurantBranchId: restaurantId),
+          loading: () =>
+              _MenuLoadingCard(restaurantBranchId: restaurantBranchId),
           error: (_, _) => _MenuUnavailableCard(
-            restaurantBranchId: restaurantId,
+            restaurantBranchId: restaurantBranchId,
             title: 'Menu is unavailable',
             message: 'Please ask the host for the menu while we reconnect.',
           ),

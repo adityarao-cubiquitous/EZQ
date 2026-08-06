@@ -1,8 +1,7 @@
 class CustomerVisit {
   const CustomerVisit({
     required this.id,
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.queueEntryId,
     required this.businessDate,
     required this.partySize,
@@ -13,8 +12,7 @@ class CustomerVisit {
   });
 
   final String id;
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String queueEntryId;
   final String businessDate;
   final int partySize;

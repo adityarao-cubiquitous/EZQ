@@ -48,9 +48,7 @@ String? customerRouteFromQrValue(String rawValue) {
   final uri = Uri.tryParse(value);
   if (uri == null) return null;
 
-  final restaurantBranchId =
-      uri.queryParameters['restaurantBranchId'] ??
-      uri.queryParameters['outletId'];
+  final restaurantBranchId = uri.queryParameters['restaurantBranchId'];
   if (_isRouteSegment(restaurantBranchId)) {
     return '/customer/$restaurantBranchId';
   }

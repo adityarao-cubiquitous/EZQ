@@ -6,10 +6,8 @@ import '../../../core/constants/restaurant_logo_assets.dart';
 
 const _hostingOrigin = 'https://ezq-dev-cubiquitous.web.app';
 
-String canonicalCustomerQueueUrl({
-  required String restaurantId,
-  required String branchId,
-}) => '$_hostingOrigin${FirestorePaths.customerRoute(restaurantId, branchId)}';
+String canonicalCustomerQueueUrl({required String restaurantBranchId}) =>
+    '$_hostingOrigin${FirestorePaths.customerRoute(restaurantBranchId)}';
 
 class BranchQrInfo {
   const BranchQrInfo({
@@ -43,8 +41,10 @@ class BranchQrInfo {
       restaurantName: restaurantId,
       branchName: branchId,
       queueUrl: canonicalCustomerQueueUrl(
-        restaurantId: restaurantId,
-        branchId: branchId,
+        restaurantBranchId: FirestorePaths.restaurantBranchIdFromRoute(
+          restaurantId,
+          branchId,
+        ),
       ),
     );
   }
@@ -96,8 +96,7 @@ class QrManagementRepository {
       branchId,
     );
     final queueUrl = canonicalCustomerQueueUrl(
-      restaurantId: restaurantId,
-      branchId: branchId,
+      restaurantBranchId: restaurantBranchId,
     );
     final generatedAtValue = data['qrGeneratedAt'];
     final logoUrl = (data['logoUrl'] as String? ?? '').trim();

@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/customer_qr_repository.dart';
@@ -104,8 +103,7 @@ class _CustomerQrScannerScreenState
     final isSignedIn = authUser != null || debugPhone != null;
 
     return CustomerShell(
-      restaurantId: AppConstants.demoRestaurantId,
-      branchId: AppConstants.demoBranchId,
+      restaurantBranchId: '',
       showBottomNav: false,
       appBackRoute: widget.appBackRoute,
       child: Padding(

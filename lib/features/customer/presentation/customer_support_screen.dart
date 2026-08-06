@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../data/branch_identity_repository.dart';
@@ -12,25 +11,18 @@ import 'restaurant_logo.dart';
 class CustomerSupportScreen extends ConsumerWidget {
   const CustomerSupportScreen({
     super.key,
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     this.queueEntryId,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String? queueEntryId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
-      restaurantId,
-      branchId,
-    );
     final branch = ref.watch(customerBranchLinkProvider(restaurantBranchId));
     return CustomerShell(
-      restaurantId: restaurantId,
-      branchId: branchId,
+      restaurantBranchId: restaurantBranchId,
       activeTab: CustomerTab.support,
       queueEntryId: queueEntryId,
       appBackRoute: '/app/home',
