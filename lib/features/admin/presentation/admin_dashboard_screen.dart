@@ -30,6 +30,7 @@ import '../../customer/data/branch_identity_repository.dart';
 import '../../customer/domain/restaurant_branch_identity.dart';
 import 'qr_management_panel.dart';
 import 'widgets/admin_branch_identity_pill.dart';
+import 'widgets/collapsible_dashboard_controls.dart';
 import 'widgets/collapsible_live_queue_layout.dart';
 
 final Set<String> _warnedDashboardDisplayNameFallbacks = <String>{};
@@ -326,6 +327,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   late final SharedPreferencesAsync _uiPreferences;
   bool _isLiveQueueOpen = true;
   bool _liveQueuePreferenceChanged = false;
+  bool _dashboardControlsExpanded = false;
+  bool _dashboardControlsPreferenceChanged = false;
   String? _spotlightQueueEntryId;
   String? _spotlightLabel;
   String? _secondarySpotlightQueueEntryId;
@@ -344,11 +347,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   String get _liveQueuePreferenceKey =>
       'ezq.admin.liveQueueOpen.${widget.restaurantId}.${widget.branchId}';
 
+  String get _dashboardControlsPreferenceKey =>
+      'ezq.admin.dashboardControlsExpanded.'
+      '${widget.restaurantId}.${widget.branchId}';
+
   @override
   void initState() {
     super.initState();
     _uiPreferences = SharedPreferencesAsync();
     unawaited(_restoreLiveQueuePreference());
+    unawaited(_restoreDashboardControlsPreference());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final openQr =
@@ -381,6 +389,41 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       await _uiPreferences.setBool(_liveQueuePreferenceKey, isOpen);
     } catch (error) {
       debugPrint('[ADMIN_DASHBOARD] Live Queue preference save failed: $error');
+    }
+  }
+
+  Future<void> _restoreDashboardControlsPreference() async {
+    try {
+      final savedValue = await _uiPreferences.getBool(
+        _dashboardControlsPreferenceKey,
+      );
+      if (!mounted ||
+          savedValue == null ||
+          _dashboardControlsPreferenceChanged) {
+        return;
+      }
+      setState(() => _dashboardControlsExpanded = savedValue);
+    } catch (error) {
+      debugPrint(
+        '[ADMIN_DASHBOARD] Dashboard Controls preference load failed: $error',
+      );
+    }
+  }
+
+  void _setDashboardControlsExpanded(bool isExpanded) {
+    if (_dashboardControlsExpanded == isExpanded) return;
+    _dashboardControlsExpanded = isExpanded;
+    _dashboardControlsPreferenceChanged = true;
+    unawaited(_saveDashboardControlsPreference(isExpanded));
+  }
+
+  Future<void> _saveDashboardControlsPreference(bool isExpanded) async {
+    try {
+      await _uiPreferences.setBool(_dashboardControlsPreferenceKey, isExpanded);
+    } catch (error) {
+      debugPrint(
+        '[ADMIN_DASHBOARD] Dashboard Controls preference save failed: $error',
+      );
     }
   }
 
@@ -655,6 +698,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       freeTables: free,
                       occupiedTables: occupied,
                       waitingCount: liveQueue.length,
+                      dashboardControlsExpanded: _dashboardControlsExpanded,
+                      onDashboardControlsExpandedChanged:
+                          _setDashboardControlsExpanded,
                       selectedMetric: _selectedMetricFilter,
                       onMetricTap: _handleMetricTap,
                       onLogout: _logoutAdmin,
@@ -2659,6 +2705,8 @@ class _AdminTopBar extends StatelessWidget {
     required this.freeTables,
     required this.occupiedTables,
     required this.waitingCount,
+    required this.dashboardControlsExpanded,
+    required this.onDashboardControlsExpandedChanged,
     required this.selectedMetric,
     required this.onMetricTap,
     required this.onLogout,
@@ -2681,6 +2729,8 @@ class _AdminTopBar extends StatelessWidget {
   final int freeTables;
   final int occupiedTables;
   final int waitingCount;
+  final bool dashboardControlsExpanded;
+  final ValueChanged<bool> onDashboardControlsExpandedChanged;
   final _TopMetricFilter? selectedMetric;
   final ValueChanged<_TopMetricFilter> onMetricTap;
   final VoidCallback onLogout;
@@ -2703,6 +2753,7 @@ class _AdminTopBar extends StatelessWidget {
     final narrowMobile = screenWidth < 360;
     final tightDesktop = !compact && screenWidth < 1500;
     final tablet = Responsive.isTablet(context);
+    final phoneLandscape = Responsive.isPhoneLandscape(context);
     final horizontalPadding = compact ? 14.0 : 32.0;
     final tableSelectionMode =
         offlineReserveSelectionMode || enableOfflineSelectionMode;
@@ -2738,6 +2789,111 @@ class _AdminTopBar extends StatelessWidget {
             tooltip: 'Logout',
             onPressed: onLogout,
             icon: const Icon(Icons.logout_rounded),
+          ),
+        ],
+      );
+    }
+
+    Widget compactDashboardControls() {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _TopMetric(
+                  label: 'Free',
+                  value: freeTables,
+                  color: AppColors.primaryTeal,
+                  selected: selectedMetric == _TopMetricFilter.free,
+                  onTap: () => onMetricTap(_TopMetricFilter.free),
+                  compact: true,
+                ),
+              ),
+              Expanded(
+                child: _TopMetric(
+                  label: 'Occupied',
+                  value: occupiedTables,
+                  color: AppColors.errorRed,
+                  selected: selectedMetric == _TopMetricFilter.occupied,
+                  onTap: () => onMetricTap(_TopMetricFilter.occupied),
+                  compact: true,
+                ),
+              ),
+              Expanded(
+                child: _TopMetric(
+                  label: 'Waiting',
+                  value: waitingCount,
+                  color: AppColors.accentPurple,
+                  selected: selectedMetric == _TopMetricFilter.waiting,
+                  onTap: () => onMetricTap(_TopMetricFilter.waiting),
+                  compact: true,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: EzqButton(
+                  label: 'Walk-in',
+                  icon: Icons.add,
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (context) => _WalkInDialog(
+                      restaurantId: restaurantId,
+                      branchId: branchId,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _OfflineReserveTopBarButton(
+                  selectionMode: offlineReserveSelectionMode,
+                  selectedCount: offlineReserveSelectedCount,
+                  eligibleCount: offlineReserveEligibleCount,
+                  idleLabel: 'Offline',
+                  emptySelectionLabel: 'Disable selected',
+                  selectedLabelPrefix: 'Disable',
+                  idleTooltip: 'Select available tables to offline reserve',
+                  selectionTooltip: 'Mark selected tables offline reserved',
+                  idleIcon: Icons.event_busy_rounded,
+                  selectionIcon: Icons.block_rounded,
+                  idleTone: AppColors.deepTeal,
+                  selectionTone: const Color(0xFF7C2D12),
+                  onPressed: onOfflineReserveAction,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _OfflineReserveTopBarButton(
+                  selectionMode: enableOfflineSelectionMode,
+                  selectedCount: enableOfflineSelectedCount,
+                  eligibleCount: enableOfflineEligibleCount,
+                  idleLabel: 'Enable',
+                  emptySelectionLabel: 'Enable selected',
+                  selectedLabelPrefix: 'Enable',
+                  idleTooltip: 'Select offline reserved tables to enable',
+                  selectionTooltip: 'Enable selected tables',
+                  idleIcon: Icons.event_available_rounded,
+                  selectionIcon: Icons.check_circle_rounded,
+                  idleTone: AppColors.successGreen,
+                  selectionTone: AppColors.successGreen,
+                  onPressed: onEnableOfflineAction,
+                ),
+              ),
+              if (tableSelectionMode) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Cancel table selection',
+                  onPressed: onTableSelectionCancel,
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ],
           ),
         ],
       );
@@ -2790,104 +2946,11 @@ class _AdminTopBar extends StatelessWidget {
                       compactHeaderActions(),
                     ],
                   ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _TopMetric(
-                        label: 'Free',
-                        value: freeTables,
-                        color: AppColors.primaryTeal,
-                        selected: selectedMetric == _TopMetricFilter.free,
-                        onTap: () => onMetricTap(_TopMetricFilter.free),
-                        compact: true,
-                      ),
-                    ),
-                    Expanded(
-                      child: _TopMetric(
-                        label: 'Occupied',
-                        value: occupiedTables,
-                        color: AppColors.errorRed,
-                        selected: selectedMetric == _TopMetricFilter.occupied,
-                        onTap: () => onMetricTap(_TopMetricFilter.occupied),
-                        compact: true,
-                      ),
-                    ),
-                    Expanded(
-                      child: _TopMetric(
-                        label: 'Waiting',
-                        value: waitingCount,
-                        color: AppColors.accentPurple,
-                        selected: selectedMetric == _TopMetricFilter.waiting,
-                        onTap: () => onMetricTap(_TopMetricFilter.waiting),
-                        compact: true,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: EzqButton(
-                        label: 'Walk-in',
-                        icon: Icons.add,
-                        onPressed: () => showDialog<void>(
-                          context: context,
-                          builder: (context) => _WalkInDialog(
-                            restaurantId: restaurantId,
-                            branchId: branchId,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _OfflineReserveTopBarButton(
-                        selectionMode: offlineReserveSelectionMode,
-                        selectedCount: offlineReserveSelectedCount,
-                        eligibleCount: offlineReserveEligibleCount,
-                        idleLabel: 'Offline',
-                        emptySelectionLabel: 'Disable selected',
-                        selectedLabelPrefix: 'Disable',
-                        idleTooltip:
-                            'Select available tables to offline reserve',
-                        selectionTooltip:
-                            'Mark selected tables offline reserved',
-                        idleIcon: Icons.event_busy_rounded,
-                        selectionIcon: Icons.block_rounded,
-                        idleTone: AppColors.deepTeal,
-                        selectionTone: const Color(0xFF7C2D12),
-                        onPressed: onOfflineReserveAction,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _OfflineReserveTopBarButton(
-                        selectionMode: enableOfflineSelectionMode,
-                        selectedCount: enableOfflineSelectedCount,
-                        eligibleCount: enableOfflineEligibleCount,
-                        idleLabel: 'Enable',
-                        emptySelectionLabel: 'Enable selected',
-                        selectedLabelPrefix: 'Enable',
-                        idleTooltip: 'Select offline reserved tables to enable',
-                        selectionTooltip: 'Enable selected tables',
-                        idleIcon: Icons.event_available_rounded,
-                        selectionIcon: Icons.check_circle_rounded,
-                        idleTone: AppColors.successGreen,
-                        selectionTone: AppColors.successGreen,
-                        onPressed: onEnableOfflineAction,
-                      ),
-                    ),
-                    if (tableSelectionMode) ...[
-                      const SizedBox(width: 4),
-                      IconButton(
-                        tooltip: 'Cancel table selection',
-                        onPressed: onTableSelectionCancel,
-                        icon: const Icon(Icons.close_rounded),
-                      ),
-                    ],
-                  ],
+                CollapsibleDashboardControls(
+                  enabled: phoneLandscape,
+                  expanded: dashboardControlsExpanded,
+                  onExpandedChanged: onDashboardControlsExpandedChanged,
+                  child: compactDashboardControls(),
                 ),
               ],
             )
