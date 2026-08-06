@@ -463,9 +463,7 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('We could not exit the queue. Please try again.'),
-        ),
+        const SnackBar(content: Text('Could not exit the queue.')),
       );
     } finally {
       if (mounted) setState(() => _cancelling = false);
@@ -595,7 +593,7 @@ class _ActiveVisitCard extends StatelessWidget {
             if (onCancel != null) ...[
               const SizedBox(height: 10),
               EzqButton(
-                label: cancelling ? 'Exiting…' : 'Exit Queue',
+                label: cancelling ? 'Exiting...' : 'Exit Queue',
                 destructive: true,
                 onPressed: cancelling ? null : onCancel,
               ),

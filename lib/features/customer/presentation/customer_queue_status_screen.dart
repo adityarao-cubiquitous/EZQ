@@ -229,7 +229,7 @@ class _StatusContent extends ConsumerWidget {
       ),
       QueueStatus.skipped => _TerminalStatusCard(
         status: QueueStatus.skipped,
-        title: 'Reservation Skipped',
+        title: 'Queue Token Skipped',
         message:
             'Please contact the host at ${branchLink.restaurantName}, '
             '${branchLink.branch.name}, if you still wish to dine.',
@@ -238,10 +238,10 @@ class _StatusContent extends ConsumerWidget {
       ),
       QueueStatus.noShow => _TerminalStatusCard(
         status: QueueStatus.noShow,
-        title: 'Reservation Closed',
+        title: 'Queue Token Closed',
         message:
-            'Your reservation at ${branchLink.restaurantName}, '
-            '${branchLink.branch.name}, has expired.',
+            'Your queue token at ${branchLink.restaurantName}, '
+            '${branchLink.branch.name}, has been closed.',
         icon: Icons.person_off_rounded,
         iconColor: Color(0xFFBA1A1A),
       ),
@@ -288,7 +288,7 @@ class _StatusContent extends ConsumerWidget {
   }
 }
 
-class _StatusActions extends ConsumerWidget {
+class _StatusActions extends ConsumerStatefulWidget {
   const _StatusActions({
     required this.restaurantId,
     required this.branchId,
@@ -304,7 +304,61 @@ class _StatusActions extends ConsumerWidget {
   final bool showCancel;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_StatusActions> createState() => _StatusActionsState();
+}
+
+class _StatusActionsState extends ConsumerState<_StatusActions> {
+  bool _exiting = false;
+
+  Future<void> _exitQueue() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.event_busy_rounded, color: Color(0xFFBA1A1A)),
+        title: const Text('Exit Queue?'),
+        content: const Text(
+          'You will lose your place in this queue. You can join again later.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep My Place'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Exit Queue'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _exiting = true);
+    try {
+      await ref
+          .read(customerQueueRepositoryProvider)
+          .cancelQueueEntry(
+            restaurantId: widget.restaurantId,
+            branchId: widget.branchId,
+            queueEntryId: widget.queueEntryId,
+            phone: widget.entry.phone,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You have exited the queue.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not exit the queue.')),
+      );
+    } finally {
+      if (mounted) setState(() => _exiting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       children: [
         EzqButton(
@@ -313,41 +367,21 @@ class _StatusActions extends ConsumerWidget {
           onPressed: () => context.go(
             Uri(
               path:
-                  '${FirestorePaths.customerRoute(restaurantId, branchId)}/menu',
-              queryParameters: {'queueEntryId': queueEntryId},
+                  '${FirestorePaths.customerRoute(widget.restaurantId, widget.branchId)}/menu',
+              queryParameters: {'queueEntryId': widget.queueEntryId},
             ).toString(),
           ),
         ),
-        if (showCancel) ...[
+        if (widget.showCancel) ...[
           const SizedBox(height: 10),
           SizedBox(
             key: const ValueKey('queue-status-cancel-action'),
             width: double.infinity,
             height: 50,
             child: OutlinedButton.icon(
-              onPressed: () async {
-                try {
-                  await ref
-                      .read(customerQueueRepositoryProvider)
-                      .cancelQueueEntry(
-                        restaurantId: restaurantId,
-                        branchId: branchId,
-                        queueEntryId: queueEntryId,
-                        phone: entry.phone,
-                      );
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('You have exited the queue.')),
-                  );
-                } catch (error) {
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Could not exit the queue: $error')),
-                  );
-                }
-              },
+              onPressed: _exiting ? null : _exitQueue,
               icon: const Icon(Icons.close_rounded, size: 18),
-              label: const Text('Exit Queue'),
+              label: Text(_exiting ? 'Exiting...' : 'Exit Queue'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFFBA1A1A),
                 side: const BorderSide(color: Color(0x33BA1A1A)),
@@ -364,7 +398,10 @@ class _StatusActions extends ConsumerWidget {
         const SizedBox(height: 14),
         const _SponsoredAdCard(),
         const SizedBox(height: 14),
-        _HiddenObjectImageCard(restaurantId: restaurantId, branchId: branchId),
+        _HiddenObjectImageCard(
+          restaurantId: widget.restaurantId,
+          branchId: widget.branchId,
+        ),
       ],
     );
   }

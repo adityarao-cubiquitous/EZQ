@@ -67,11 +67,11 @@ void main() {
     ),
     QueueStatus.skipped: (
       key: 'queue-status-skipped',
-      text: 'Reservation Skipped',
+      text: 'Queue Token Skipped',
     ),
     QueueStatus.noShow: (
       key: 'queue-status-no_show',
-      text: 'Reservation Closed',
+      text: 'Queue Token Closed',
     ),
     QueueStatus.expired: (
       key: 'queue-status-expired',
@@ -150,7 +150,9 @@ void main() {
     }
   });
 
-  testWidgets('waiting changes to cancelled without a refresh', (tester) async {
+  testWidgets('exit queue confirmation uses standardized customer copy', (
+    tester,
+  ) async {
     final semantics = tester.ensureSemantics();
     final repository = ControlledCustomerQueueRepository(QueueStatus.waiting);
     addTearDown(repository.close);
@@ -170,6 +172,18 @@ void main() {
     semantics.dispose();
     await tester.tap(find.text('Exit Queue'));
     await tester.pump();
+
+    expect(find.text('Exit Queue?'), findsOneWidget);
+    expect(
+      find.text(
+        'You will lose your place in this queue. You can join again later.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Keep My Place'), findsOneWidget);
+    expect(find.text('Exit Queue'), findsNWidgets(2));
+
+    await tester.tap(find.text('Exit Queue').last);
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(
@@ -178,6 +192,26 @@ void main() {
     );
     expect(find.byKey(const ValueKey('queue-status-waiting')), findsNothing);
     expect(find.text('You have exited the queue.'), findsOneWidget);
+  });
+
+  testWidgets('exit queue failure uses standardized customer copy', (
+    tester,
+  ) async {
+    final repository = ControlledCustomerQueueRepository(
+      QueueStatus.waiting,
+      exitError: StateError('private backend detail'),
+    );
+    addTearDown(repository.close);
+    await pumpStatusScreen(tester, repository);
+
+    await tester.tap(find.text('Exit Queue'));
+    await tester.pump();
+    await tester.tap(find.text('Exit Queue').last);
+    await tester.pump();
+
+    expect(find.text('Could not exit the queue.'), findsOneWidget);
+    expect(find.textContaining('private backend detail'), findsNothing);
+    expect(find.text('Exit Queue'), findsOneWidget);
   });
 
   testWidgets('manager completion updates the customer in realtime', (
@@ -301,10 +335,12 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
   ControlledCustomerQueueRepository(
     QueueStatus initialStatus, {
     this.streamError,
+    this.exitError,
     this.aheadCount = 2,
   }) : _entry = _entryFor(initialStatus);
 
   final Object? streamError;
+  final Object? exitError;
   final int aheadCount;
   final StreamController<QueueEntry> _controller =
       StreamController<QueueEntry>.broadcast();
@@ -324,6 +360,8 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
     required String queueEntryId,
     required String phone,
   }) async {
+    final error = exitError;
+    if (error != null) throw error;
     if (!_entry.status.canBeCancelledByCustomer) {
       throw StateError('Cancellation is not permitted.');
     }
