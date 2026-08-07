@@ -341,23 +341,24 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
       ),
       data: (visit) {
         if (visit == null) return const _NoCurrentVisitPanel();
-        final entryState = ref.watch(
-          queueEntryProvider((
+        final queueState = ref.watch(
+          customerQueueStateProvider((
             restaurantBranchId: visit.restaurantBranchId,
             queueEntryId: visit.queueEntryId,
           )),
         );
-        return entryState.when(
+        return queueState.when(
           loading: () => const _CurrentVisitLoadingPanel(),
           error: (error, _) => _CurrentVisitErrorPanel(
             onRetry: () => ref.invalidate(
-              queueEntryProvider((
+              customerQueueStateProvider((
                 restaurantBranchId: visit.restaurantBranchId,
                 queueEntryId: visit.queueEntryId,
               )),
             ),
           ),
-          data: (entry) {
+          data: (queueState) {
+            final entry = queueState.entry;
             if (!isCurrentCustomerVisitStatus(entry.status)) {
               return const _NoCurrentVisitPanel();
             }
@@ -365,23 +366,9 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
             final branchState = ref.watch(
               customerBranchLinkProvider(restaurantBranchId),
             );
-            final fallbackAheadCount = (entry.queuePosition - 1).clamp(
-              0,
-              999999,
-            );
             final aheadCount = entry.status == QueueStatus.seated
                 ? 0
-                : ref
-                      .watch(
-                        queueAheadCountProvider((
-                          restaurantBranchId: visit.restaurantBranchId,
-                          queueEntryId: visit.queueEntryId,
-                        )),
-                      )
-                      .maybeWhen(
-                        data: (ahead) => ahead,
-                        orElse: () => fallbackAheadCount,
-                      );
+                : queueState.partiesAhead;
             return branchState.when(
               loading: () => const _CurrentVisitLoadingPanel(),
               error: (error, _) => _ActiveVisitCard(
@@ -555,7 +542,7 @@ class _ActiveVisitCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _VisitMetric(
-                    label: seated ? 'Table' : 'Queue position',
+                    label: seated ? 'Table' : 'Parties Ahead',
                     value: seated
                         ? (entry.assignedTableNumber ?? 'Assigned')
                         : partiesAheadLabel(aheadCount),
@@ -564,7 +551,7 @@ class _ActiveVisitCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _VisitMetric(
-                    label: seated ? 'Status' : 'Estimated wait',
+                    label: seated ? 'Status' : 'Estimated Wait',
                     value: seated ? 'Seated' : null,
                     valueWidget: seated ? null : _QueueWaitValue(entry: entry),
                   ),

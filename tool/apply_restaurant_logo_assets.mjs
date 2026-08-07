@@ -6,7 +6,7 @@ const projectId = process.argv[2] ?? 'ezq-dev-cubiquitous';
 const dryRun = process.argv.includes('--dry-run');
 const configPath = `${homedir()}/.config/configstore/firebase-tools.json`;
 
-const defaultLogo = 'assets/restaurant_logos/default.png';
+const defaultLogo = 'assets/restaurant_logos/default_restaurant_logo.png';
 const logoAssetsByBranch = new Map([
   ['bhagini-horamavu-signal', defaultLogo],
   ['biryani-bay-domlur-edge', defaultLogo],

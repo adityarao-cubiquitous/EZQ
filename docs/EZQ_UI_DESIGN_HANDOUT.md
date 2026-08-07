@@ -166,7 +166,9 @@ Primary job: let a customer join the queue quickly without authentication.
 
 Visible sections:
 
-- Restaurant logo.
+- Restaurant logo from the centralized branch mapping: Salad Studio and
+  Noodle Yard use their mapped assets; every other branch uses the default
+  restaurant logo.
 - Branch badge.
 - Restaurant name and tagline.
 - Join form card.
@@ -210,8 +212,8 @@ Waiting state content:
 
 - Customer identity card.
 - Token display.
-- Queue position.
-- Estimated remaining wait.
+- Parties Ahead.
+- Estimated Wait.
 - Progress indicator.
 - Status message.
 - View menu action.
@@ -223,6 +225,12 @@ Waiting state content:
 Wait display rules:
 
 - Customer-facing text should show remaining minutes.
+- The queue entry and Parties Ahead count must come from the same
+  server-confirmed Firestore collection snapshot.
+- Cached or optimistic queue positions must stay in a loading state and must
+  never render as a temporary zero.
+- Android and Web use the same realtime repository/provider and update on
+  Firestore snapshots without polling or refresh.
 - Use an hourglass icon/animation treatment near estimated wait.
 - Keep this card compact; avoid using excessive vertical space for small metadata.
 

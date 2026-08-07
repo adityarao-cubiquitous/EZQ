@@ -82,10 +82,7 @@ class RestaurantLogo extends StatelessWidget {
             errorBuilder: (_, _, _) => fallback,
           )
         : fallback;
-    final assetPath = RestaurantLogoAssets.specificForBranch(
-      restaurantBranchId,
-    );
-    if (assetPath == null) return networkImage;
+    final assetPath = RestaurantLogoAssets.forBranch(restaurantBranchId);
     return Image.asset(
       assetPath,
       key: ValueKey('restaurant-logo-asset-$restaurantBranchId'),
