@@ -5,8 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../core/constants/app_constants.dart';
-import '../core/constants/firestore_paths.dart';
 import '../features/admin/presentation/admin_dashboard_screen.dart';
 import '../features/auth/presentation/customer_name_profile_screen.dart';
 import '../features/auth/presentation/customer_phone_auth_screen.dart';
@@ -64,6 +62,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             restaurantBranchId: restaurantBranchId,
             child: CustomerDeepLinkScreen(
               restaurantBranchId: restaurantBranchId,
+              previousQueueEntryId: state.uri.queryParameters['rejoinFrom'],
+              appBackRoute: _customerBackRoute(
+                state.uri.queryParameters['returnTo'],
+                fallback: '/app/home',
+              ),
             ),
           );
         },
@@ -76,8 +79,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           return CustomerRouteGuard(
             restaurantBranchId: restaurantBranchId,
             child: CustomerQueueStatusScreen(
-              restaurantId: restaurantBranchId,
-              branchId: restaurantBranchId,
+              restaurantBranchId: restaurantBranchId,
               queueEntryId: state.pathParameters['queueEntryId']!,
             ),
           );
@@ -91,8 +93,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           return CustomerRouteGuard(
             restaurantBranchId: restaurantBranchId,
             child: TableReadyView(
-              restaurantId: restaurantBranchId,
-              branchId: restaurantBranchId,
+              restaurantBranchId: restaurantBranchId,
               queueEntryId: state.pathParameters['queueEntryId']!,
             ),
           );
@@ -106,8 +107,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           return CustomerRouteGuard(
             restaurantBranchId: restaurantBranchId,
             child: SeatedView(
-              restaurantId: restaurantBranchId,
-              branchId: restaurantBranchId,
+              restaurantBranchId: restaurantBranchId,
               queueEntryId: state.pathParameters['queueEntryId']!,
             ),
           );
@@ -121,8 +121,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           return CustomerRouteGuard(
             restaurantBranchId: restaurantBranchId,
             child: CustomerMenuScreen(
-              restaurantId: restaurantBranchId,
-              branchId: restaurantBranchId,
+              restaurantBranchId: restaurantBranchId,
               queueEntryId: state.uri.queryParameters['queueEntryId'],
             ),
           );
@@ -136,8 +135,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           return CustomerRouteGuard(
             restaurantBranchId: restaurantBranchId,
             child: CustomerSupportScreen(
-              restaurantId: restaurantBranchId,
-              branchId: restaurantBranchId,
+              restaurantBranchId: restaurantBranchId,
               queueEntryId: state.uri.queryParameters['queueEntryId'],
             ),
           );
@@ -218,28 +216,23 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/app/scan',
-        builder: (context, state) =>
-            const CustomerQrScannerScreen(appBackRoute: '/app/home'),
-      ),
-      GoRoute(
-        path: '/app/queue/:queueEntryId',
-        builder: (context, state) {
-          final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
-            AppConstants.demoRestaurantId,
-            AppConstants.demoBranchId,
-          );
-          return CustomerQueueStatusScreen(
-            restaurantId: restaurantBranchId,
-            branchId: restaurantBranchId,
-            queueEntryId: state.pathParameters['queueEntryId']!,
-          );
-        },
+        builder: (context, state) => CustomerQrScannerScreen(
+          appBackRoute: _customerBackRoute(
+            state.uri.queryParameters['returnTo'],
+            fallback: '/app/home',
+          ),
+        ),
       ),
     ],
   );
   ref.onDispose(router.dispose);
   return router;
 });
+
+String _customerBackRoute(String? candidate, {required String fallback}) {
+  const allowedRoutes = {'/', '/app/home', '/app/nearby', '/app/scan'};
+  return allowedRoutes.contains(candidate) ? candidate! : fallback;
+}
 
 Future<String?> _redirectApplicationRoute(GoRouterState state) async {
   final customerRedirect = resolveLegacyCustomerRouteRedirect(state.uri.path);

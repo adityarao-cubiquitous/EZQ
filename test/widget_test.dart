@@ -3,10 +3,17 @@ import 'package:ezq/features/auth/data/auth_repository.dart';
 import 'package:ezq/features/auth/presentation/customer_name_profile_screen.dart';
 import 'package:ezq/features/customer/data/nearby_restaurants_repository.dart';
 import 'package:ezq/features/customer/domain/branch.dart';
+import 'package:ezq/features/customer/domain/restaurant_branch_identity.dart';
 import 'package:ezq/features/customer/presentation/customer_join_queue_screen.dart';
+import 'package:ezq/features/customer/presentation/customer_landing_screen.dart';
+import 'package:ezq/features/queue/domain/queue_entry.dart';
+import 'package:ezq/features/queue/domain/queue_status.dart';
+import 'package:ezq/features/recommendation/domain/customer_preferences.dart';
+import 'package:ezq/features/recommendation/domain/recommendation_types.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 void main() {
   Future<void> pumpFrames(WidgetTester tester) async {
@@ -29,6 +36,39 @@ void main() {
     expect(find.text('The Spice House'), findsNothing);
   });
 
+  testWidgets('persisted customer session restores authenticated home', (
+    tester,
+  ) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const CustomerLandingScreen(),
+        ),
+        GoRoute(
+          path: '/app/home',
+          builder: (context, state) => const Text('restored-customer-home'),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          debugCustomerPhoneSessionProvider.overrideWithValue(
+            ValueNotifier<String?>('+919999988888'),
+          ),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('restored-customer-home'), findsOneWidget);
+  });
+
   testWidgets(
     'customer join header uses resolved restaurant and branch names',
     (tester) async {
@@ -41,10 +81,13 @@ void main() {
         const ProviderScope(
           child: MaterialApp(
             home: CustomerJoinQueueScreen(
-              restaurantId: 'salad-studio',
-              branchSlug: '12th-main',
-              restaurantName: 'Salad Studio',
-              branchName: '12th Main',
+              restaurantBranchId: 'salad-studio-12th-main',
+              identity: RestaurantBranchIdentity(
+                restaurantBranchId: 'salad-studio-12th-main',
+                restaurantName: 'Salad Studio',
+                branchName: '12th Main',
+                address: '12th Main Road, Indiranagar, Bengaluru',
+              ),
             ),
           ),
         ),
@@ -56,6 +99,63 @@ void main() {
       expect(find.text('The Spice House'), findsNothing);
     },
   );
+
+  testWidgets('join again prefills editable details without auto-submitting', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final previousEntry = QueueEntry(
+      id: 'previous-entry',
+      tokenNumber: 12,
+      tokenCode: 'Q12',
+      businessDate: '2026-08-06',
+      customerName: 'Rejoin Customer',
+      phone: '+919999988888',
+      partySize: 6,
+      partySizeBand: '5-6',
+      notes: 'Window seat',
+      status: QueueStatus.completed,
+      estimatedWaitMinutes: 20,
+      queuePosition: 4,
+      extensionUsed: false,
+      joinedAt: DateTime(2026, 8, 6, 12),
+      customerPreferences: const CustomerPreferences(
+        seatingPreference: SeatingPreference.emptyTableOnly,
+        acceptedLongerWait: true,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: CustomerJoinQueueScreen(
+            restaurantBranchId: 'salad-studio-12th-main',
+            identity: const RestaurantBranchIdentity(
+              restaurantBranchId: 'salad-studio-12th-main',
+              restaurantName: 'Salad Studio',
+              branchName: '12th Main',
+              address: '12th Main Road, Indiranagar, Bengaluru',
+            ),
+            initialEntry: previousEntry,
+          ),
+        ),
+      ),
+    );
+    await pumpFrames(tester);
+
+    expect(find.text('Rejoin Customer'), findsOneWidget);
+    expect(find.text('9999988888'), findsOneWidget);
+    expect(find.text('Window seat'), findsOneWidget);
+    expect(find.text('6 people'), findsOneWidget);
+    expect(find.text('Empty selected'), findsOneWidget);
+    expect(find.text('Join Queue'), findsOneWidget);
+    expect(find.textContaining('Q13'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('mobile account profile opens in edit mode', (tester) async {
     tester.view.physicalSize = const Size(430, 1100);
@@ -94,7 +194,7 @@ void main() {
 
       final routes = {
         for (final restaurant in restaurants)
-          '/customer/${restaurant.routeRestaurantBranchId}',
+          '/customer/${restaurant.restaurantBranchId}',
       };
 
       expect(restaurants, hasLength(10));
@@ -115,7 +215,10 @@ void main() {
       );
       expect(
         restaurants
-            .where((restaurant) => restaurant.branch.id == 'indiranagar')
+            .where(
+              (restaurant) =>
+                  restaurant.restaurantBranchId.endsWith('-indiranagar'),
+            )
             .map((restaurant) => restaurant.branch.restaurantId)
             .toSet(),
         containsAll({
@@ -142,12 +245,10 @@ void main() {
       usesAssumedWait: false,
     );
 
-    expect(restaurant.routeRestaurantId, 'biryani-bay-domlur-edge');
-    expect(restaurant.routeBranchId, 'biryani-bay-domlur-edge');
-    expect(restaurant.routeRestaurantBranchId, 'biryani-bay-domlur-edge');
+    expect(restaurant.restaurantBranchId, 'biryani-bay-domlur-edge');
   });
 
-  test('nearby branch uses explicit restaurant and branch slugs', () {
+  test('nearby routing ignores legacy restaurant and branch slugs', () {
     final restaurant = NearbyRestaurant(
       branch: Branch.fromMap('biryani-bay-domlur-edge', {
         'restaurantId': 'biryani-bay',
@@ -162,8 +263,6 @@ void main() {
       usesAssumedWait: false,
     );
 
-    expect(restaurant.routeRestaurantId, 'biryani-bay');
-    expect(restaurant.routeBranchId, 'domlur-edge');
-    expect(restaurant.routeRestaurantBranchId, 'biryani-bay-domlur-edge');
+    expect(restaurant.restaurantBranchId, 'biryani-bay-domlur-edge');
   });
 }

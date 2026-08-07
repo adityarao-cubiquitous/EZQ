@@ -14,8 +14,7 @@ import '../../recommendation/domain/customer_preferences.dart';
 
 class JoinQueueRequest {
   const JoinQueueRequest({
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.customerName,
     required this.phone,
     required this.partySize,
@@ -27,8 +26,7 @@ class JoinQueueRequest {
     this.customerPreferences,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String customerName;
   final String phone;
   final int partySize;
@@ -56,21 +54,19 @@ class JoinQueueResult {
 
 class ActiveQueueConflictException implements Exception {
   const ActiveQueueConflictException({
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.queueEntryId,
     required this.tokenCode,
     required this.status,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String queueEntryId;
   final String tokenCode;
   final QueueStatus status;
 
   String get statusRoute =>
-      FirestorePaths.customerStatusRoute(restaurantId, branchId, queueEntryId);
+      FirestorePaths.customerStatusRoute(restaurantBranchId, queueEntryId);
 
   @override
   String toString() =>
@@ -79,21 +75,19 @@ class ActiveQueueConflictException implements Exception {
 
 class CustomerQueueVisit {
   const CustomerQueueVisit({
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.queueEntryId,
     required this.tokenCode,
     required this.status,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String queueEntryId;
   final String tokenCode;
   final QueueStatus status;
 
   String get statusRoute =>
-      FirestorePaths.customerStatusRoute(restaurantId, branchId, queueEntryId);
+      FirestorePaths.customerStatusRoute(restaurantBranchId, queueEntryId);
 }
 
 abstract class CustomerQueueRepository {
@@ -110,34 +104,34 @@ abstract class CustomerQueueRepository {
   });
 
   Stream<QueueEntry> watchQueueEntry({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
   });
 
   Stream<int> watchQueueAheadCount({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
   });
 
+  Future<bool> validateAssignedTables({
+    required String restaurantBranchId,
+    required QueueEntry entry,
+  });
+
   Future<void> markOnTheWay({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
     required String phone,
   });
 
   Future<void> extendHold({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
     required String phone,
   });
 
   Future<void> cancelQueueEntry({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
     required String phone,
   });
@@ -172,8 +166,7 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     );
     if (visit == null) return null;
     return CustomerQueueVisit(
-      restaurantId: visit.restaurantId,
-      branchId: visit.branchId,
+      restaurantBranchId: visit.restaurantBranchId,
       queueEntryId: visit.queueEntryId,
       tokenCode: visit.tokenCode,
       status: visit.status,
@@ -182,10 +175,7 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Future<JoinQueueResult> joinQueue(JoinQueueRequest request) async {
-    final restaurantBranchId = _requireCanonicalRestaurantBranchId(
-      restaurantId: request.restaurantId,
-      branchId: request.branchId,
-    );
+    final restaurantBranchId = request.restaurantBranchId;
     final businessDate = DateTimeUtils.businessDate();
     final phone = PhoneUtils.normalizeIndiaMobile(request.phone);
     if (request.enforceSingleActiveQueue) {
@@ -272,14 +262,9 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Stream<QueueEntry> watchQueueEntry({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
   }) {
-    final restaurantBranchId = _requireCanonicalRestaurantBranchId(
-      restaurantId: restaurantId,
-      branchId: branchId,
-    );
     return _firestore
         .doc(
           FirestorePaths.queueEntry(
@@ -300,14 +285,9 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Stream<int> watchQueueAheadCount({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
   }) {
-    final restaurantBranchId = _requireCanonicalRestaurantBranchId(
-      restaurantId: restaurantId,
-      branchId: branchId,
-    );
     return _firestore
         .collection(
           FirestorePaths.queueEntries(restaurantBranchId, restaurantBranchId),
@@ -331,15 +311,48 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
   }
 
   @override
+  Future<bool> validateAssignedTables({
+    required String restaurantBranchId,
+    required QueueEntry entry,
+  }) async {
+    final assignedTableIds = entry.assignedTableIds.isNotEmpty
+        ? entry.assignedTableIds
+        : [
+            if (entry.assignedTableId != null &&
+                entry.assignedTableId!.trim().isNotEmpty)
+              entry.assignedTableId!,
+          ];
+    if (assignedTableIds.isEmpty) return false;
+
+    final snapshots = await Future.wait(
+      assignedTableIds.map(
+        (tableId) => _firestore
+            .doc(
+              FirestorePaths.table(
+                restaurantBranchId,
+                restaurantBranchId,
+                tableId,
+              ),
+            )
+            .get(),
+      ),
+    );
+    return snapshots.every((snapshot) {
+      final data = snapshot.data();
+      return snapshot.exists &&
+          data != null &&
+          data['currentQueueEntryId'] == entry.id;
+    });
+  }
+
+  @override
   Future<void> markOnTheWay({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
     required String phone,
   }) async {
     await _updateOwnedQueueEntry(
-      restaurantId: restaurantId,
-      branchId: branchId,
+      restaurantBranchId: restaurantBranchId,
       queueEntryId: queueEntryId,
       phone: phone,
       transitionTo: QueueStatus.onTheWay,
@@ -352,14 +365,12 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Future<void> extendHold({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
     required String phone,
   }) async {
     await _updateOwnedQueueEntry(
-      restaurantId: restaurantId,
-      branchId: branchId,
+      restaurantBranchId: restaurantBranchId,
       queueEntryId: queueEntryId,
       phone: phone,
       data: {
@@ -371,14 +382,12 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Future<void> cancelQueueEntry({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
     required String phone,
   }) async {
     await _updateOwnedQueueEntry(
-      restaurantId: restaurantId,
-      branchId: branchId,
+      restaurantBranchId: restaurantBranchId,
       queueEntryId: queueEntryId,
       phone: phone,
       transitionTo: QueueStatus.cancelled,
@@ -390,17 +399,12 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
   }
 
   Future<void> _updateOwnedQueueEntry({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
     required String phone,
     required Map<String, Object?> data,
     QueueStatus? transitionTo,
   }) async {
-    final restaurantBranchId = _requireCanonicalRestaurantBranchId(
-      restaurantId: restaurantId,
-      branchId: branchId,
-    );
     final entryRef = _firestore.doc(
       FirestorePaths.queueEntry(
         restaurantBranchId,
@@ -509,21 +513,10 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
     }
 
     return ActiveQueueConflictException(
-      restaurantId: pathParts[1],
-      branchId: pathParts[1],
+      restaurantBranchId: pathParts[1],
       queueEntryId: pathParts[3],
       tokenCode: doc.data()['tokenCode'] as String? ?? 'your queue',
       status: status,
-    );
-  }
-
-  String _requireCanonicalRestaurantBranchId({
-    required String restaurantId,
-    required String branchId,
-  }) {
-    return FirestorePaths.requireCanonicalRestaurantBranchId(
-      restaurantId,
-      branchId,
     );
   }
 }
@@ -531,6 +524,7 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
 class MockCustomerQueueRepository implements CustomerQueueRepository {
   final _controller = StreamController<QueueEntry>.broadcast();
   bool _hasJoinedActiveQueue = false;
+  String? _restaurantBranchId;
   QueueEntry _entry = QueueEntry(
     id: 'demo-entry',
     tokenNumber: 7,
@@ -561,8 +555,7 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
       return null;
     }
     return ActiveQueueConflictException(
-      restaurantId: 'demo-restaurant',
-      branchId: 'demo-branch',
+      restaurantBranchId: _restaurantBranchId!,
       queueEntryId: _entry.id,
       tokenCode: _entry.tokenCode,
       status: _entry.status,
@@ -579,8 +572,7 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
       return null;
     }
     return CustomerQueueVisit(
-      restaurantId: 'demo-restaurant',
-      branchId: 'demo-branch',
+      restaurantBranchId: _restaurantBranchId!,
       queueEntryId: _entry.id,
       tokenCode: _entry.tokenCode,
       status: _entry.status,
@@ -593,8 +585,7 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
         _hasJoinedActiveQueue &&
         isSingleQueueBlockingStatus(_entry.status)) {
       throw ActiveQueueConflictException(
-        restaurantId: request.restaurantId,
-        branchId: request.branchId,
+        restaurantBranchId: _restaurantBranchId!,
         queueEntryId: _entry.id,
         tokenCode: _entry.tokenCode,
         status: _entry.status,
@@ -618,6 +609,7 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
       joinedAt: DateTime.now(),
       customerPreferences: request.customerPreferences,
     );
+    _restaurantBranchId = request.restaurantBranchId;
     _hasJoinedActiveQueue = true;
     _controller.add(_entry);
     return const JoinQueueResult(
@@ -630,8 +622,7 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Stream<QueueEntry> watchQueueEntry({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
   }) async* {
     yield _entry;
@@ -640,17 +631,26 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Stream<int> watchQueueAheadCount({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
   }) async* {
     yield (_entry.queuePosition - 1).clamp(0, 999999);
   }
 
   @override
+  Future<bool> validateAssignedTables({
+    required String restaurantBranchId,
+    required QueueEntry entry,
+  }) async {
+    return restaurantBranchId == _restaurantBranchId &&
+        entry.id == _entry.id &&
+        (entry.assignedTableIds.isNotEmpty ||
+            (entry.assignedTableId?.trim().isNotEmpty ?? false));
+  }
+
+  @override
   Future<void> markOnTheWay({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
     required String phone,
   }) async {
@@ -659,16 +659,14 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
 
   @override
   Future<void> extendHold({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
     required String phone,
   }) async {}
 
   @override
   Future<void> cancelQueueEntry({
-    required String restaurantId,
-    required String branchId,
+    required String restaurantBranchId,
     required String queueEntryId,
     required String phone,
   }) async {
@@ -712,8 +710,7 @@ final customerQueueRepositoryProvider = Provider<CustomerQueueRepository>((
 });
 
 typedef QueueEntryWatchArgs = ({
-  String restaurantId,
-  String branchId,
+  String restaurantBranchId,
   String queueEntryId,
 });
 
@@ -721,8 +718,7 @@ final queueEntryProvider =
     StreamProvider.family<QueueEntry, QueueEntryWatchArgs>((ref, args) {
       final repository = ref.watch(customerQueueRepositoryProvider);
       return repository.watchQueueEntry(
-        restaurantId: args.restaurantId,
-        branchId: args.branchId,
+        restaurantBranchId: args.restaurantBranchId,
         queueEntryId: args.queueEntryId,
       );
     }, retry: (_, _) => null);
@@ -732,8 +728,7 @@ final queueAheadCountProvider = StreamProvider.family<int, QueueEntryWatchArgs>(
     return ref
         .watch(customerQueueRepositoryProvider)
         .watchQueueAheadCount(
-          restaurantId: args.restaurantId,
-          branchId: args.branchId,
+          restaurantBranchId: args.restaurantBranchId,
           queueEntryId: args.queueEntryId,
         );
   },

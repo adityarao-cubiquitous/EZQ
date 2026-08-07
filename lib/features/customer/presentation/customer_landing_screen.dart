@@ -1,94 +1,94 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
+import '../../../core/widgets/loading_view.dart';
+import '../../auth/data/auth_repository.dart';
+import 'customer_shell.dart';
 
-class CustomerLandingScreen extends StatelessWidget {
+class CustomerLandingScreen extends ConsumerWidget {
   const CustomerLandingScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const _EzqLogo(),
-                  const SizedBox(height: 22),
-                  const Text(
-                    AppConstants.productName,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.navyText,
-                      fontSize: 34,
-                      fontWeight: FontWeight.w800,
-                      height: 40 / 34,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Smart Queue Platform',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Color(0xFF3E484F),
-                      fontSize: 18,
-                      height: 26 / 18,
-                    ),
-                  ),
-                  const SizedBox(height: 34),
-                  EzqButton(
-                    label: 'Scan QR code',
-                    icon: Icons.qr_code_scanner_rounded,
-                    large: true,
-                    onPressed: () => context.go('/app/scan'),
-                  ),
-                  const SizedBox(height: 14),
-                  _PhoneSignInButton(onPressed: () => context.go('/app/login')),
-                  const SizedBox(height: 28),
-                  const _PoweredBy(),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(customerAuthStateProvider);
+    final persistedDebugPhone = ref.watch(persistedDebugCustomerPhoneProvider);
+    final debugPhone =
+        ref.watch(debugCustomerPhoneSessionProvider).value ??
+        persistedDebugPhone.asData?.value;
+    final isResolvingSession =
+        authState.isLoading || persistedDebugPhone.isLoading;
+    final hasCustomerSession =
+        authState.asData?.value != null ||
+        (debugPhone != null && debugPhone.trim().isNotEmpty);
+
+    if (hasCustomerSession) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.go('/app/home');
+      });
+    }
+
+    return CustomerShell(
+      restaurantBranchId: '',
+      showBottomNav: false,
+      child: isResolvingSession || hasCustomerSession
+          ? const SizedBox(height: 640, child: LoadingView())
+          : const _LandingContent(),
     );
   }
 }
 
-class _EzqLogo extends StatelessWidget {
-  const _EzqLogo();
+class _LandingContent extends StatelessWidget {
+  const _LandingContent();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 84,
-      height: 84,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFE8F6FC), Color(0xFFF6FAFF)],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A12A9DC),
-            blurRadius: 18,
-            offset: Offset(0, 10),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                AppConstants.productName,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.navyText,
+                  fontSize: 34,
+                  fontWeight: FontWeight.w800,
+                  height: 40 / 34,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Smart Queue Platform',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF3E484F),
+                  fontSize: 18,
+                  height: 26 / 18,
+                ),
+              ),
+              const SizedBox(height: 34),
+              EzqButton(
+                label: 'Scan QR code',
+                icon: Icons.qr_code_scanner_rounded,
+                large: true,
+                onPressed: () => context.go('/app/scan?returnTo=/'),
+              ),
+              const SizedBox(height: 14),
+              _PhoneSignInButton(onPressed: () => context.go('/app/login')),
+              const SizedBox(height: 28),
+              const _PoweredBy(),
+            ],
           ),
-        ],
+        ),
       ),
-      child: const BrandMark(size: 84),
     );
   }
 }

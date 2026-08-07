@@ -29,10 +29,7 @@ void main() {
 
   test('home lookup restores and clears the current visit', () async {
     final repository = MockCustomerQueueRepository();
-    final request = _request(
-      restaurantId: 'restaurant-a',
-      branchId: 'branch-a',
-    );
+    final request = _request(restaurantBranchId: 'restaurant-a-branch-a');
 
     expect(await repository.findCurrentVisit(phone: request.phone), isNull);
 
@@ -41,12 +38,15 @@ void main() {
       phone: request.phone,
     );
     expect(restoredVisit, isNotNull);
+    expect(restoredVisit?.restaurantBranchId, request.restaurantBranchId);
     expect(restoredVisit?.queueEntryId, 'demo-entry');
-    expect(restoredVisit?.statusRoute, contains('/status/demo-entry'));
+    expect(
+      restoredVisit?.statusRoute,
+      '/customer/${request.restaurantBranchId}/status/demo-entry',
+    );
 
     await repository.cancelQueueEntry(
-      restaurantId: request.restaurantId,
-      branchId: request.branchId,
+      restaurantBranchId: request.restaurantBranchId,
       queueEntryId: 'demo-entry',
       phone: request.phone,
     );
@@ -55,25 +55,24 @@ void main() {
 
   test('second restaurant join is blocked until cancellation', () async {
     final repository = MockCustomerQueueRepository();
-    final firstJoin = _request(
-      restaurantId: 'restaurant-a',
-      branchId: 'branch-a',
-    );
-    final secondJoin = _request(
-      restaurantId: 'restaurant-b',
-      branchId: 'branch-b',
-    );
+    final firstJoin = _request(restaurantBranchId: 'restaurant-a-branch-a');
+    final secondJoin = _request(restaurantBranchId: 'restaurant-b-branch-b');
 
     await repository.joinQueue(firstJoin);
 
     await expectLater(
       repository.joinQueue(secondJoin),
-      throwsA(isA<ActiveQueueConflictException>()),
+      throwsA(
+        isA<ActiveQueueConflictException>().having(
+          (error) => error.restaurantBranchId,
+          'restaurantBranchId',
+          firstJoin.restaurantBranchId,
+        ),
+      ),
     );
 
     await repository.cancelQueueEntry(
-      restaurantId: firstJoin.restaurantId,
-      branchId: firstJoin.branchId,
+      restaurantBranchId: firstJoin.restaurantBranchId,
       queueEntryId: 'demo-entry',
       phone: firstJoin.phone,
     );
@@ -83,23 +82,19 @@ void main() {
 
   test('on-the-way customer remains blocked from another join', () async {
     final repository = MockCustomerQueueRepository();
-    final firstJoin = _request(
-      restaurantId: 'restaurant-a',
-      branchId: 'branch-a',
-    );
+    final firstJoin = _request(restaurantBranchId: 'restaurant-a-branch-a');
 
     await repository.joinQueue(firstJoin);
     repository.setStatusForTesting(QueueStatus.reserved);
     await repository.markOnTheWay(
-      restaurantId: firstJoin.restaurantId,
-      branchId: firstJoin.branchId,
+      restaurantBranchId: firstJoin.restaurantBranchId,
       queueEntryId: 'demo-entry',
       phone: firstJoin.phone,
     );
 
     await expectLater(
       repository.joinQueue(
-        _request(restaurantId: 'restaurant-b', branchId: 'branch-b'),
+        _request(restaurantBranchId: 'restaurant-b-branch-b'),
       ),
       throwsA(
         isA<ActiveQueueConflictException>().having(
@@ -113,18 +108,14 @@ void main() {
 
   test('customer cancellation is rejected after seating', () async {
     final repository = MockCustomerQueueRepository();
-    final request = _request(
-      restaurantId: 'restaurant-a',
-      branchId: 'branch-a',
-    );
+    final request = _request(restaurantBranchId: 'restaurant-a-branch-a');
 
     await repository.joinQueue(request);
     repository.setStatusForTesting(QueueStatus.seated);
 
     await expectLater(
       repository.cancelQueueEntry(
-        restaurantId: request.restaurantId,
-        branchId: request.branchId,
+        restaurantBranchId: request.restaurantBranchId,
         queueEntryId: 'demo-entry',
         phone: request.phone,
       ),
@@ -146,13 +137,9 @@ void main() {
   });
 }
 
-JoinQueueRequest _request({
-  required String restaurantId,
-  required String branchId,
-}) {
+JoinQueueRequest _request({required String restaurantBranchId}) {
   return JoinQueueRequest(
-    restaurantId: restaurantId,
-    branchId: branchId,
+    restaurantBranchId: restaurantBranchId,
     customerName: 'Queue Test Customer',
     phone: '9880478370',
     partySize: 2,

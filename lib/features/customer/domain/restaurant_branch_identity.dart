@@ -3,21 +3,49 @@ class RestaurantBranchIdentity {
     required this.restaurantBranchId,
     required this.restaurantName,
     required this.branchName,
+    this.address = '',
+    this.logoUrl,
   });
 
   final String restaurantBranchId;
   final String restaurantName;
   final String branchName;
+  final String address;
+  final String? logoUrl;
+
+  String get branchLabel {
+    final normalized = branchName.trim();
+    if (normalized.toLowerCase().endsWith(' branch')) return normalized;
+    return '$normalized Branch';
+  }
+
+  String get addressLabel {
+    final normalized = address.trim();
+    return normalized.isEmpty ? 'Address unavailable' : normalized;
+  }
+
+  String get initials {
+    final words = restaurantName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .take(2)
+        .toList();
+    if (words.isEmpty) return '';
+    return words.map((word) => word[0].toUpperCase()).join();
+  }
 }
 
 RestaurantBranchIdentity resolveRestaurantBranchIdentity({
-  required String restaurantBranchSlug,
+  required String restaurantBranchId,
   String? restaurantName,
   String? branchName,
   String? legacyBranchName,
   String? displayName,
   String? restaurantSlug,
   String? branchSlug,
+  String? address,
+  String? logoUrl,
 }) {
   var resolvedRestaurantName = _nonEmpty(restaurantName);
   var resolvedBranchName = _nonEmpty(branchName) ?? _nonEmpty(legacyBranchName);
@@ -28,21 +56,23 @@ RestaurantBranchIdentity resolveRestaurantBranchIdentity({
 
   final separateRestaurantSlug = _nonEmpty(restaurantSlug);
   final separateBranchSlug = _nonEmpty(branchSlug);
-  final canonicalSlug = restaurantBranchSlug.trim().toLowerCase();
+  final canonicalId = restaurantBranchId.trim().toLowerCase();
   if (separateRestaurantSlug != null &&
       separateBranchSlug != null &&
-      (separateRestaurantSlug.toLowerCase() != canonicalSlug ||
-          separateBranchSlug.toLowerCase() != canonicalSlug)) {
+      (separateRestaurantSlug.toLowerCase() != canonicalId ||
+          separateBranchSlug.toLowerCase() != canonicalId)) {
     resolvedRestaurantName ??= _titleFromSlug(separateRestaurantSlug);
     resolvedBranchName ??= _titleFromSlug(separateBranchSlug);
   }
 
   return RestaurantBranchIdentity(
-    restaurantBranchId: canonicalSlug,
+    restaurantBranchId: canonicalId,
     restaurantName:
         resolvedRestaurantName ??
-        _titleFromSlug(canonicalSlug, fallback: 'Restaurant'),
+        _titleFromSlug(canonicalId, fallback: 'Restaurant'),
     branchName: resolvedBranchName ?? 'Main',
+    address: _nonEmpty(address) ?? '',
+    logoUrl: _nonEmpty(logoUrl),
   );
 }
 

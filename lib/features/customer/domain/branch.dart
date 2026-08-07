@@ -53,15 +53,25 @@ class Branch {
 
   bool get hasLocation => latitude != null && longitude != null;
 
+  RestaurantBranchIdentity get identity => resolveRestaurantBranchIdentity(
+    restaurantBranchId: id,
+    restaurantName: restaurantName,
+    branchName: name,
+    address: address,
+    logoUrl: logoUrl,
+  );
+
   factory Branch.fromMap(String id, Map<String, dynamic> data) {
     final identity = resolveRestaurantBranchIdentity(
-      restaurantBranchSlug: id,
+      restaurantBranchId: id,
       restaurantName: data['restaurantName'] as String?,
       branchName: data['branchName'] as String?,
       legacyBranchName: data['name'] as String?,
       displayName: data['displayName'] as String?,
       restaurantSlug: data['restaurantId'] as String?,
       branchSlug: data['branchSlug'] as String?,
+      address: data['address'] as String?,
+      logoUrl: data['logoUrl'] as String?,
     );
     final geoPoint = data['geoPoint'] ?? data['geoLocation'];
     double? geoLatitude;

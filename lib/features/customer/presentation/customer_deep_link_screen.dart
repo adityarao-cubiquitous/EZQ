@@ -2,16 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
+import '../../queue/domain/queue_entry.dart';
 import '../data/branch_identity_repository.dart';
+import '../data/customer_queue_repository.dart';
 import 'customer_join_location_gate.dart';
 import 'customer_join_queue_screen.dart';
 import 'customer_shell.dart';
 
 class CustomerDeepLinkScreen extends ConsumerWidget {
-  const CustomerDeepLinkScreen({super.key, required this.restaurantBranchId});
+  const CustomerDeepLinkScreen({
+    super.key,
+    required this.restaurantBranchId,
+    this.previousQueueEntryId,
+    this.appBackRoute,
+  });
 
   final String restaurantBranchId;
+  final String? previousQueueEntryId;
+  final String? appBackRoute;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,14 +30,36 @@ class CustomerDeepLinkScreen extends ConsumerWidget {
     return link.when(
       loading: () => const LoadingView(),
       error: (error, _) => _screenFor(error),
-      data: (data) => CustomerJoinLocationGate(
-        branchLink: data,
-        child: CustomerJoinQueueScreen(
-          restaurantId: data.restaurantId,
-          branchSlug: data.branch.id,
-          restaurantName: data.restaurantName,
-          branchName: data.branch.name,
-        ),
+      data: (data) {
+        final previousId = previousQueueEntryId?.trim();
+        if (previousId == null || previousId.isEmpty) {
+          return _joinScreen(data);
+        }
+        final previousEntry = ref.watch(
+          queueEntryProvider((
+            restaurantBranchId: restaurantBranchId,
+            queueEntryId: previousId,
+          )),
+        );
+        return previousEntry.when(
+          data: (entry) => entry.status.isTerminal
+              ? _joinScreen(data, initialEntry: entry)
+              : const _InvalidRejoinScreen(),
+          error: (_, _) => const _InvalidRejoinScreen(),
+          loading: () => const LoadingView(),
+        );
+      },
+    );
+  }
+
+  Widget _joinScreen(CustomerBranchLink data, {QueueEntry? initialEntry}) {
+    return CustomerJoinLocationGate(
+      branchLink: data,
+      child: CustomerJoinQueueScreen(
+        restaurantBranchId: restaurantBranchId,
+        identity: data.identity,
+        initialEntry: initialEntry,
+        appBackRoute: appBackRoute,
       ),
     );
   }
@@ -44,6 +76,27 @@ class CustomerDeepLinkScreen extends ConsumerWidget {
       };
     }
     return const RestaurantNotFoundScreen();
+  }
+}
+
+class _InvalidRejoinScreen extends StatelessWidget {
+  const _InvalidRejoinScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomerShell(
+      restaurantBranchId: '',
+      showBottomNav: false,
+      appBackRoute: '/app/home',
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16),
+        child: ErrorView(
+          message:
+              'This previous visit could not be verified. Open your active '
+              'visit or choose a restaurant again.',
+        ),
+      ),
+    );
   }
 }
 
@@ -113,8 +166,7 @@ class _DeepLinkErrorScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomerShell(
-      restaurantId: '',
-      branchId: '',
+      restaurantBranchId: '',
       activeTab: CustomerTab.join,
       showBottomNav: false,
       appBackRoute: '/app/nearby',

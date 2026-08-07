@@ -4,9 +4,6 @@ class FirestorePaths {
   static String restaurantBranch(String restaurantBranchId) =>
       'restaurantBranches/$restaurantBranchId';
 
-  static bool isRestaurantBranchRoute(String restaurantId, String branchId) =>
-      restaurantId == branchId;
-
   static String restaurantBranchIdFromRoute(
     String restaurantId,
     String branchId,
@@ -15,44 +12,28 @@ class FirestorePaths {
     return '$restaurantId-$branchId';
   }
 
-  static String requireCanonicalRestaurantBranchId(
-    String restaurantId,
-    String branchId,
-  ) {
-    if (restaurantId != branchId) {
-      throw ArgumentError(
-        'Customer operations require one canonical RestaurantBranch ID.',
-      );
-    }
-    return restaurantId;
-  }
-
-  static String customerRoute(String restaurantId, String branchId) {
-    return '/customer/${restaurantBranchIdFromRoute(restaurantId, branchId)}';
-  }
+  static String customerRoute(String restaurantBranchId) =>
+      '/customer/$restaurantBranchId';
 
   static String customerStatusRoute(
-    String restaurantId,
-    String branchId,
+    String restaurantBranchId,
     String queueEntryId,
   ) {
-    return '${customerRoute(restaurantId, branchId)}/status/$queueEntryId';
+    return '${customerRoute(restaurantBranchId)}/status/$queueEntryId';
   }
 
   static String customerReadyRoute(
-    String restaurantId,
-    String branchId,
+    String restaurantBranchId,
     String queueEntryId,
   ) {
-    return '${customerRoute(restaurantId, branchId)}/ready/$queueEntryId';
+    return '${customerRoute(restaurantBranchId)}/ready/$queueEntryId';
   }
 
   static String customerSeatedRoute(
-    String restaurantId,
-    String branchId,
+    String restaurantBranchId,
     String queueEntryId,
   ) {
-    return '${customerRoute(restaurantId, branchId)}/seated/$queueEntryId';
+    return '${customerRoute(restaurantBranchId)}/seated/$queueEntryId';
   }
 
   static String adminRoute(String restaurantId, String branchId) {

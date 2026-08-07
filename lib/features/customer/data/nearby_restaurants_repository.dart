@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../../../core/constants/firestore_paths.dart';
 import '../domain/branch.dart';
 
 class NearbyRestaurant {
@@ -23,18 +22,7 @@ class NearbyRestaurant {
 
   double get distanceKm => distanceMeters / 1000;
 
-  // Older merged branch documents do not carry separate restaurant/branch
-  // slugs. Passing the document id for both route segments preserves the
-  // canonical restaurantBranches/{id} lookup without guessing at a split.
-  String get routeRestaurantId => branch.restaurantId ?? branch.id;
-  String get routeBranchId => branch.restaurantId == null
-      ? branch.id
-      : (branch.branchSlug ?? branch.id);
-  String get routeRestaurantBranchId =>
-      FirestorePaths.restaurantBranchIdFromRoute(
-        routeRestaurantId,
-        routeBranchId,
-      );
+  String get restaurantBranchId => branch.id;
 }
 
 abstract class NearbyRestaurantsRepository {
@@ -137,7 +125,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
   }) async {
     final branches = [
       const Branch(
-        id: 'indiranagar',
+        id: 'the-spice-house-indiranagar',
         restaurantId: 'the-spice-house',
         restaurantName: 'The Spice House',
         name: 'Indiranagar',
@@ -161,7 +149,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6408,
       ),
       const Branch(
-        id: 'indiranagar',
+        id: 'cubbon-curry-indiranagar',
         restaurantId: 'cubbon-curry',
         restaurantName: 'Cubbon Curry',
         name: 'Indiranagar',
@@ -185,7 +173,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6418,
       ),
       const Branch(
-        id: 'indiranagar',
+        id: 'noodle-yard-indiranagar',
         restaurantId: 'noodle-yard',
         restaurantName: 'Noodle Yard',
         name: 'Indiranagar',
@@ -209,7 +197,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6387,
       ),
       const Branch(
-        id: 'indiranagar',
+        id: 'taco-tawa-indiranagar',
         restaurantId: 'taco-tawa',
         restaurantName: 'Taco Tawa',
         name: 'Indiranagar',
@@ -233,7 +221,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6432,
       ),
       const Branch(
-        id: 'indiranagar',
+        id: 'dosa-lab-indiranagar',
         restaurantId: 'dosa-lab',
         restaurantName: 'Dosa Lab',
         name: 'Indiranagar',
@@ -257,7 +245,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6395,
       ),
       const Branch(
-        id: 'hal-2nd-stage',
+        id: 'pasta-pepper-hal-2nd-stage',
         restaurantId: 'pasta-pepper',
         restaurantName: 'Pasta Pepper',
         name: 'HAL 2nd Stage',
@@ -281,7 +269,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6470,
       ),
       const Branch(
-        id: 'domlur-edge',
+        id: 'biryani-bay-domlur-edge',
         restaurantId: 'biryani-bay',
         restaurantName: 'Biryani Bay',
         name: 'Domlur Edge',
@@ -305,7 +293,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6415,
       ),
       const Branch(
-        id: 'indiranagar-metro',
+        id: 'momo-mill-indiranagar-metro',
         restaurantId: 'momo-mill',
         restaurantName: 'Momo Mill',
         name: 'Indiranagar Metro',
@@ -329,7 +317,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6364,
       ),
       const Branch(
-        id: '12th-main',
+        id: 'salad-studio-12th-main',
         restaurantId: 'salad-studio',
         restaurantName: 'Salad Studio',
         name: '12th Main',
@@ -353,7 +341,7 @@ class MockNearbyRestaurantsRepository implements NearbyRestaurantsRepository {
         longitude: 77.6450,
       ),
       const Branch(
-        id: 'old-airport-road',
+        id: 'grill-garden-old-airport-road',
         restaurantId: 'grill-garden',
         restaurantName: 'Grill Garden',
         name: 'Old Airport Road',

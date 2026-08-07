@@ -1,176 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/firestore_paths.dart';
-import '../../../core/widgets/ezq_button.dart';
-import '../../../core/widgets/error_view.dart';
-import '../../../core/widgets/loading_view.dart';
-import '../data/branch_identity_repository.dart';
-import '../data/customer_queue_repository.dart';
-import 'customer_shell.dart';
+import 'customer_queue_status_screen.dart';
 
-class TableReadyView extends ConsumerWidget {
+/// Validated entry point for a table-ready deep link.
+///
+/// The canonical status renderer owns all persisted queue presentation. This
+/// wrapper only narrows the accepted statuses so an arbitrary link cannot
+/// fabricate a ready state.
+class TableReadyView extends StatelessWidget {
   const TableReadyView({
     super.key,
-    required this.restaurantId,
-    required this.branchId,
+    required this.restaurantBranchId,
     required this.queueEntryId,
   });
 
-  final String restaurantId;
-  final String branchId;
+  final String restaurantBranchId;
   final String queueEntryId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final restaurantBranchId = FirestorePaths.restaurantBranchIdFromRoute(
-      restaurantId,
-      branchId,
-    );
-    final branch = ref.watch(customerBranchLinkProvider(restaurantBranchId));
-    return CustomerShell(
-      restaurantId: restaurantId,
-      branchId: branchId,
-      activeTab: CustomerTab.status,
+  Widget build(BuildContext context) {
+    return CustomerQueueStatusScreen(
+      restaurantBranchId: restaurantBranchId,
       queueEntryId: queueEntryId,
-      showBottomNav: false,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: branch.when(
-          data: (branch) => _TableReadyCard(
-            restaurantId: restaurantId,
-            branchId: branchId,
-            queueEntryId: queueEntryId,
-            branchLink: branch,
-          ),
-          error: (error, _) => ErrorView(message: error.toString()),
-          loading: () => const LoadingView(),
-        ),
-      ),
-    );
-  }
-}
-
-class _TableReadyCard extends ConsumerWidget {
-  const _TableReadyCard({
-    required this.restaurantId,
-    required this.branchId,
-    required this.queueEntryId,
-    required this.branchLink,
-  });
-
-  final String restaurantId;
-  final String branchId;
-  final String queueEntryId;
-  final CustomerBranchLink branchLink;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      padding: const EdgeInsets.all(33),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x2212A9DC),
-            blurRadius: 24,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 96,
-            height: 96,
-            decoration: const BoxDecoration(
-              gradient: AppColors.brandGradient,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.table_restaurant,
-              color: Colors.white,
-              size: 44,
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Your table is ready!',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.deepTeal,
-              fontSize: 32,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Table T4 at ${branchLink.restaurantName}, '
-            '${branchLink.branch.name} is being held for you.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFF3E484F), fontSize: 18),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            '05:00',
-            style: TextStyle(
-              fontFamily: 'JetBrains Mono',
-              color: AppColors.navyText,
-              fontSize: 44,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 24),
-          EzqButton(
-            label: "I'm on my way",
-            onPressed: () async {
-              await ref
-                  .read(customerQueueRepositoryProvider)
-                  .markOnTheWay(
-                    restaurantId: restaurantId,
-                    branchId: branchId,
-                    queueEntryId: queueEntryId,
-                    phone: '+919876543210',
-                  );
-              if (!context.mounted) return;
-              context.go(
-                FirestorePaths.customerStatusRoute(
-                  restaurantId,
-                  branchId,
-                  queueEntryId,
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: () async {
-              await ref
-                  .read(customerQueueRepositoryProvider)
-                  .extendHold(
-                    restaurantId: restaurantId,
-                    branchId: branchId,
-                    queueEntryId: queueEntryId,
-                    phone: '+919876543210',
-                  );
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('5 minute extension requested')),
-              );
-            },
-            child: const Text('Need 5 more minutes'),
-          ),
-          const SizedBox(height: 18),
-          const Text(
-            'If you do not arrive in time, your place may be moved back in queue.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.warningOrange),
-          ),
-        ],
-      ),
+      routeExpectation: CustomerQueueRouteExpectation.tableReady,
     );
   }
 }

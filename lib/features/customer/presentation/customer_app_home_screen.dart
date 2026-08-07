@@ -1,10 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../queue/domain/queue_entry.dart';
@@ -12,6 +12,9 @@ import '../../queue/domain/queue_status.dart';
 import '../data/branch_identity_repository.dart';
 import '../data/customer_queue_repository.dart';
 import '../domain/party_ahead_copy.dart';
+import '../domain/queue_eta.dart';
+import '../domain/restaurant_branch_identity.dart';
+import 'customer_restaurant_identity.dart';
 import 'customer_shell.dart';
 import 'nearby_restaurants_screen.dart';
 
@@ -39,19 +42,10 @@ class CustomerAppHomeScreen extends ConsumerWidget {
               .asData
               ?.value;
 
-    final restaurantBranchId = currentVisit == null
-        ? FirestorePaths.restaurantBranchIdFromRoute(
-            AppConstants.demoRestaurantId,
-            AppConstants.demoBranchId,
-          )
-        : FirestorePaths.restaurantBranchIdFromRoute(
-            currentVisit.restaurantId,
-            currentVisit.branchId,
-          );
+    final restaurantBranchId = currentVisit?.restaurantBranchId ?? '';
 
     return CustomerShell(
-      restaurantId: restaurantBranchId,
-      branchId: restaurantBranchId,
+      restaurantBranchId: restaurantBranchId,
       activeTab: CustomerTab.status,
       queueEntryId: currentVisit?.queueEntryId,
       showBottomNav: currentVisit != null,
@@ -349,8 +343,7 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
         if (visit == null) return const _NoCurrentVisitPanel();
         final entryState = ref.watch(
           queueEntryProvider((
-            restaurantId: visit.restaurantId,
-            branchId: visit.branchId,
+            restaurantBranchId: visit.restaurantBranchId,
             queueEntryId: visit.queueEntryId,
           )),
         );
@@ -359,8 +352,7 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
           error: (error, _) => _CurrentVisitErrorPanel(
             onRetry: () => ref.invalidate(
               queueEntryProvider((
-                restaurantId: visit.restaurantId,
-                branchId: visit.branchId,
+                restaurantBranchId: visit.restaurantBranchId,
                 queueEntryId: visit.queueEntryId,
               )),
             ),
@@ -369,11 +361,7 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
             if (!isCurrentCustomerVisitStatus(entry.status)) {
               return const _NoCurrentVisitPanel();
             }
-            final restaurantBranchId =
-                FirestorePaths.restaurantBranchIdFromRoute(
-                  visit.restaurantId,
-                  visit.branchId,
-                );
+            final restaurantBranchId = visit.restaurantBranchId;
             final branchState = ref.watch(
               customerBranchLinkProvider(restaurantBranchId),
             );
@@ -386,8 +374,7 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
                 : ref
                       .watch(
                         queueAheadCountProvider((
-                          restaurantId: visit.restaurantId,
-                          branchId: visit.branchId,
+                          restaurantBranchId: visit.restaurantBranchId,
                           queueEntryId: visit.queueEntryId,
                         )),
                       )
@@ -397,16 +384,23 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
                       );
             return branchState.when(
               loading: () => const _CurrentVisitLoadingPanel(),
-              error: (error, _) => _CurrentVisitErrorPanel(
-                onRetry: () => ref.invalidate(
-                  customerBranchLinkProvider(restaurantBranchId),
-                ),
+              error: (error, _) => _ActiveVisitCard(
+                visit: visit,
+                entry: entry,
+                identity: CustomerBranchLink.fallback(
+                  restaurantBranchId,
+                ).identity,
+                aheadCount: aheadCount,
+                cancelling: _cancelling,
+                onView: () => context.go(visit.statusRoute),
+                onCancel: entry.status == QueueStatus.seated
+                    ? null
+                    : () => _cancelVisit(visit, entry),
               ),
               data: (branch) => _ActiveVisitCard(
                 visit: visit,
                 entry: entry,
-                restaurantName: branch.restaurantName,
-                branchName: branch.branch.name,
+                identity: branch.identity,
                 aheadCount: aheadCount,
                 cancelling: _cancelling,
                 onView: () => context.go(visit.statusRoute),
@@ -449,8 +443,7 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
       await ref
           .read(customerQueueRepositoryProvider)
           .cancelQueueEntry(
-            restaurantId: visit.restaurantId,
-            branchId: visit.branchId,
+            restaurantBranchId: visit.restaurantBranchId,
             queueEntryId: visit.queueEntryId,
             phone: widget.phoneNumber!,
           );
@@ -463,9 +456,7 @@ class _CurrentVisitPanelState extends ConsumerState<_CurrentVisitPanel> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('We could not exit the queue. Please try again.'),
-        ),
+        const SnackBar(content: Text('Could not exit the queue.')),
       );
     } finally {
       if (mounted) setState(() => _cancelling = false);
@@ -477,8 +468,7 @@ class _ActiveVisitCard extends StatelessWidget {
   const _ActiveVisitCard({
     required this.visit,
     required this.entry,
-    required this.restaurantName,
-    required this.branchName,
+    required this.identity,
     required this.aheadCount,
     required this.cancelling,
     required this.onView,
@@ -487,8 +477,7 @@ class _ActiveVisitCard extends StatelessWidget {
 
   final CustomerQueueVisit visit;
   final QueueEntry entry;
-  final String restaurantName;
-  final String branchName;
+  final RestaurantBranchIdentity identity;
   final int aheadCount;
   final bool cancelling;
   final VoidCallback onView;
@@ -503,6 +492,11 @@ class _ActiveVisitCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            CustomerRestaurantIdentityView(
+              identity: identity,
+              layout: CustomerRestaurantIdentityLayout.compact,
+            ),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Container(
@@ -534,14 +528,6 @@ class _ActiveVisitCard extends StatelessWidget {
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$restaurantName · $branchName',
-                        style: const TextStyle(
-                          color: AppColors.mutedText,
-                          fontSize: 13,
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -569,19 +555,18 @@ class _ActiveVisitCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _VisitMetric(
-                    label: seated ? 'Table' : 'Ahead',
+                    label: seated ? 'Table' : 'Queue position',
                     value: seated
                         ? (entry.assignedTableNumber ?? 'Assigned')
-                        : partyCountLabel(aheadCount),
+                        : partiesAheadLabel(aheadCount),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _VisitMetric(
                     label: seated ? 'Status' : 'Estimated wait',
-                    value: seated
-                        ? 'Seated'
-                        : '~${entry.estimatedWaitMinutes} min',
+                    value: seated ? 'Seated' : null,
+                    valueWidget: seated ? null : _QueueWaitValue(entry: entry),
                   ),
                 ),
               ],
@@ -595,7 +580,7 @@ class _ActiveVisitCard extends StatelessWidget {
             if (onCancel != null) ...[
               const SizedBox(height: 10),
               EzqButton(
-                label: cancelling ? 'Exiting…' : 'Exit Queue',
+                label: cancelling ? 'Exiting...' : 'Exit Queue',
                 destructive: true,
                 onPressed: cancelling ? null : onCancel,
               ),
@@ -608,10 +593,15 @@ class _ActiveVisitCard extends StatelessWidget {
 }
 
 class _VisitMetric extends StatelessWidget {
-  const _VisitMetric({required this.label, required this.value});
+  const _VisitMetric({
+    required this.label,
+    required this.value,
+    this.valueWidget,
+  });
 
   final String label;
-  final String value;
+  final String? value;
+  final Widget? valueWidget;
 
   @override
   Widget build(BuildContext context) {
@@ -629,17 +619,79 @@ class _VisitMetric extends StatelessWidget {
             style: const TextStyle(color: AppColors.mutedText, fontSize: 12),
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.navyText,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          valueWidget ??
+              Text(
+                value ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.navyText,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
         ],
+      ),
+    );
+  }
+}
+
+class _QueueWaitValue extends StatefulWidget {
+  const _QueueWaitValue({required this.entry});
+
+  final QueueEntry entry;
+
+  @override
+  State<_QueueWaitValue> createState() => _QueueWaitValueState();
+}
+
+class _QueueWaitValueState extends State<_QueueWaitValue> {
+  Timer? _timer;
+  late int _minutes;
+
+  @override
+  void initState() {
+    super.initState();
+    _minutes = remainingQueueWaitMinutes(widget.entry);
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
+  }
+
+  @override
+  void didUpdateWidget(covariant _QueueWaitValue oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.entry.id != widget.entry.id ||
+        oldWidget.entry.estimatedWaitMinutes !=
+            widget.entry.estimatedWaitMinutes ||
+        oldWidget.entry.joinedAt != widget.entry.joinedAt) {
+      _refresh();
+    }
+  }
+
+  void _refresh() {
+    final next = remainingQueueWaitMinutes(widget.entry);
+    if (mounted && next != _minutes) setState(() => _minutes = next);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: Text(
+        '~$_minutes min',
+        key: ValueKey(_minutes),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.navyText,
+          fontSize: 16,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }

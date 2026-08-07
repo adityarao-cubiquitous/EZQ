@@ -12,14 +12,10 @@ void main() {
       RestaurantLogoAssets.forBranch('noodle-yard-indiranagar'),
       RestaurantLogoAssets.noodleYardLogo,
     );
-
-    for (final entry in RestaurantLogoAssets.branchAssets.entries) {
-      if (entry.key == 'salad-studio-12th-main' ||
-          entry.key == 'noodle-yard-indiranagar') {
-        continue;
-      }
-      expect(entry.value, RestaurantLogoAssets.defaultLogo);
-    }
+    expect(
+      RestaurantLogoAssets.specificForBranch('the-spice-house-indiranagar'),
+      isNull,
+    );
   });
 
   test('unknown and normalized branch ids use deterministic mapping', () {
@@ -45,5 +41,65 @@ void main() {
     final image = tester.widget<Image>(find.byType(Image));
     final provider = image.image as AssetImage;
     expect(provider.assetName, RestaurantLogoAssets.saladStudioLogo);
+  });
+
+  testWidgets('Firestore logo URL is used when no specific asset exists', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: RestaurantLogo(
+            restaurantBranchId: 'future-restaurant-main',
+            restaurantName: 'Future Restaurant',
+            logoUrl: 'https://example.com/future.png',
+          ),
+        ),
+      ),
+    );
+
+    final image = tester.widget<Image>(
+      find.byKey(
+        const ValueKey('restaurant-logo-network-future-restaurant-main'),
+      ),
+    );
+    expect(image.image, isA<NetworkImage>());
+  });
+
+  testWidgets('restaurant initials replace a missing or invalid logo', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: RestaurantLogo(
+            restaurantBranchId: 'future-restaurant-main',
+            restaurantName: 'Future Restaurant',
+            logoUrl: 'not-a-url',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('FR'), findsOneWidget);
+    expect(
+      find.byKey(
+        const ValueKey('restaurant-logo-initials-future-restaurant-main'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('generic EZQ logo is the final fallback', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: RestaurantLogo(restaurantBranchId: 'legacy-branch'),
+        ),
+      ),
+    );
+
+    final image = tester.widget<Image>(find.byType(Image));
+    expect((image.image as AssetImage).assetName, 'assets/brand/ezq_logo.png');
   });
 }

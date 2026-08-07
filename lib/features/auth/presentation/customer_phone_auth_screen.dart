@@ -3,10 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/phone_utils.dart';
 import '../../../core/utils/validators.dart';
-import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../../core/widgets/ezq_text_field.dart';
 import '../data/auth_repository.dart';
@@ -191,9 +189,9 @@ class _CustomerPhoneAuthScreenState
     });
 
     return CustomerShell(
-      restaurantId: AppConstants.demoRestaurantId,
-      branchId: AppConstants.demoBranchId,
+      restaurantBranchId: '',
       showBottomNav: false,
+      appBackRoute: '/',
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Container(
@@ -227,8 +225,6 @@ class _CustomerPhoneAuthScreenState
         key: const ValueKey('phone-step'),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Center(child: _AppBrandBadge()),
-          const SizedBox(height: 20),
           const Text(
             'Sign in with phone',
             style: TextStyle(
@@ -346,31 +342,6 @@ class _CustomerPhoneAuthScreenState
           ),
         ],
       ),
-    );
-  }
-}
-
-class _AppBrandBadge extends StatelessWidget {
-  const _AppBrandBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 58,
-      height: 58,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x33BDEAF8)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1012A9DC),
-            blurRadius: 14,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: const Center(child: BrandMark(size: 32)),
     );
   }
 }

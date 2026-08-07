@@ -10,7 +10,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../../core/widgets/ezq_text_field.dart';
-import '../../../core/widgets/status_badge.dart';
 import '../../../core/utils/validators.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../queue/data/queue_repository.dart';
@@ -22,23 +21,24 @@ import '../../tables/data/table_repository.dart';
 import '../../tables/domain/restaurant_table.dart';
 import '../../tables/domain/table_status.dart';
 import '../data/customer_queue_repository.dart';
+import '../domain/restaurant_branch_identity.dart';
 import '../domain/seating_preference_service.dart';
+import 'customer_restaurant_identity.dart';
 import 'customer_shell.dart';
-import 'restaurant_logo.dart';
 
 class CustomerJoinQueueScreen extends ConsumerStatefulWidget {
   const CustomerJoinQueueScreen({
     super.key,
-    required this.restaurantId,
-    required this.branchSlug,
-    required this.restaurantName,
-    required this.branchName,
+    required this.restaurantBranchId,
+    required this.identity,
+    this.initialEntry,
+    this.appBackRoute,
   });
 
-  final String restaurantId;
-  final String branchSlug;
-  final String restaurantName;
-  final String branchName;
+  final String restaurantBranchId;
+  final RestaurantBranchIdentity identity;
+  final QueueEntry? initialEntry;
+  final String? appBackRoute;
 
   @override
   ConsumerState<CustomerJoinQueueScreen> createState() =>
@@ -48,11 +48,11 @@ class CustomerJoinQueueScreen extends ConsumerStatefulWidget {
 class _CustomerJoinQueueScreenState
     extends ConsumerState<CustomerJoinQueueScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController(text: '');
-  final _phoneController = TextEditingController(text: '98765 43210');
-  final _notesController = TextEditingController();
-  int _partySize = 4;
-  bool _emptyTableOnly = false;
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _notesController;
+  late int _partySize;
+  late bool _emptyTableOnly;
   bool _submitting = false;
   bool _profilePrefilled = false;
   bool _checkingActiveQueue = !kIsWeb;
@@ -62,6 +62,18 @@ class _CustomerJoinQueueScreenState
   @override
   void initState() {
     super.initState();
+    final initialEntry = widget.initialEntry;
+    _nameController = TextEditingController(
+      text: initialEntry?.customerName ?? '',
+    );
+    _phoneController = TextEditingController(
+      text: _mobileNumberForForm(initialEntry?.phone) ?? '98765 43210',
+    );
+    _notesController = TextEditingController(text: initialEntry?.notes ?? '');
+    _partySize = initialEntry?.partySize ?? 4;
+    _emptyTableOnly =
+        initialEntry?.customerPreferences?.seatingPreference ==
+        SeatingPreference.emptyTableOnly;
     _eta = ref
         .read(seatingPreferenceServiceProvider)
         .computeEtaEstimate(partySize: _partySize);
@@ -121,7 +133,9 @@ class _CustomerJoinQueueScreenState
     if (displayName.isNotEmpty && _nameController.text.trim().isEmpty) {
       _nameController.text = displayName;
     }
-    if (phone != null && _phoneController.text.trim() == '98765 43210') {
+    if (phone != null &&
+        widget.initialEntry == null &&
+        _phoneController.text.trim() == '98765 43210') {
       _phoneController.text = phone;
     }
 
@@ -342,8 +356,7 @@ class _CustomerJoinQueueScreenState
     try {
       final result = await repository.joinQueue(
         JoinQueueRequest(
-          restaurantId: widget.restaurantId,
-          branchId: widget.branchSlug,
+          restaurantBranchId: widget.restaurantBranchId,
           customerName: _nameController.text,
           phone: _phoneController.text,
           partySize: _partySize,
@@ -363,8 +376,7 @@ class _CustomerJoinQueueScreenState
       ref.invalidate(currentCustomerVisitProvider);
       context.go(
         FirestorePaths.customerStatusRoute(
-          widget.restaurantId,
-          widget.branchSlug,
+          widget.restaurantBranchId,
           result.queueEntryId,
         ),
       );
@@ -388,8 +400,7 @@ class _CustomerJoinQueueScreenState
         ? null
         : ref.watch(
             _liveSeatingEtaProvider((
-              restaurantId: widget.restaurantId,
-              branchId: widget.branchSlug,
+              restaurantBranchId: widget.restaurantBranchId,
               partySize: _partySize,
             )),
           );
@@ -397,21 +408,16 @@ class _CustomerJoinQueueScreenState
     final eta = liveEta ?? _eta;
 
     return CustomerShell(
-      restaurantId: widget.restaurantId,
-      branchId: widget.branchSlug,
+      restaurantBranchId: widget.restaurantBranchId,
       activeTab: CustomerTab.join,
-      appBackRoute: '/app/home',
+      appBackRoute: widget.appBackRoute ?? '/app/home',
       footer: const CustomerFooter(),
       showBottomNav: false,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Column(
           children: [
-            _HeroHeader(
-              restaurantBranchId: widget.restaurantId,
-              restaurantName: widget.restaurantName,
-              branchName: widget.branchName,
-            ),
+            _HeroHeader(identity: widget.identity),
             const SizedBox(height: 24),
             _JoinQueueCard(
               formKey: _formKey,
@@ -445,10 +451,10 @@ class _CustomerJoinQueueScreenState
 }
 
 final _liveSeatingEtaProvider = StreamProvider.autoDispose
-    .family<
-      SeatingEta,
-      ({String restaurantId, String branchId, int partySize})
-    >((ref, args) {
+    .family<SeatingEta, ({String restaurantBranchId, int partySize})>((
+      ref,
+      args,
+    ) {
       final queueRepository = ref.watch(queueRepositoryProvider);
       final tableRepository = ref.watch(tableRepositoryProvider);
       final controller = StreamController<SeatingEta>();
@@ -470,8 +476,8 @@ final _liveSeatingEtaProvider = StreamProvider.autoDispose
 
       final queueSubscription = queueRepository
           .watchTodayQueue(
-            restaurantId: args.restaurantId,
-            branchId: args.branchId,
+            restaurantId: args.restaurantBranchId,
+            branchId: args.restaurantBranchId,
           )
           .listen((queue) {
             latestQueue = queue;
@@ -479,7 +485,10 @@ final _liveSeatingEtaProvider = StreamProvider.autoDispose
           }, onError: controller.addError);
 
       final tableSubscription = tableRepository
-          .watchTables(restaurantId: args.restaurantId, branchId: args.branchId)
+          .watchTables(
+            restaurantId: args.restaurantBranchId,
+            branchId: args.restaurantBranchId,
+          )
           .listen((tables) {
             latestTables = tables;
             emitIfReady();
@@ -543,38 +552,16 @@ bool _tableCanFitParty(
 // ─────────────────────────── Hero header ─────────────────────────────────────
 
 class _HeroHeader extends StatelessWidget {
-  const _HeroHeader({
-    required this.restaurantBranchId,
-    required this.restaurantName,
-    required this.branchName,
-  });
+  const _HeroHeader({required this.identity});
 
-  final String restaurantBranchId;
-  final String restaurantName;
-  final String branchName;
+  final RestaurantBranchIdentity identity;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        RestaurantLogo(restaurantBranchId: restaurantBranchId, size: 66),
-        const SizedBox(height: 14),
-        StatusBadge(
-          label: '$branchName Branch',
-          foreground: const Color(0xFF006B79),
-          background: const Color(0x8090EAFD),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          restaurantName,
-          style: const TextStyle(
-            color: AppColors.navyText,
-            fontSize: 27,
-            fontWeight: FontWeight.w800,
-            height: 34 / 27,
-          ),
-        ),
-        const SizedBox(height: 3),
+        CustomerRestaurantIdentityView(identity: identity),
+        const SizedBox(height: 10),
         const Text(
           'Skip the wait, join the queue.',
           style: TextStyle(

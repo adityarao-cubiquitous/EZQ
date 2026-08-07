@@ -53,8 +53,7 @@ void main() {
     expect(
       find.text(
         canonicalCustomerQueueUrl(
-          restaurantId: args.restaurantId,
-          branchId: args.branchId,
+          restaurantBranchId: 'the-spice-house-indiranagar',
         ),
       ),
       findsOneWidget,

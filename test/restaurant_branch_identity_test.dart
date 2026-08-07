@@ -26,7 +26,7 @@ void main() {
 
   test('formats separate route slugs without exposing route syntax', () {
     final identity = resolveRestaurantBranchIdentity(
-      restaurantBranchSlug: 'sample-kitchen-central-market',
+      restaurantBranchId: 'sample-kitchen-central-market',
       restaurantSlug: 'sample-kitchen',
       branchSlug: 'central-market',
     );
@@ -38,7 +38,7 @@ void main() {
 
   test('unknown consolidated routes receive a clean generic fallback', () {
     final identity = resolveRestaurantBranchIdentity(
-      restaurantBranchSlug: 'sample-kitchen-central-market',
+      restaurantBranchId: 'sample-kitchen-central-market',
     );
 
     expect(identity.restaurantName, 'Sample Kitchen Central Market');
@@ -47,20 +47,13 @@ void main() {
     expect(identity.branchName, isNot(contains('-')));
   });
 
-  test('customer data operations reject split legacy identity values', () {
+  test('customer routes accept one canonical restaurant branch id', () {
     expect(
-      () => FirestorePaths.requireCanonicalRestaurantBranchId(
-        'sample-kitchen',
-        'central-market',
-      ),
-      throwsArgumentError,
-    );
-    expect(
-      FirestorePaths.requireCanonicalRestaurantBranchId(
+      FirestorePaths.customerStatusRoute(
         'sample-kitchen-central-market',
-        'sample-kitchen-central-market',
+        'queue-entry',
       ),
-      'sample-kitchen-central-market',
+      '/customer/sample-kitchen-central-market/status/queue-entry',
     );
   });
 }
