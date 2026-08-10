@@ -13,6 +13,15 @@ bool useSplitLiveQueueLayout({required double width, required double height}) {
       (width > height && width >= liveQueueSplitLandscapeBreakpoint);
 }
 
+double liveQueueOverlayWidthBound({
+  required double width,
+  required double pagePadding,
+}) {
+  final availableWidth = math.max(0, width - (pagePadding * 2));
+  if (width < 600) return availableWidth.toDouble();
+  return math.min(availableWidth, math.min(560.0, width * 0.88)).toDouble();
+}
+
 class CollapsibleLiveQueueLayout extends StatefulWidget {
   const CollapsibleLiveQueueLayout({
     super.key,
@@ -70,9 +79,10 @@ class _CollapsibleLiveQueueLayoutState
         final gap = widget.compact ? 12.0 : 16.0;
         final defaultPanelWidth = split
             ? (width * 0.36).clamp(340.0, 480.0).toDouble()
-            : width < 600
-            ? math.max(0, width - (pagePadding * 2))
-            : math.min(560.0, width * 0.88);
+            : liveQueueOverlayWidthBound(
+                width: width,
+                pagePadding: pagePadding,
+              );
         final maximumPanelWidth = split
             ? math.max(
                 0,
@@ -81,7 +91,10 @@ class _CollapsibleLiveQueueLayoutState
                   width - (pagePadding * 2) - gap - _minimumTablesWidth,
                 ),
               )
-            : math.max(0, width - (pagePadding * 2));
+            : liveQueueOverlayWidthBound(
+                width: width,
+                pagePadding: pagePadding,
+              );
         final panelWidth = (_requestedPanelWidth ?? defaultPanelWidth)
             .clamp(0.0, maximumPanelWidth)
             .toDouble();
@@ -185,15 +198,24 @@ class _CollapsibleLiveQueueLayoutState
                       if (!mounted) return;
                       setState(() {
                         _isResizing = true;
-                        _requestedPanelWidth = panelVisible ? panelWidth : 0;
+                        _requestedPanelWidth ??= panelVisible ? panelWidth : 0;
                       });
                     },
                     onDragUpdate: (delta) {
                       if (!mounted || !_isResizing || !delta.isFinite) return;
+                      final requestedWidth = _requestedPanelWidth;
+                      final nextWidth = (panelWidth - delta)
+                          .clamp(0.0, maximumPanelWidth)
+                          .toDouble();
+                      if (delta < 0 &&
+                          panelWidth >= maximumPanelWidth &&
+                          nextWidth >= maximumPanelWidth &&
+                          requestedWidth != null &&
+                          requestedWidth > maximumPanelWidth) {
+                        return;
+                      }
                       setState(() {
-                        _requestedPanelWidth = (panelWidth - delta)
-                            .clamp(0.0, maximumPanelWidth)
-                            .toDouble();
+                        _requestedPanelWidth = nextWidth;
                       });
                     },
                     onDragEnd: () {
