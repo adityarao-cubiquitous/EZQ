@@ -41,6 +41,43 @@ class AddWalkInResult {
   final String tokenCode;
 }
 
+class WalkInTokenAllocation {
+  const WalkInTokenAllocation({
+    required this.tokenNumber,
+    required this.tokenCode,
+    required this.shouldAllocate,
+  });
+
+  factory WalkInTokenAllocation.resolve({
+    required Map<String, dynamic>? existingQueueEntry,
+    required int lastTokenNumber,
+  }) {
+    if (existingQueueEntry != null) {
+      final tokenNumber = existingQueueEntry['tokenNumber'];
+      final tokenCode = existingQueueEntry['tokenCode'];
+      if (tokenNumber is! int || tokenCode is! String) {
+        throw StateError('Existing walk-in has invalid token data.');
+      }
+      return WalkInTokenAllocation(
+        tokenNumber: tokenNumber,
+        tokenCode: tokenCode,
+        shouldAllocate: false,
+      );
+    }
+
+    final tokenNumber = lastTokenNumber + 1;
+    return WalkInTokenAllocation(
+      tokenNumber: tokenNumber,
+      tokenCode: 'Q${tokenNumber.toString().padLeft(2, '0')}',
+      shouldAllocate: true,
+    );
+  }
+
+  final int tokenNumber;
+  final String tokenCode;
+  final bool shouldAllocate;
+}
+
 abstract class QueueRepository {
   Stream<List<QueueEntry>> watchTodayQueue({
     required String restaurantId,
@@ -98,10 +135,27 @@ class FirebaseQueueRepository implements QueueRepository {
         throw StateError('This restaurant branch is not accepting walk-ins.');
       }
 
+      final queueSnapshot = await transaction.get(queueRef);
+      if (queueSnapshot.exists) {
+        final allocation = WalkInTokenAllocation.resolve(
+          existingQueueEntry: queueSnapshot.data(),
+          lastTokenNumber: 0,
+        );
+        return AddWalkInResult(
+          queueEntryId: queueRef.id,
+          tokenNumber: allocation.tokenNumber,
+          tokenCode: allocation.tokenCode,
+        );
+      }
+
       final counterSnapshot = await transaction.get(counterRef);
-      final nextToken =
-          ((counterSnapshot.data()?['lastTokenNumber'] as int?) ?? 0) + 1;
-      final tokenCode = 'Q${nextToken.toString().padLeft(2, '0')}';
+      final allocation = WalkInTokenAllocation.resolve(
+        existingQueueEntry: null,
+        lastTokenNumber:
+            (counterSnapshot.data()?['lastTokenNumber'] as int?) ?? 0,
+      );
+      final nextToken = allocation.tokenNumber;
+      final tokenCode = allocation.tokenCode;
       final estimatedWaitMinutes = 10 + ((nextToken - 1) * 5).clamp(0, 40);
 
       transaction.set(counterRef, {
