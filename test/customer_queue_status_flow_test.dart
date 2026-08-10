@@ -50,7 +50,7 @@ void main() {
   }
 
   final expectations = <QueueStatus, ({String key, String text})>{
-    QueueStatus.waiting: (key: 'queue-status-waiting', text: 'Queue position'),
+    QueueStatus.waiting: (key: 'queue-status-waiting', text: 'Parties Ahead'),
     QueueStatus.reserved: (
       key: 'queue-status-reserved',
       text: 'Your table is ready!',
@@ -287,7 +287,7 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      expect(find.text('Queue position'), findsOneWidget);
+      expect(find.text('Parties Ahead'), findsOneWidget);
       expect(find.text(label), findsOneWidget);
       expect(tester.takeException(), isNull);
 
@@ -712,11 +712,16 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
   }
 
   @override
-  Stream<int> watchQueueAheadCount({
+  Stream<CustomerQueueState> watchQueueState({
     required String restaurantBranchId,
     required String queueEntryId,
   }) async* {
-    yield aheadCount;
+    final error = streamError;
+    if (error != null) throw error;
+    yield CustomerQueueState(entry: _entry, partiesAhead: aheadCount);
+    await for (final entry in _controller.stream) {
+      yield CustomerQueueState(entry: entry, partiesAhead: aheadCount);
+    }
   }
 
   @override

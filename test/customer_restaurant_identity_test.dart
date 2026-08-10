@@ -1,5 +1,6 @@
 import 'package:ezq/features/customer/domain/branch.dart';
 import 'package:ezq/features/customer/presentation/customer_restaurant_identity.dart';
+import 'package:ezq/core/widgets/restaurant_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -71,7 +72,11 @@ void main() {
     expect(find.text('Legacy Cafe'), findsOneWidget);
     expect(find.text('Main Branch'), findsOneWidget);
     expect(find.text('Address unavailable'), findsOneWidget);
-    expect(find.text('LC'), findsOneWidget);
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(
+      (image.image as AssetImage).assetName,
+      RestaurantLogoAssets.defaultLogo,
+    );
     expect(tester.takeException(), isNull);
   });
 }

@@ -9,7 +9,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/firestore_paths.dart';
-import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/ezq_button.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../../queue/domain/queue_entry.dart';
@@ -59,14 +58,8 @@ class _CustomerQueueStatusBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final queueAheadCount = ref.watch(
-      queueAheadCountProvider((
-        restaurantBranchId: restaurantBranchId,
-        queueEntryId: queueEntryId,
-      )),
-    );
-    final queueEntry = ref.watch(
-      queueEntryProvider((
+    final queueState = ref.watch(
+      customerQueueStateProvider((
         restaurantBranchId: restaurantBranchId,
         queueEntryId: queueEntryId,
       )),
@@ -76,8 +69,9 @@ class _CustomerQueueStatusBody extends ConsumerWidget {
     );
 
     Widget queueContent(CustomerBranchLink resolvedBranch) {
-      return queueEntry.when(
-        data: (entry) {
+      return queueState.when(
+        data: (state) {
+          final entry = state.entry;
           if (!_matchesRouteExpectation(entry, routeExpectation)) {
             return const _InvalidQueueLinkContent();
           }
@@ -94,7 +88,7 @@ class _CustomerQueueStatusBody extends ConsumerWidget {
                       ref,
                       entry,
                       resolvedBranch,
-                      queueAheadCount,
+                      state.partiesAhead,
                     )
                   : const _InvalidQueueLinkContent(),
               error: (_, _) => const _InvalidQueueLinkContent(),
@@ -105,7 +99,7 @@ class _CustomerQueueStatusBody extends ConsumerWidget {
             ref,
             entry,
             resolvedBranch,
-            queueAheadCount,
+            state.partiesAhead,
           );
         },
         error: (error, _) => _InvalidQueueLinkContent(
@@ -133,19 +127,15 @@ class _CustomerQueueStatusBody extends ConsumerWidget {
     WidgetRef ref,
     QueueEntry entry,
     CustomerBranchLink resolvedBranch,
-    AsyncValue<int> queueAheadCount,
+    int partiesAhead,
   ) {
     return switch (entry.status) {
-      QueueStatus.waiting => queueAheadCount.when(
-        data: (ahead) => _StatusContent(
-          restaurantBranchId: restaurantBranchId,
-          queueEntryId: queueEntryId,
-          branchLink: resolvedBranch,
-          entry: entry,
-          aheadCount: ahead,
-        ),
-        error: (error, _) => ErrorView(message: _statusErrorMessage(error)),
-        loading: () => const SizedBox(height: 700, child: LoadingView()),
+      QueueStatus.waiting => _StatusContent(
+        restaurantBranchId: restaurantBranchId,
+        queueEntryId: queueEntryId,
+        branchLink: resolvedBranch,
+        entry: entry,
+        aheadCount: partiesAhead,
       ),
       QueueStatus.reserved ||
       QueueStatus.onTheWay ||
@@ -258,11 +248,6 @@ class _InvalidQueueLinkContent extends StatelessWidget {
       ),
     );
   }
-}
-
-String _statusErrorMessage(Object error) {
-  if (kDebugMode) return 'Queue status error: $error';
-  return 'We could not load this queue status. Please try again.';
 }
 
 class _StatusContent extends ConsumerWidget {
@@ -1455,7 +1440,7 @@ class _QueueStatusCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _MetricBlock(
-                    label: 'Queue position',
+                    label: 'Parties Ahead',
                     value: partiesAheadLabel(aheadCount),
                     suffix: '',
                   ),
@@ -1562,7 +1547,7 @@ class _RemainingWaitMetricState extends State<_RemainingWaitMetric> {
   @override
   Widget build(BuildContext context) {
     return _MetricBlock(
-      label: 'Est. Wait',
+      label: 'Estimated Wait',
       value: '$_remainingMinutes',
       suffix: _remainingMinutes == 1 ? 'min' : 'mins',
       alignEnd: true,
@@ -1578,38 +1563,41 @@ class _TokenHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 124,
-      height: 124,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: const Color(0xFFF4FBFF),
-        border: Border.all(
-          color: AppColors.primaryTeal.withValues(alpha: 0.24),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
+    return Semantics(
+      label: 'Token $tokenCode',
+      child: Container(
+        width: 124,
+        height: 124,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFFF4FBFF),
+          border: Border.all(
             color: AppColors.primaryTeal.withValues(alpha: 0.24),
-            blurRadius: 28,
-            spreadRadius: 2,
+            width: 1.5,
           ),
-          BoxShadow(
-            color: AppColors.accentPurple.withValues(alpha: 0.12),
-            blurRadius: 36,
-            offset: const Offset(0, 16),
-          ),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          tokenCode,
-          style: const TextStyle(
-            color: AppColors.deepTeal,
-            fontFamily: 'JetBrains Mono',
-            fontSize: 34,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primaryTeal.withValues(alpha: 0.24),
+              blurRadius: 28,
+              spreadRadius: 2,
+            ),
+            BoxShadow(
+              color: AppColors.accentPurple.withValues(alpha: 0.12),
+              blurRadius: 36,
+              offset: const Offset(0, 16),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            tokenCode,
+            style: const TextStyle(
+              color: AppColors.deepTeal,
+              fontFamily: 'JetBrains Mono',
+              fontSize: 34,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
           ),
         ),
       ),
@@ -1627,20 +1615,24 @@ class _GradientProgressBar extends StatelessWidget {
     final clampedValue = value.clamp(0.0, 1.0);
     return LayoutBuilder(
       builder: (context, constraints) {
-        return Container(
-          height: 10,
-          decoration: BoxDecoration(
-            color: const Color(0xFFE8F2F9),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 240),
-              width: constraints.maxWidth * clampedValue,
-              decoration: const BoxDecoration(
-                gradient: AppColors.progressGradient,
+        return Semantics(
+          label: 'Progress Bar',
+          value: '${(clampedValue * 100).round()}%',
+          child: Container(
+            height: 10,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F2F9),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 240),
+                width: constraints.maxWidth * clampedValue,
+                decoration: const BoxDecoration(
+                  gradient: AppColors.progressGradient,
+                ),
               ),
             ),
           ),

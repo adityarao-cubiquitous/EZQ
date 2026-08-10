@@ -13,8 +13,8 @@ void main() {
       RestaurantLogoAssets.noodleYardLogo,
     );
     expect(
-      RestaurantLogoAssets.specificForBranch('the-spice-house-indiranagar'),
-      isNull,
+      RestaurantLogoAssets.forBranch('the-spice-house-indiranagar'),
+      RestaurantLogoAssets.defaultLogo,
     );
   });
 
@@ -43,7 +43,7 @@ void main() {
     expect(provider.assetName, RestaurantLogoAssets.saladStudioLogo);
   });
 
-  testWidgets('Firestore logo URL is used when no specific asset exists', (
+  testWidgets('default asset overrides remote branding for unmapped branches', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -58,15 +58,14 @@ void main() {
       ),
     );
 
-    final image = tester.widget<Image>(
-      find.byKey(
-        const ValueKey('restaurant-logo-network-future-restaurant-main'),
-      ),
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(
+      (image.image as AssetImage).assetName,
+      RestaurantLogoAssets.defaultLogo,
     );
-    expect(image.image, isA<NetworkImage>());
   });
 
-  testWidgets('restaurant initials replace a missing or invalid logo', (
+  testWidgets('default asset replaces initials for unmapped branches', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -81,16 +80,16 @@ void main() {
       ),
     );
 
-    expect(find.text('FR'), findsOneWidget);
+    final image = tester.widget<Image>(find.byType(Image));
     expect(
-      find.byKey(
-        const ValueKey('restaurant-logo-initials-future-restaurant-main'),
-      ),
-      findsOneWidget,
+      (image.image as AssetImage).assetName,
+      RestaurantLogoAssets.defaultLogo,
     );
   });
 
-  testWidgets('generic EZQ logo is the final fallback', (tester) async {
+  testWidgets('generic branches use the default restaurant logo', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -100,6 +99,9 @@ void main() {
     );
 
     final image = tester.widget<Image>(find.byType(Image));
-    expect((image.image as AssetImage).assetName, 'assets/brand/ezq_logo.png');
+    expect(
+      (image.image as AssetImage).assetName,
+      RestaurantLogoAssets.defaultLogo,
+    );
   });
 }

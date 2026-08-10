@@ -12,6 +12,11 @@ import '../../queue/domain/queue_entry.dart';
 import '../../queue/domain/queue_status.dart';
 import '../../recommendation/domain/customer_preferences.dart';
 
+bool _isServerQueueSnapshot(QuerySnapshot<Map<String, dynamic>> snapshot) {
+  return !snapshot.metadata.isFromCache &&
+      !snapshot.docs.any((doc) => doc.metadata.hasPendingWrites);
+}
+
 class JoinQueueRequest {
   const JoinQueueRequest({
     required this.restaurantBranchId,
@@ -90,6 +95,13 @@ class CustomerQueueVisit {
       FirestorePaths.customerStatusRoute(restaurantBranchId, queueEntryId);
 }
 
+class CustomerQueueState {
+  const CustomerQueueState({required this.entry, required this.partiesAhead});
+
+  final QueueEntry entry;
+  final int partiesAhead;
+}
+
 abstract class CustomerQueueRepository {
   Future<JoinQueueResult> joinQueue(JoinQueueRequest request);
 
@@ -108,7 +120,7 @@ abstract class CustomerQueueRepository {
     required String queueEntryId,
   });
 
-  Stream<int> watchQueueAheadCount({
+  Stream<CustomerQueueState> watchQueueState({
     required String restaurantBranchId,
     required String queueEntryId,
   });
@@ -284,7 +296,7 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
   }
 
   @override
-  Stream<int> watchQueueAheadCount({
+  Stream<CustomerQueueState> watchQueueState({
     required String restaurantBranchId,
     required String queueEntryId,
   }) {
@@ -292,20 +304,35 @@ class FirebaseCustomerQueueRepository implements CustomerQueueRepository {
         .collection(
           FirestorePaths.queueEntries(restaurantBranchId, restaurantBranchId),
         )
-        .snapshots()
+        .snapshots(includeMetadataChanges: true)
+        .where(_isServerQueueSnapshot)
         .map((snapshot) {
-          final businessDate = DateTimeUtils.businessDate();
-          final liveQueue = snapshot.docs
+          final entries = snapshot.docs
               .map((doc) => QueueEntry.fromMap(doc.id, doc.data()))
+              .toList(growable: false);
+          final entryIndex = entries.indexWhere(
+            (entry) => entry.id == queueEntryId,
+          );
+          if (entryIndex < 0) {
+            throw StateError('Queue entry not found');
+          }
+          final entry = entries[entryIndex];
+          final businessDate = DateTimeUtils.businessDate();
+          final liveQueue = entries
               .where(
-                (entry) =>
-                    entry.businessDate == businessDate &&
-                    entry.status.isLiveQueueVisible,
+                (candidate) =>
+                    candidate.businessDate == businessDate &&
+                    candidate.status.isLiveQueueVisible,
               )
-              .toList();
-          return countQueueEntriesAhead(
-            liveQueue,
-            currentEntryId: queueEntryId,
+              .toList(growable: false);
+          return CustomerQueueState(
+            entry: entry,
+            partiesAhead: entry.status.isLiveQueueVisible
+                ? countQueueEntriesAhead(
+                    liveQueue,
+                    currentEntryId: queueEntryId,
+                  )
+                : 0,
           );
         });
   }
@@ -630,11 +657,19 @@ class MockCustomerQueueRepository implements CustomerQueueRepository {
   }
 
   @override
-  Stream<int> watchQueueAheadCount({
+  Stream<CustomerQueueState> watchQueueState({
     required String restaurantBranchId,
     required String queueEntryId,
   }) async* {
-    yield (_entry.queuePosition - 1).clamp(0, 999999);
+    await for (final entry in watchQueueEntry(
+      restaurantBranchId: restaurantBranchId,
+      queueEntryId: queueEntryId,
+    )) {
+      yield CustomerQueueState(
+        entry: entry,
+        partiesAhead: (_entry.queuePosition - 1).clamp(0, 999999),
+      );
+    }
   }
 
   @override
@@ -723,17 +758,15 @@ final queueEntryProvider =
       );
     }, retry: (_, _) => null);
 
-final queueAheadCountProvider = StreamProvider.family<int, QueueEntryWatchArgs>(
-  (ref, args) {
-    return ref
-        .watch(customerQueueRepositoryProvider)
-        .watchQueueAheadCount(
-          restaurantBranchId: args.restaurantBranchId,
-          queueEntryId: args.queueEntryId,
-        );
-  },
-  retry: (_, _) => null,
-);
+final customerQueueStateProvider =
+    StreamProvider.family<CustomerQueueState, QueueEntryWatchArgs>((ref, args) {
+      return ref
+          .watch(customerQueueRepositoryProvider)
+          .watchQueueState(
+            restaurantBranchId: args.restaurantBranchId,
+            queueEntryId: args.queueEntryId,
+          );
+    }, retry: (_, _) => null);
 
 typedef CurrentVisitLookupArgs = ({String phone, String? customerId});
 

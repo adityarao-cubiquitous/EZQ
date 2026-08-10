@@ -100,6 +100,49 @@ void main() {
       2,
     );
   });
+
+  test('mixed Android, Web, and admin walk-in joins share one FIFO order', () {
+    final joinedAt = DateTime(2026, 6, 25, 18);
+    final queue = [
+      _entry(
+        id: 'android',
+        tokenNumber: 1,
+        tokenCode: 'Q01',
+        joinedAt: joinedAt,
+        appSource: 'mobile_app',
+      ),
+      _entry(
+        id: 'web',
+        tokenNumber: 2,
+        tokenCode: 'Q02',
+        joinedAt: joinedAt.add(const Duration(milliseconds: 1)),
+        appSource: 'web',
+      ),
+      _entry(
+        id: 'walk-in',
+        tokenNumber: 3,
+        tokenCode: 'Q03',
+        joinedAt: joinedAt.add(const Duration(milliseconds: 2)),
+        appSource: 'admin_walkin',
+      ),
+    ];
+
+    expect(countQueueEntriesAhead(queue, currentEntryId: 'android'), 0);
+    expect(countQueueEntriesAhead(queue, currentEntryId: 'web'), 1);
+    expect(countQueueEntriesAhead(queue, currentEntryId: 'walk-in'), 2);
+
+    final afterFirstPartyLeaves = queue
+        .where((entry) => entry.id != 'android')
+        .toList();
+    expect(
+      countQueueEntriesAhead(afterFirstPartyLeaves, currentEntryId: 'web'),
+      0,
+    );
+    expect(
+      countQueueEntriesAhead(afterFirstPartyLeaves, currentEntryId: 'walk-in'),
+      1,
+    );
+  });
 }
 
 QueueEntry _entry({
@@ -108,6 +151,7 @@ QueueEntry _entry({
   String tokenCode = 'Q01',
   QueueStatus status = QueueStatus.waiting,
   DateTime? joinedAt,
+  String appSource = 'web',
 }) {
   return QueueEntry(
     id: id,
@@ -119,6 +163,7 @@ QueueEntry _entry({
     partySize: 2,
     partySizeBand: '1-2',
     status: status,
+    appSource: appSource,
     estimatedWaitMinutes: 10,
     queuePosition: tokenNumber,
     extensionUsed: false,

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/widgets/loading_view.dart';
+import '../../../core/widgets/restaurant_logo.dart';
 import '../data/admin_repository.dart';
 
 class BranchSelectorScreen extends ConsumerWidget {
@@ -46,24 +47,40 @@ class BranchSelectorScreen extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: const Color(0x1ABDC8D0)),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        child: Row(
                           children: [
-                            Text(
-                              branch.name,
-                              style: const TextStyle(
-                                color: AppColors.navyText,
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800,
-                              ),
+                            RestaurantLogo(
+                              restaurantBranchId:
+                                  FirestorePaths.restaurantBranchIdFromRoute(
+                                    restaurantId,
+                                    branch.id,
+                                  ),
+                              size: 56,
+                              showShadow: false,
                             ),
-                            const SizedBox(height: 8),
-                            Text(branch.address),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Today: 18 joined',
-                              style: TextStyle(color: AppColors.deepTeal),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    branch.name,
+                                    style: const TextStyle(
+                                      color: AppColors.navyText,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(branch.address),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Today: 18 joined',
+                                    style: TextStyle(color: AppColors.deepTeal),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
