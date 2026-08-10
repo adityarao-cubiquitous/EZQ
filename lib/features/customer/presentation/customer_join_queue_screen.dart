@@ -67,7 +67,7 @@ class _CustomerJoinQueueScreenState
       text: initialEntry?.customerName ?? '',
     );
     _phoneController = TextEditingController(
-      text: _mobileNumberForForm(initialEntry?.phone) ?? '98765 43210',
+      text: _mobileNumberForForm(initialEntry?.phone) ?? '',
     );
     _notesController = TextEditingController(text: initialEntry?.notes ?? '');
     _partySize = initialEntry?.partySize ?? 4;
