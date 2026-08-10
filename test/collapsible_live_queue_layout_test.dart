@@ -8,9 +8,18 @@ void main() {
   test('responsive breakpoint selects split only when width is usable', () {
     expect(useSplitLiveQueueLayout(width: 1440, height: 900), isTrue);
     expect(useSplitLiveQueueLayout(width: 1024, height: 768), isTrue);
+    expect(useSplitLiveQueueLayout(width: 900, height: 700), isTrue);
     expect(useSplitLiveQueueLayout(width: 820, height: 1180), isFalse);
     expect(useSplitLiveQueueLayout(width: 844, height: 390), isFalse);
     expect(useSplitLiveQueueLayout(width: 390, height: 844), isFalse);
+  });
+
+  test('overlay width bound respects intended maximum and viewport', () {
+    expect(liveQueueOverlayWidthBound(width: 768, pagePadding: 24), 560);
+    expect(liveQueueOverlayWidthBound(width: 700, pagePadding: 24), 560);
+    expect(liveQueueOverlayWidthBound(width: 600, pagePadding: 12), 528);
+    expect(liveQueueOverlayWidthBound(width: 390, pagePadding: 12), 366);
+    expect(liveQueueOverlayWidthBound(width: 390, pagePadding: 24), 342);
   });
 
   testWidgets('mouse drag continuously hides and reopens the queue safely', (
@@ -117,10 +126,31 @@ void main() {
     expect(tester.getSize(panelFinder).width, 620);
     expect(tester.takeException(), isNull);
 
+    tester.view.physicalSize = const Size(900, 700);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(panelFinder).width, 516);
+    expect(find.text('Q17'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    tester.view.physicalSize = const Size(700, 500);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(panelFinder).width, 560);
+    await tester.drag(handleFinder, const Offset(-1000, 0));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(panelFinder).width, 560);
+    expect(find.text('Q17'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
     tester.view.physicalSize = const Size(390, 844);
     await tester.pumpAndSettle();
     expect(find.text('Q17'), findsOneWidget);
     expect(tester.getSize(panelFinder).width, 342);
+    expect(tester.takeException(), isNull);
+
+    tester.view.physicalSize = const Size(1440, 900);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(panelFinder).width, 620);
+    expect(find.text('Q17'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

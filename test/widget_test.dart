@@ -2,6 +2,7 @@ import 'package:ezq/app/ezq_app.dart';
 import 'package:ezq/features/auth/data/auth_repository.dart';
 import 'package:ezq/features/auth/presentation/customer_name_profile_screen.dart';
 import 'package:ezq/features/customer/data/nearby_restaurants_repository.dart';
+import 'package:ezq/features/customer/data/customer_queue_repository.dart';
 import 'package:ezq/features/customer/domain/branch.dart';
 import 'package:ezq/features/customer/domain/restaurant_branch_identity.dart';
 import 'package:ezq/features/customer/presentation/customer_join_queue_screen.dart';
@@ -100,6 +101,67 @@ void main() {
     },
   );
 
+  testWidgets(
+    'new guest phone starts empty, validates, and accepts submission',
+    (tester) async {
+      tester.view.physicalSize = const Size(430, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => const CustomerJoinQueueScreen(
+              restaurantBranchId: 'salad-studio-12th-main',
+              identity: RestaurantBranchIdentity(
+                restaurantBranchId: 'salad-studio-12th-main',
+                restaurantName: 'Salad Studio',
+                branchName: '12th Main',
+                address: '12th Main Road, Indiranagar, Bengaluru',
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/customer/:restaurantBranchId/status/:queueEntryId',
+            builder: (context, state) => const Text('queue-submitted'),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            customerQueueRepositoryProvider.overrideWithValue(
+              MockCustomerQueueRepository(),
+            ),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await pumpFrames(tester);
+
+      final fields = find.byType(TextFormField);
+      final phoneField = tester.widget<TextFormField>(fields.at(1));
+      expect(phoneField.controller?.text, isEmpty);
+      expect(phoneField.controller?.text, isNot('98765 43210'));
+
+      await tester.enterText(fields.at(0), 'Fresh Guest');
+      await tester.enterText(fields.at(1), '12345');
+      await tester.tap(find.text('Join Queue'));
+      await tester.pump();
+      expect(find.text('Enter a 10 digit mobile number'), findsOneWidget);
+      expect(find.text('queue-submitted'), findsNothing);
+
+      await tester.enterText(fields.at(1), '9123456789');
+      await tester.tap(find.text('Join Queue'));
+      await tester.pumpAndSettle();
+      expect(find.text('queue-submitted'), findsOneWidget);
+    },
+  );
+
   testWidgets('join again prefills editable details without auto-submitting', (
     tester,
   ) async {
@@ -148,7 +210,10 @@ void main() {
     await pumpFrames(tester);
 
     expect(find.text('Rejoin Customer'), findsOneWidget);
-    expect(find.text('9999988888'), findsOneWidget);
+    final phoneField = tester.widget<TextFormField>(
+      find.byType(TextFormField).at(1),
+    );
+    expect(phoneField.controller?.text, '9999988888');
     expect(find.text('Window seat'), findsOneWidget);
     expect(find.text('6 people'), findsOneWidget);
     expect(find.text('Empty selected'), findsOneWidget);
