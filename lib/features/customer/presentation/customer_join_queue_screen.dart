@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -51,6 +52,7 @@ class _CustomerJoinQueueScreenState
   late final TextEditingController _nameController;
   late final TextEditingController _phoneController;
   late final TextEditingController _notesController;
+  late final FocusNode _phoneFocusNode;
   late int _partySize;
   late bool _emptyTableOnly;
   bool _submitting = false;
@@ -70,6 +72,7 @@ class _CustomerJoinQueueScreenState
       text: _mobileNumberForForm(initialEntry?.phone) ?? '',
     );
     _notesController = TextEditingController(text: initialEntry?.notes ?? '');
+    _phoneFocusNode = FocusNode();
     _partySize = initialEntry?.partySize ?? 4;
     _emptyTableOnly =
         initialEntry?.customerPreferences?.seatingPreference ==
@@ -87,6 +90,7 @@ class _CustomerJoinQueueScreenState
     _nameController.dispose();
     _phoneController.dispose();
     _notesController.dispose();
+    _phoneFocusNode.dispose();
     super.dispose();
   }
 
@@ -168,7 +172,7 @@ class _CustomerJoinQueueScreenState
   Future<void> _showActiveQueueDialog(
     ActiveQueueConflictException activeQueue,
   ) async {
-    await showDialog<void>(
+    final editPhone = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
@@ -185,9 +189,14 @@ class _CustomerJoinQueueScreenState
         ),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Edit Phone Number'),
+          ),
           FilledButton.icon(
             onPressed: () {
-              Navigator.of(dialogContext).pop();
+              Navigator.of(dialogContext).pop(false);
               context.go(activeQueue.statusRoute);
             },
             icon: const Icon(Icons.arrow_forward_rounded),
@@ -196,6 +205,14 @@ class _CustomerJoinQueueScreenState
         ],
       ),
     );
+    if (editPhone == true && mounted) {
+      setState(() => _activeQueueConflict = null);
+      _phoneController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _phoneController.text.length,
+      );
+      _phoneFocusNode.requestFocus();
+    }
   }
 
   String? _mobileNumberForForm(String? phone) {
@@ -423,6 +440,7 @@ class _CustomerJoinQueueScreenState
               formKey: _formKey,
               nameController: _nameController,
               phoneController: _phoneController,
+              phoneFocusNode: _phoneFocusNode,
               notesController: _notesController,
               partySize: _partySize,
               onPartySizeChanged: _onPartySizeChanged,
@@ -582,6 +600,7 @@ class _JoinQueueCard extends StatelessWidget {
     required this.formKey,
     required this.nameController,
     required this.phoneController,
+    required this.phoneFocusNode,
     required this.notesController,
     required this.partySize,
     required this.onPartySizeChanged,
@@ -595,6 +614,7 @@ class _JoinQueueCard extends StatelessWidget {
   final GlobalKey<FormState> formKey;
   final TextEditingController nameController;
   final TextEditingController phoneController;
+  final FocusNode phoneFocusNode;
   final TextEditingController notesController;
   final int partySize;
   final ValueChanged<int> onPartySizeChanged;
@@ -635,9 +655,23 @@ class _JoinQueueCard extends StatelessWidget {
             EzqTextField(
               label: 'Mobile Number',
               hintText: '98765 43210',
-              prefixText: '+91  ',
+              prefix: const Text(
+                '+91  ',
+                key: ValueKey('customer-phone-country-prefix'),
+                style: TextStyle(
+                  color: AppColors.navyText,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               controller: phoneController,
-              keyboardType: TextInputType.phone,
+              focusNode: phoneFocusNode,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(10),
+              ],
+              hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
               validator: Validators.indianMobile,
             ),
             const SizedBox(height: 18),

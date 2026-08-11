@@ -945,6 +945,77 @@ class _HiddenObjectImageCard extends ConsumerWidget {
   }
 }
 
+List<String> _meaningfulNoteLines(String? notes) =>
+    notes
+        ?.split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false) ??
+    const [];
+
+class _CustomerSpecialNotes extends StatelessWidget {
+  const _CustomerSpecialNotes({required this.lines});
+
+  final List<String> lines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('customer-special-notes'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: AppColors.accentPurple.withValues(alpha: 0.06),
+        border: Border.all(
+          color: AppColors.accentPurple.withValues(alpha: 0.18),
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Special Notes',
+            style: TextStyle(
+              color: AppColors.navyText,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final line in lines)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '•',
+                    style: TextStyle(
+                      color: AppColors.accentPurple,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      line,
+                      style: const TextStyle(
+                        color: AppColors.navyText,
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HiddenObjectImageFrame extends StatelessWidget {
   const _HiddenObjectImageFrame({required this.imageUrl});
 
@@ -1482,6 +1553,10 @@ class _QueueStatusCard extends StatelessWidget {
               ],
             ),
           ),
+          if (_meaningfulNoteLines(entry.notes).isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _CustomerSpecialNotes(lines: _meaningfulNoteLines(entry.notes)),
+          ],
         ],
       ),
     );

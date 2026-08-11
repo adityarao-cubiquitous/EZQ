@@ -461,6 +461,8 @@ class _QueueEntryCard extends StatelessWidget {
                   label: '$waitedMinutes min',
                 ),
                 if (_prefersSharedSeating(entry)) const _SharedSeatingPill(),
+                if (entry.notes?.trim().isNotEmpty == true)
+                  _SpecialNotePill(note: entry.notes!.trim()),
               ],
             ),
             if (recommendations.isNotEmpty) ...[
@@ -676,6 +678,80 @@ class _SharedSeatingPill extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SpecialNotePill extends StatelessWidget {
+  const _SpecialNotePill({required this.note});
+
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = Responsive.isCompact(context);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        key: const ValueKey('queue-special-note-pill'),
+        borderRadius: BorderRadius.circular(999),
+        onTap: () => _showSpecialNoteDialog(context, note),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 8 : 9,
+            vertical: compact ? 4 : 5,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.accentPurple.withValues(alpha: 0.09),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: AppColors.accentPurple.withValues(alpha: 0.24),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.sticky_note_2_outlined,
+                size: compact ? 13 : 14,
+                color: AppColors.accentPurple,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Special Note',
+                style: TextStyle(
+                  color: AppColors.accentPurple,
+                  fontSize: compact ? 11 : 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _showSpecialNoteDialog(BuildContext context, String note) {
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Special Note'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460, maxHeight: 360),
+        child: SingleChildScrollView(
+          key: const ValueKey('queue-special-note-scroll'),
+          child: SelectableText(note, style: const TextStyle(height: 1.5)),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _QueueTableRecommendationStrip extends StatelessWidget {

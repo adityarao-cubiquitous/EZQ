@@ -234,6 +234,42 @@ void main() {
     }
   });
 
+  testWidgets('waiting displays meaningful special notes as newline bullets', (
+    tester,
+  ) async {
+    final repository = ControlledCustomerQueueRepository(
+      QueueStatus.waiting,
+      notes: 'Birthday celebration\n\n Allergic to peanuts ',
+    );
+    addTearDown(repository.close);
+
+    await pumpStatusScreen(tester, repository);
+
+    expect(
+      find.byKey(const ValueKey('customer-special-notes')),
+      findsOneWidget,
+    );
+    expect(find.text('Special Notes'), findsOneWidget);
+    expect(find.text('Birthday celebration'), findsOneWidget);
+    expect(find.text('Allergic to peanuts'), findsOneWidget);
+    expect(find.text('•'), findsNWidgets(2));
+  });
+
+  testWidgets('waiting hides empty special notes', (tester) async {
+    for (final notes in <String?>[null, '', '  \n  ']) {
+      final repository = ControlledCustomerQueueRepository(
+        QueueStatus.waiting,
+        notes: notes,
+      );
+      await pumpStatusScreen(tester, repository);
+      expect(
+        find.byKey(const ValueKey('customer-special-notes')),
+        findsNothing,
+      );
+      await repository.close();
+    }
+  });
+
   test('party-ahead copy uses correct singular and plural grammar', () {
     expect(partiesAheadLabel(0), '0 Parties Ahead');
     expect(partiesAheadLabel(1), '1 Party Ahead');
@@ -632,7 +668,8 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
     this.exitError,
     this.aheadCount = 2,
     this.currentVisit,
-  }) : _entry = _entryFor(initialStatus);
+    String? notes,
+  }) : _entry = _entryFor(initialStatus, notes: notes);
 
   final Object? streamError;
   final Object? exitError;
@@ -735,7 +772,7 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
     yield* _controller.stream;
   }
 
-  static QueueEntry _entryFor(QueueStatus status) {
+  static QueueEntry _entryFor(QueueStatus status, {String? notes}) {
     return QueueEntry(
       id: 'state-machine-entry',
       tokenNumber: 42,
@@ -745,6 +782,7 @@ class ControlledCustomerQueueRepository implements CustomerQueueRepository {
       phone: '+919999999999',
       partySize: 4,
       partySizeBand: '3-4',
+      notes: notes,
       status: status,
       assignedTableId: 'table-4',
       assignedTableNumber: 'F1-T4',

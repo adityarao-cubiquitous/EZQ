@@ -11,6 +11,7 @@ import 'package:ezq/features/queue/domain/queue_entry.dart';
 import 'package:ezq/features/queue/domain/queue_status.dart';
 import 'package:ezq/features/recommendation/domain/customer_preferences.dart';
 import 'package:ezq/features/recommendation/domain/recommendation_types.dart';
+import 'package:ezq/core/utils/phone_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -147,6 +148,14 @@ void main() {
       final phoneField = tester.widget<TextFormField>(fields.at(1));
       expect(phoneField.controller?.text, isEmpty);
       expect(phoneField.controller?.text, isNot('98765 43210'));
+      expect(
+        find.byKey(const ValueKey('customer-phone-country-prefix')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(fields.at(1), '91a234-567 8901');
+      expect(phoneField.controller?.text, '9123456789');
+      expect(phoneField.controller?.text, isNot(startsWith('+91')));
 
       await tester.enterText(fields.at(0), 'Fresh Guest');
       await tester.enterText(fields.at(1), '12345');
@@ -161,6 +170,85 @@ void main() {
       expect(find.text('queue-submitted'), findsOneWidget);
     },
   );
+
+  testWidgets('duplicate dialog edits only the preserved join form phone', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _ConflictThenUniqueQueueRepository();
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const CustomerJoinQueueScreen(
+            restaurantBranchId: 'salad-studio-12th-main',
+            identity: RestaurantBranchIdentity(
+              restaurantBranchId: 'salad-studio-12th-main',
+              restaurantName: 'Salad Studio',
+              branchName: '12th Main',
+              address: '12th Main Road',
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/customer/:restaurantBranchId/status/:queueEntryId',
+          builder: (context, state) => const Text('queue-submitted'),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          customerQueueRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await pumpFrames(tester);
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'Preserved Guest');
+    await tester.enterText(fields.at(1), '9999999999');
+    await tester.enterText(fields.at(2), 'Keep this note');
+    await tester.tap(find.text('Join Queue'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('You’re already in a queue'), findsOneWidget);
+    expect(find.text('View my current queue'), findsOneWidget);
+    expect(find.text('Edit Phone Number'), findsOneWidget);
+
+    await tester.tap(find.text('Edit Phone Number'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('You’re already in a queue'), findsNothing);
+    expect(find.text('Preserved Guest'), findsOneWidget);
+    expect(find.text('Keep this note'), findsOneWidget);
+    expect(
+      tester
+          .widget<EditableText>(find.byType(EditableText).at(1))
+          .focusNode
+          .hasFocus,
+      isTrue,
+    );
+
+    await tester.enterText(fields.at(1), '9888888888');
+    await tester.tap(find.text('Join Queue'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(repository.lookupPhones, ['+919999999999', '+919888888888']);
+    expect(repository.joinRequests, hasLength(1));
+    expect(repository.joinRequests.single.customerName, 'Preserved Guest');
+    expect(repository.joinRequests.single.notes, 'Keep this note');
+    expect(find.text('queue-submitted'), findsOneWidget);
+  });
 
   testWidgets('join again prefills editable details without auto-submitting', (
     tester,
@@ -330,4 +418,45 @@ void main() {
 
     expect(restaurant.restaurantBranchId, 'biryani-bay-domlur-edge');
   });
+}
+
+class _ConflictThenUniqueQueueRepository extends MockCustomerQueueRepository {
+  final List<String> lookupPhones = [];
+  final List<JoinQueueRequest> joinRequests = [];
+
+  @override
+  Future<ActiveQueueConflictException?> findActiveQueueEntry({
+    required String phone,
+    String? customerId,
+  }) async {
+    final normalized = PhoneUtils.normalizeIndiaMobile(phone);
+    lookupPhones.add(normalized);
+    if (normalized == '+919999999999') {
+      return const ActiveQueueConflictException(
+        restaurantBranchId: 'another-branch',
+        queueEntryId: 'existing-entry',
+        tokenCode: 'Q09',
+        status: QueueStatus.waiting,
+      );
+    }
+    return null;
+  }
+
+  @override
+  Future<JoinQueueResult> joinQueue(JoinQueueRequest request) async {
+    if (request.enforceSingleActiveQueue) {
+      final conflict = await findActiveQueueEntry(
+        phone: request.phone,
+        customerId: request.customerId,
+      );
+      if (conflict != null) throw conflict;
+    }
+    joinRequests.add(request);
+    return const JoinQueueResult(
+      queueEntryId: 'new-entry',
+      tokenNumber: 10,
+      tokenCode: 'Q10',
+      estimatedWaitMinutes: 10,
+    );
+  }
 }

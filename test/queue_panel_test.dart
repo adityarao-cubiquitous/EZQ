@@ -8,6 +8,76 @@ import 'package:ezq/features/tables/domain/restaurant_table.dart';
 import 'package:ezq/features/tables/domain/table_status.dart';
 
 void main() {
+  QueueEntry entryWithNotes(String id, String? notes) => QueueEntry(
+    id: id,
+    tokenNumber: 1,
+    tokenCode: 'Q01',
+    businessDate: '2026-08-11',
+    customerName: 'Notes Guest',
+    phone: '+919999999999',
+    partySize: 2,
+    partySizeBand: '1-2',
+    notes: notes,
+    status: QueueStatus.waiting,
+    estimatedWaitMinutes: 10,
+    queuePosition: 1,
+    extensionUsed: false,
+    joinedAt: DateTime(2026, 8, 11, 12),
+  );
+
+  Widget panelFor(QueueEntry entry) => MaterialApp(
+    home: Scaffold(
+      body: SizedBox(
+        width: 320,
+        child: QueuePanel(
+          queue: [entry],
+          availableTables: const [],
+          onReserve: (_) {},
+          onSkip: (_) {},
+        ),
+      ),
+    ),
+  );
+
+  testWidgets('special note pill only appears for meaningful notes', (
+    tester,
+  ) async {
+    for (final notes in <String?>[null, '', '   ']) {
+      await tester.pumpWidget(panelFor(entryWithNotes('empty-note', notes)));
+      expect(
+        find.byKey(const ValueKey('queue-special-note-pill')),
+        findsNothing,
+      );
+    }
+
+    await tester.pumpWidget(
+      panelFor(
+        entryWithNotes('full-note', 'Birthday\nKeep away from speakers'),
+      ),
+    );
+    expect(find.text('Special Note'), findsOneWidget);
+  });
+
+  testWidgets('special note pill opens a scrollable read-only dialog', (
+    tester,
+  ) async {
+    const note =
+        'Birthday celebration\nAllergic to peanuts\nKeep away from speakers';
+    await tester.pumpWidget(panelFor(entryWithNotes('dialog-note', note)));
+
+    await tester.tap(find.text('Special Note'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('Special Note'), findsWidgets);
+    expect(find.text(note), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('queue-special-note-scroll')),
+      findsOneWidget,
+    );
+    expect(find.text('Close'), findsOneWidget);
+  });
+
   testWidgets('party name uses a larger complementary chip', (tester) async {
     final entry = QueueEntry(
       id: 'queue-1',
