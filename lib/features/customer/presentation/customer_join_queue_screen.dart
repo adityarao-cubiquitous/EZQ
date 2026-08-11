@@ -68,9 +68,7 @@ class _CustomerJoinQueueScreenState
     _nameController = TextEditingController(
       text: initialEntry?.customerName ?? '',
     );
-    _phoneController = TextEditingController(
-      text: _mobileNumberForForm(initialEntry?.phone) ?? '',
-    );
+    _phoneController = TextEditingController();
     _notesController = TextEditingController(text: initialEntry?.notes ?? '');
     _phoneFocusNode = FocusNode();
     _partySize = initialEntry?.partySize ?? 4;
@@ -133,13 +131,10 @@ class _CustomerJoinQueueScreenState
 
     final displayName = profile?.displayName.trim() ?? '';
     final phone = _mobileNumberForForm(user?.phoneNumber ?? debugPhone);
-
     if (displayName.isNotEmpty && _nameController.text.trim().isEmpty) {
       _nameController.text = displayName;
     }
-    if (phone != null &&
-        widget.initialEntry == null &&
-        _phoneController.text.trim() == '98765 43210') {
+    if (phone != null && _phoneController.text.trim().isEmpty) {
       _phoneController.text = phone;
     }
 

@@ -171,6 +171,45 @@ void main() {
     },
   );
 
+  testWidgets('logged-in mobile context prefills the join phone field', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          customerQueueRepositoryProvider.overrideWithValue(
+            MockCustomerQueueRepository(),
+          ),
+          debugCustomerPhoneSessionProvider.overrideWithValue(
+            ValueNotifier<String?>('+919888877777'),
+          ),
+        ],
+        child: const MaterialApp(
+          home: CustomerJoinQueueScreen(
+            restaurantBranchId: 'salad-studio-12th-main',
+            identity: RestaurantBranchIdentity(
+              restaurantBranchId: 'salad-studio-12th-main',
+              restaurantName: 'Salad Studio',
+              branchName: '12th Main',
+              address: '12th Main Road, Indiranagar, Bengaluru',
+            ),
+          ),
+        ),
+      ),
+    );
+    await pumpFrames(tester);
+
+    final phoneField = tester.widget<TextFormField>(
+      find.byType(TextFormField).at(1),
+    );
+    expect(phoneField.controller?.text, '9888877777');
+  });
+
   testWidgets('duplicate dialog edits only the preserved join form phone', (
     tester,
   ) async {
@@ -301,7 +340,7 @@ void main() {
     final phoneField = tester.widget<TextFormField>(
       find.byType(TextFormField).at(1),
     );
-    expect(phoneField.controller?.text, '9999988888');
+    expect(phoneField.controller?.text, isEmpty);
     expect(find.text('Window seat'), findsOneWidget);
     expect(find.text('6 people'), findsOneWidget);
     expect(find.text('Empty selected'), findsOneWidget);
