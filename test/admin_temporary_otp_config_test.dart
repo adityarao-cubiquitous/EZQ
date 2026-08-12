@@ -15,63 +15,16 @@ void main() {
     expect(TemporaryOtpConfig.code, '123456');
   });
 
-  test('every configured production demo phone has a temporary mapping', () {
-    expect(temporaryAdminConfiguredPhones, <String>{
-      '+919999000222',
-      for (var suffix = 1; suffix <= 15; suffix++)
-        '+919999${(1000 + suffix).toString().padLeft(6, '0')}',
-    });
-    expect(
-      temporaryAdminBranchForPhone('9999001011'),
-      'bhagini-horamavu-signal',
-    );
-    expect(
-      temporaryAdminBranchForPhone('+91 99990-01004'),
-      'grill-garden-old-airport-road',
-    );
-  });
-
-  test('temporary session must agree with the canonical admin mapping', () {
-    expect(
-      temporaryAdminCanonicalMappingMatches(
-        requestedPhone: '9999001011',
-        canonicalUid: 'ycwQM1bDSqQ2rPunFLNYNpl8Twp2',
-        canonicalPhone: '+919999001011',
-        canonicalRestaurantBranchId: 'bhagini-horamavu-signal',
-      ),
-      isTrue,
-    );
-    expect(
-      temporaryAdminCanonicalMappingMatches(
-        requestedPhone: '9999001011',
-        canonicalUid: 'wrong-uid',
-        canonicalPhone: '+919999001011',
-        canonicalRestaurantBranchId: 'bhagini-horamavu-signal',
-      ),
-      isFalse,
-    );
-    expect(
-      temporaryAdminCanonicalMappingMatches(
-        requestedPhone: '9999001011',
-        canonicalUid: 'ycwQM1bDSqQ2rPunFLNYNpl8Twp2',
-        canonicalPhone: '+919999001011',
-        canonicalRestaurantBranchId: 'wrong-branch',
-      ),
-      isFalse,
-    );
-  });
-
-  test('India phone normalization is stable across supported formats', () {
-    expect(PhoneUtils.normalizeIndiaMobile('9999001011'), '+919999001011');
-    expect(PhoneUtils.normalizeIndiaMobile('91 99990 01011'), '+919999001011');
-    expect(PhoneUtils.normalizeIndiaMobile('+91-99990-01011'), '+919999001011');
+  test('affected admin phone uses the shared E.164 normalization', () {
+    expect(PhoneUtils.normalizeIndiaMobile('9999001016'), '+919999001016');
+    expect(PhoneUtils.normalizeIndiaMobile('+91 99990-01016'), '+919999001016');
   });
 
   testWidgets(
-    'configured temporary admin bypasses undeployed callable validation',
+    'newly provisioned admin is backend-validated and authenticated',
     (tester) async {
       final authRepository = _TrackingAuthRepository();
-      final onboardingRepository = _NoodleYardOnboardingRepository();
+      final onboardingRepository = _CanonicalOnboardingRepository();
       final router = GoRouter(
         initialLocation: '/admin/login',
         routes: [
@@ -99,29 +52,25 @@ void main() {
           child: MaterialApp.router(routerConfig: router),
         ),
       );
-      await tester.enterText(find.byType(TextFormField).first, '9999001006');
+      await tester.enterText(find.byType(TextFormField).first, '9999001016');
       await tester.tap(find.text('Send OTP'));
       await tester.pumpAndSettle();
-      expect(authRepository.validatedPhone, isNull);
-      expect(find.byType(TextFormField), findsOneWidget);
+
+      expect(authRepository.validatedPhone, '+919999001016');
       await tester.enterText(find.byType(TextFormField), '123456');
       await tester.tap(find.text('Verify & Continue'));
       await tester.pumpAndSettle();
 
-      expect(
-        authRepository.adminEmail,
-        'admin.noodle.yard.indiranagar@ezq-demo.cubiquitous.in',
-      );
-      expect(authRepository.adminPassword, 'Welcome@123');
-      expect(authRepository.temporaryPhone, isNull);
+      expect(authRepository.temporaryPhone, '+919999001016');
+      expect(authRepository.temporaryCode, '123456');
       expect(find.text('Canonical dashboard'), findsOneWidget);
     },
   );
 
-  testWidgets('unmapped temporary phone never calls the missing backend', (
+  testWidgets('backend-rejected phone never reaches the OTP step', (
     tester,
   ) async {
-    final authRepository = _TrackingAuthRepository();
+    final authRepository = _TrackingAuthRepository(rejectValidation: true);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [authRepositoryProvider.overrideWithValue(authRepository)],
@@ -133,17 +82,16 @@ void main() {
     await tester.tap(find.text('Send OTP'));
     await tester.pumpAndSettle();
 
-    expect(authRepository.validatedPhone, isNull);
+    expect(authRepository.validatedPhone, '+919999009998');
     expect(
       find.text('This phone number is not registered for active admin access.'),
       findsOneWidget,
     );
-    expect(find.text('Send OTP'), findsOneWidget);
     expect(find.text('Verify & Continue'), findsNothing);
     expect(authRepository.temporaryPhone, isNull);
   });
 
-  testWidgets('wrong temporary OTP is rejected without signing in', (
+  testWidgets('wrong temporary OTP is rejected without authenticating', (
     tester,
   ) async {
     final authRepository = _TrackingAuthRepository();
@@ -154,7 +102,7 @@ void main() {
       ),
     );
 
-    await tester.enterText(find.byType(TextFormField), '9999001006');
+    await tester.enterText(find.byType(TextFormField), '9999001017');
     await tester.tap(find.text('Send OTP'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), '654321');
@@ -165,29 +113,27 @@ void main() {
       find.text('That code does not look right. Please try again.'),
       findsOneWidget,
     );
+    expect(authRepository.validatedPhone, '+919999001017');
     expect(authRepository.temporaryPhone, isNull);
   });
 }
 
 class _TrackingAuthRepository extends MockAuthRepository {
+  _TrackingAuthRepository({this.rejectValidation = false});
+
+  final bool rejectValidation;
   String? validatedPhone;
   String? temporaryPhone;
   String? temporaryCode;
-  String? adminEmail;
-  String? adminPassword;
-
-  @override
-  Future<void> signInAdmin({
-    required String email,
-    required String password,
-  }) async {
-    adminEmail = email;
-    adminPassword = password;
-  }
 
   @override
   Future<void> validateAdminPhoneForOtp({required String phone}) async {
     validatedPhone = phone;
+    if (rejectValidation) {
+      throw StateError(
+        'This phone number is not registered for active admin access.',
+      );
+    }
   }
 
   @override
@@ -200,27 +146,26 @@ class _TrackingAuthRepository extends MockAuthRepository {
   }
 }
 
-class _NoodleYardOnboardingRepository
-    implements RestaurantOnboardingRepository {
+class _CanonicalOnboardingRepository implements RestaurantOnboardingRepository {
   @override
   Future<RestaurantBranchAdminContext?> loadAdminContext() async {
     return const RestaurantBranchAdminContext(
-      uid: 'SyFKT8CDYSgAttPuscL80GuJgtE3',
-      name: 'Noodle Yard Indiranagar Admin',
-      email: 'admin.noodle.yard.indiranagar@ezq-demo.cubiquitous.in',
-      phone: '+919999001006',
-      restaurantBranchId: 'noodle-yard-indiranagar',
+      uid: 'GP6NEB4NtDVB0djtILZ0d723Cry2',
+      name: 'Saffron Courtyard Bilekahalli Admin',
+      email: 'admins.saffron.courtyard.bilekahalli@ezq-demo.cubiquitous.in',
+      phone: '+919999001016',
+      restaurantBranchId: 'saffron-courtyard-bilekahalli',
       role: 'owner',
       isActive: true,
       onboardingCompleted: true,
       adminOnboardingCompleted: true,
       provisioningStatus: 'completed',
       branchActive: true,
-      restaurantName: 'Noodle Yard',
-      branchName: 'Indiranagar',
-      area: 'Panduranga Nagar',
-      address: 'Panduranga Nagar near IIM Bangalore, Bengaluru',
-      slug: 'noodle-yard-indiranagar',
+      restaurantName: 'Saffron Courtyard',
+      branchName: 'Bilekahalli',
+      area: 'Bilekahalli',
+      address: 'Bilekahalli Main Road, Bengaluru',
+      slug: 'saffron-courtyard-bilekahalli',
     );
   }
 
@@ -228,7 +173,7 @@ class _NoodleYardOnboardingRepository
   Future<CompletedRestaurantOnboarding?>
   completedOnboardingForCurrentAdmin() async {
     return const CompletedRestaurantOnboarding(
-      restaurantBranchId: 'noodle-yard-indiranagar',
+      restaurantBranchId: 'saffron-courtyard-bilekahalli',
     );
   }
 
