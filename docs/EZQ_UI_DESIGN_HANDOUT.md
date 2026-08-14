@@ -439,6 +439,7 @@ Behavior:
 
 - Add to queue validates optional phone input as numeric and 10 digits when provided.
 - Walk-ins are created with queue preferences so table recommendations work the same way as customer-created queue entries.
+- The dialog uses one bounded layout in which the form scrolls within the space left by the persistent action row, keeping Cancel and Add to queue reachable without overlapping fields when the viewport shrinks or the keyboard opens.
 
 ### QR Management
 
@@ -844,6 +845,7 @@ Manager flow:
 - The system shall record table cycle timestamps for reporting.
 - The system shall allow managers to create walk-in queue entries with party size, optional phone, notes, and share preference.
 - The system shall validate optional walk-in phone input when present.
+- The system shall keep the walk-in form scrollable and its action row separately reachable within the same bounded dialog when available height is reduced by compact screens or the software keyboard.
 - The system shall allow managers to select fully available tables and mark them offline reserved/disabled.
 - The system shall allow managers to select offline reserved/disabled tables and enable them for queue seating again.
 - The system shall exclude offline reserved/disabled tables from queue seating and table recommendations.

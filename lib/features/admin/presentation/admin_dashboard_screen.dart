@@ -2831,7 +2831,7 @@ class _AdminTopBar extends StatelessWidget {
                   icon: Icons.add,
                   onPressed: () => showDialog<void>(
                     context: context,
-                    builder: (context) => _WalkInDialog(
+                    builder: (context) => AdminWalkInDialog(
                       restaurantId: restaurantId,
                       branchId: branchId,
                     ),
@@ -2983,7 +2983,7 @@ class _AdminTopBar extends StatelessWidget {
                       icon: Icons.add,
                       onPressed: () => showDialog<void>(
                         context: context,
-                        builder: (context) => _WalkInDialog(
+                        builder: (context) => AdminWalkInDialog(
                           restaurantId: restaurantId,
                           branchId: branchId,
                         ),
@@ -3138,17 +3138,21 @@ class _OfflineReserveTopBarButton extends StatelessWidget {
   }
 }
 
-class _WalkInDialog extends ConsumerStatefulWidget {
-  const _WalkInDialog({required this.restaurantId, required this.branchId});
+class AdminWalkInDialog extends ConsumerStatefulWidget {
+  const AdminWalkInDialog({
+    super.key,
+    required this.restaurantId,
+    required this.branchId,
+  });
 
   final String restaurantId;
   final String branchId;
 
   @override
-  ConsumerState<_WalkInDialog> createState() => _WalkInDialogState();
+  ConsumerState<AdminWalkInDialog> createState() => _WalkInDialogState();
 }
 
-class _WalkInDialogState extends ConsumerState<_WalkInDialog> {
+class _WalkInDialogState extends ConsumerState<AdminWalkInDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -3248,143 +3252,148 @@ class _WalkInDialogState extends ConsumerState<_WalkInDialog> {
       child: SizedBox(
         width: dialogWidth,
         child: LayoutBuilder(
-          builder: (context, constraints) => Container(
-            key: const ValueKey('add-walk-in-dialog-surface'),
-            constraints: BoxConstraints(maxHeight: constraints.maxHeight),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.98),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0x26BDC8D0)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x1A12A9DC),
-                  blurRadius: 28,
-                  offset: Offset(0, 16),
-                ),
-              ],
-            ),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Add walk-in',
-                      style: TextStyle(
-                        color: AppColors.deepTeal,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                      ),
+          builder: (context, constraints) {
+            final dialogHeight = math.min(680.0, constraints.maxHeight);
+            return SizedBox(
+              height: dialogHeight,
+              child: Container(
+                key: const ValueKey('add-walk-in-dialog-surface'),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.98),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0x26BDC8D0)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x1A12A9DC),
+                      blurRadius: 28,
+                      offset: Offset(0, 16),
                     ),
-                  ),
-                  const SizedBox(height: 18),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      key: const ValueKey('add-walk-in-form-scroll'),
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      child: Column(
-                        children: [
-                          _WalkInField(
-                            label: 'Guest Name',
-                            hintText: 'Enter guest name',
-                            controller: _nameController,
-                            textInputAction: TextInputAction.next,
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Enter guest name';
-                              }
-                              return null;
-                            },
+                  ],
+                ),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.max,
+                    children: [
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Add walk-in',
+                          style: TextStyle(
+                            color: AppColors.deepTeal,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
                           ),
-                          const SizedBox(height: 16),
-                          _WalkInField(
-                            label: 'Mobile Number (Optional)',
-                            hintText: '9876543210',
-                            prefixWidget: const Text(
-                              '+91  ',
-                              style: TextStyle(
-                                color: AppColors.navyText,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          key: const ValueKey('add-walk-in-form-scroll'),
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          child: Column(
+                            children: [
+                              _WalkInField(
+                                label: 'Guest Name',
+                                hintText: 'Enter guest name',
+                                controller: _nameController,
+                                textInputAction: TextInputAction.next,
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Enter guest name';
+                                  }
+                                  return null;
+                                },
                               ),
-                            ),
-                            controller: _phoneController,
-                            textInputAction: TextInputAction.next,
-                            keyboardType: TextInputType.number,
-                            enableSuggestions: false,
-                            autofillHints: const <String>[],
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                              LengthLimitingTextInputFormatter(10),
+                              const SizedBox(height: 16),
+                              _WalkInField(
+                                label: 'Mobile Number (Optional)',
+                                hintText: '9876543210',
+                                prefixWidget: const Text(
+                                  '+91  ',
+                                  style: TextStyle(
+                                    color: AppColors.navyText,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                controller: _phoneController,
+                                textInputAction: TextInputAction.next,
+                                keyboardType: TextInputType.number,
+                                enableSuggestions: false,
+                                autofillHints: const <String>[],
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                  LengthLimitingTextInputFormatter(10),
+                                ],
+                                validator: (value) {
+                                  final phone = value?.trim() ?? '';
+                                  if (phone.isEmpty) return null;
+                                  if (phone.length != 10) {
+                                    return 'Enter a 10 digit mobile number';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              _WalkInPartySizeSelector(
+                                value: _partySize,
+                                onChanged: (value) =>
+                                    setState(() => _partySize = value),
+                              ),
+                              const SizedBox(height: 14),
+                              _WalkInPreferenceSelector(
+                                sharePreference: _sharePreference,
+                                eta: eta,
+                                isLive: etaAsync.hasValue,
+                                onChanged: (value) =>
+                                    setState(() => _sharePreference = value),
+                              ),
+                              const SizedBox(height: 16),
+                              _WalkInField(
+                                label: 'Special Notes (Optional)',
+                                hintText: 'e.g. High chair, birthday',
+                                controller: _notesController,
+                                textInputAction: TextInputAction.done,
+                                maxLines: 2,
+                                onFieldSubmitted: (_) =>
+                                    _submitting ? null : _submit(),
+                              ),
                             ],
-                            validator: (value) {
-                              final phone = value?.trim() ?? '';
-                              if (phone.isEmpty) return null;
-                              if (phone.length != 10) {
-                                return 'Enter a 10 digit mobile number';
-                              }
-                              return null;
-                            },
                           ),
-                          const SizedBox(height: 16),
-                          _WalkInPartySizeSelector(
-                            value: _partySize,
-                            onChanged: (value) =>
-                                setState(() => _partySize = value),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        key: const ValueKey('add-walk-in-actions'),
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: _submitting
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
+                              child: const Text('Cancel'),
+                            ),
                           ),
-                          const SizedBox(height: 14),
-                          _WalkInPreferenceSelector(
-                            sharePreference: _sharePreference,
-                            eta: eta,
-                            isLive: etaAsync.hasValue,
-                            onChanged: (value) =>
-                                setState(() => _sharePreference = value),
-                          ),
-                          const SizedBox(height: 16),
-                          _WalkInField(
-                            label: 'Special Notes (Optional)',
-                            hintText: 'e.g. High chair, birthday',
-                            controller: _notesController,
-                            textInputAction: TextInputAction.done,
-                            maxLines: 2,
-                            onFieldSubmitted: (_) =>
-                                _submitting ? null : _submit(),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: EzqButton(
+                              label: _submitting ? 'Adding...' : 'Add to queue',
+                              icon: Icons.arrow_forward_rounded,
+                              onPressed: _submitting ? null : _submit,
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  Row(
-                    key: const ValueKey('add-walk-in-actions'),
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: _submitting
-                              ? null
-                              : () => Navigator.of(context).pop(),
-                          child: const Text('Cancel'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: EzqButton(
-                          label: _submitting ? 'Adding...' : 'Add to queue',
-                          icon: Icons.arrow_forward_rounded,
-                          onPressed: _submitting ? null : _submit,
-                        ),
-                      ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
