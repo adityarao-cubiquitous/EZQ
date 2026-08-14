@@ -68,8 +68,6 @@ class RestaurantDetailsStep extends StatelessWidget {
                   ),
                 ),
                 const _SectionDivider(),
-                const _LockedIdentityNotice(),
-                const _SectionDivider(),
                 _FooterActions(
                   isMobile: isMobile,
                   canContinue: canContinue,
@@ -386,44 +384,6 @@ class _InfoBanner extends StatelessWidget {
             child: Text(
               'Restaurant branch identity is read-only and comes from the '
               'admin mapping.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.navyText,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LockedIdentityNotice extends StatelessWidget {
-  const _LockedIdentityNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-      decoration: BoxDecoration(
-        color: AppColors.softSurface,
-        border: Border.all(color: AppColors.warningOrange),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.lock_outline_rounded,
-            color: AppColors.warningOrange,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Restaurant, branch, subscription, slug, and QR information are '
-              'preserved during onboarding.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: AppColors.navyText,
                 fontWeight: FontWeight.w600,

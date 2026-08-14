@@ -89,6 +89,15 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(RestaurantDetailsStep), findsOneWidget);
     expect(find.byType(RestaurantOnboardingWizardBar), findsOneWidget);
+    expect(
+      find.text(
+        'Restaurant, branch, subscription, slug, and QR information are '
+        'preserved during onboarding.',
+      ),
+      findsNothing,
+    );
+    expect(find.text('Save Draft'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
   });
 
   testWidgets(
