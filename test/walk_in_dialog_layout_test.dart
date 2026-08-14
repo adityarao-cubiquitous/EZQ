@@ -20,61 +20,84 @@ void main() {
     expect(find.text('Cancel'), findsOneWidget);
     expect(find.text('Add to queue'), findsOneWidget);
     expect(tester.takeException(), isNull);
-    _expectBodyEndsBeforeActions(tester);
+    _expectOneCoherentScrollFlow(tester);
+    expect(find.text('Special Notes (Optional)').hitTestable(), findsOneWidget);
+    expect(find.text('Add to queue').hitTestable(), findsOneWidget);
   });
 
   for (final viewport in [
+    const Size(1440, 900),
+    const Size(1280, 800),
+    const Size(1024, 768),
+    const Size(900, 600),
     const Size(1440, 400),
-    const Size(1024, 500),
+    const Size(768, 1024),
+    const Size(1024, 600),
+    const Size(844, 500),
     const Size(844, 390),
     const Size(390, 844),
+    const Size(430, 932),
+    const Size(932, 430),
   ]) {
     testWidgets(
-      'bounded ${viewport.width}x${viewport.height} layout keeps actions separate',
+      'bounded ${viewport.width}x${viewport.height} keeps the complete flow reachable',
       (tester) async {
         final repository = _RecordingQueueRepository();
         await _pumpDashboard(tester, viewport, repository);
         await _openWalkIn(tester);
 
-        _expectBodyEndsBeforeActions(tester);
-        await tester.drag(
-          find.byKey(const ValueKey('add-walk-in-form-scroll')),
-          const Offset(0, -1000),
-        );
-        await tester.pumpAndSettle();
-
+        _expectOneCoherentScrollFlow(tester);
+        await _scrollToActions(tester);
         expect(find.text('Special Notes (Optional)'), findsOneWidget);
-        expect(find.text('Cancel'), findsOneWidget);
-        expect(find.text('Add to queue'), findsOneWidget);
+        expect(find.text('Cancel').hitTestable(), findsOneWidget);
+        expect(find.text('Add to queue').hitTestable(), findsOneWidget);
         expect(tester.takeException(), isNull);
-        _expectBodyEndsBeforeActions(tester);
+
+        await tester.dragUntilVisible(
+          find.text('Guest Name'),
+          _dialogScrollable(),
+          const Offset(0, 200),
+        );
+        expect(find.text('Guest Name').hitTestable(), findsOneWidget);
       },
     );
   }
 
-  testWidgets('keyboard inset shrinks the form body but not the action area', (
-    tester,
-  ) async {
-    final repository = _RecordingQueueRepository();
-    await _pumpDashboard(tester, const Size(1024, 768), repository);
-    await _openWalkIn(tester);
-    final bodyBefore = tester.getSize(
-      find.byKey(const ValueKey('add-walk-in-form-scroll')),
-    );
+  for (final viewport in [
+    const Size(390, 844),
+    const Size(844, 390),
+    const Size(1024, 600),
+    const Size(900, 600),
+  ]) {
+    testWidgets(
+      'keyboard inset keeps the full ${viewport.width}x${viewport.height} flow scrollable',
+      (tester) async {
+        final repository = _RecordingQueueRepository();
+        await _pumpDashboard(tester, viewport, repository);
+        await _openWalkIn(tester);
+        final bodyBefore = tester.getSize(
+          find.byKey(const ValueKey('add-walk-in-form-scroll')),
+        );
 
-    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
-    addTearDown(tester.view.resetViewInsets);
-    await tester.pumpAndSettle();
+        tester.view.viewInsets = FakeViewPadding(
+          bottom: viewport.height * 0.45,
+        );
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pumpAndSettle();
 
-    final bodyAfter = tester.getSize(
-      find.byKey(const ValueKey('add-walk-in-form-scroll')),
+        final bodyAfter = tester.getSize(
+          find.byKey(const ValueKey('add-walk-in-form-scroll')),
+        );
+        expect(bodyAfter.height, lessThan(bodyBefore.height));
+        _expectOneCoherentScrollFlow(tester);
+        await _scrollToActions(tester);
+        expect(find.text('Special Notes (Optional)'), findsOneWidget);
+        expect(find.text('Cancel').hitTestable(), findsOneWidget);
+        expect(find.text('Add to queue').hitTestable(), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
     );
-    expect(bodyAfter.height, lessThan(bodyBefore.height));
-    _expectBodyEndsBeforeActions(tester);
-    expect(find.text('Cancel'), findsOneWidget);
-    expect(find.text('Add to queue'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+  }
 
   testWidgets('validation and duplicate submission guard remain intact', (
     tester,
@@ -83,12 +106,15 @@ void main() {
     await _pumpDashboard(tester, const Size(1024, 500), repository);
     await _openWalkIn(tester);
 
+    await _scrollToActions(tester);
     await tester.tap(find.text('Add to queue'));
     await tester.pump();
     expect(find.text('Enter guest name'), findsWidgets);
     expect(repository.addCount, 0);
 
     await tester.enterText(find.byType(TextFormField).first, 'Layout Test');
+    await tester.pumpAndSettle();
+    await _scrollToActions(tester);
     await tester.tap(find.text('Add to queue'));
     await tester.tap(find.text('Add to queue'));
     await tester.pump();
@@ -144,15 +170,34 @@ Future<void> _openWalkIn(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-void _expectBodyEndsBeforeActions(WidgetTester tester) {
-  final body = tester.getRect(
-    find.byKey(const ValueKey('add-walk-in-form-scroll')),
+void _expectOneCoherentScrollFlow(WidgetTester tester) {
+  final surface = find.byKey(const ValueKey('add-walk-in-dialog-surface'));
+  final scroll = find.byKey(const ValueKey('add-walk-in-form-scroll'));
+  final actions = find.byKey(const ValueKey('add-walk-in-actions'));
+
+  expect(find.descendant(of: surface, matching: scroll), findsOneWidget);
+  expect(find.descendant(of: scroll, matching: actions), findsOneWidget);
+  expect(
+    find.descendant(of: surface, matching: find.byType(SingleChildScrollView)),
+    findsOneWidget,
   );
-  final actions = tester.getRect(
-    find.byKey(const ValueKey('add-walk-in-actions')),
-  );
-  expect(body.bottom, lessThanOrEqualTo(actions.top));
 }
+
+Future<void> _scrollToActions(WidgetTester tester) async {
+  await tester.dragUntilVisible(
+    find.byKey(const ValueKey('add-walk-in-actions')),
+    _dialogScrollable(),
+    const Offset(0, -200),
+  );
+  await tester.pumpAndSettle();
+}
+
+Finder _dialogScrollable() => find
+    .descendant(
+      of: find.byKey(const ValueKey('add-walk-in-form-scroll')),
+      matching: find.byType(Scrollable),
+    )
+    .first;
 
 class _RecordingQueueRepository implements QueueRepository {
   _RecordingQueueRepository({this.blockSubmission = false});
