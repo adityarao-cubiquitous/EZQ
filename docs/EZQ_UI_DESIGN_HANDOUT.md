@@ -64,7 +64,7 @@ The manager dashboard uses a capacity-first table grid and a collapsible live qu
 | Cubiquitous Mint | `#CDFFD8` | Soft progress, gentle backgrounds |
 | Cubiquitous Aqua | `#B0DCEB` | Borders, dividers, soft surfaces |
 | Cubiquitous Sky | `#94B9FF` | Subtle progress and secondary accents |
-| Tracura Purple | `#8461F4` | Waiting metric and tertiary accent |
+| Tracura Purple | `#8461F4` | Parties waiting metric and tertiary accent |
 | Tracura Cyan | `#81D8E5` | Secondary accent, light active surfaces |
 | Primary Teal | `#18AFC5` | Primary action, available tables |
 | Deep Teal | `#006B7A` | Strong text accent, icon emphasis |
@@ -316,7 +316,7 @@ Top bar:
 - Branch name.
 - Free count.
 - Occupied count.
-- Waiting count.
+- Parties waiting count.
 - Walk-in action.
 - QR management icon.
 - Daily summary icon.

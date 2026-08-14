@@ -2868,7 +2868,7 @@ class _AdminTopBar extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _TopMetric(
+                child: AdminDashboardMetric(
                   label: 'Free',
                   value: freeTables,
                   color: AppColors.primaryTeal,
@@ -2878,7 +2878,7 @@ class _AdminTopBar extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: _TopMetric(
+                child: AdminDashboardMetric(
                   label: 'Occupied',
                   value: occupiedTables,
                   color: AppColors.errorRed,
@@ -2888,8 +2888,8 @@ class _AdminTopBar extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: _TopMetric(
-                  label: 'Waiting',
+                child: AdminDashboardMetric(
+                  label: 'Parties waiting',
                   value: waitingCount,
                   color: AppColors.accentPurple,
                   selected: selectedMetric == _TopMetricFilter.waiting,
@@ -3028,7 +3028,7 @@ class _AdminTopBar extends StatelessWidget {
                   SizedBox(width: tightDesktop ? 14 : 30),
                   identityPill(compact: tightDesktop),
                   const Spacer(),
-                  _TopMetric(
+                  AdminDashboardMetric(
                     label: 'Free',
                     value: freeTables,
                     color: AppColors.primaryTeal,
@@ -3036,7 +3036,7 @@ class _AdminTopBar extends StatelessWidget {
                     onTap: () => onMetricTap(_TopMetricFilter.free),
                     compact: tightDesktop,
                   ),
-                  _TopMetric(
+                  AdminDashboardMetric(
                     label: 'Occupied',
                     value: occupiedTables,
                     color: AppColors.errorRed,
@@ -3044,8 +3044,8 @@ class _AdminTopBar extends StatelessWidget {
                     onTap: () => onMetricTap(_TopMetricFilter.occupied),
                     compact: tightDesktop,
                   ),
-                  _TopMetric(
-                    label: 'Waiting',
+                  AdminDashboardMetric(
+                    label: 'Parties waiting',
                     value: waitingCount,
                     color: AppColors.accentPurple,
                     selected: selectedMetric == _TopMetricFilter.waiting,
@@ -3951,8 +3951,9 @@ List<RestaurantTable> _tablesForParty({
   });
 }
 
-class _TopMetric extends StatelessWidget {
-  const _TopMetric({
+class AdminDashboardMetric extends StatelessWidget {
+  const AdminDashboardMetric({
+    super.key,
     required this.label,
     required this.value,
     required this.color,
@@ -3992,6 +3993,7 @@ class _TopMetric extends StatelessWidget {
           splashColor: color.withValues(alpha: 0.14),
           highlightColor: color.withValues(alpha: 0.08),
           child: AnimatedContainer(
+            key: ValueKey('admin-metric-card-$label'),
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
             constraints: BoxConstraints(
@@ -4033,19 +4035,26 @@ class _TopMetric extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        label,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: foreground.withValues(alpha: 0.82),
-                          fontSize: compact ? 10 : 12,
-                          fontWeight: FontWeight.w800,
-                          height: 1,
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          label,
+                          key: ValueKey('admin-metric-label-$label'),
+                          maxLines: 1,
+                          softWrap: false,
+                          style: TextStyle(
+                            color: foreground.withValues(alpha: 0.82),
+                            fontSize: compact ? 10 : 12,
+                            fontWeight: FontWeight.w800,
+                            height: 1,
+                          ),
                         ),
                       ),
                       SizedBox(height: compact ? 2 : 3),
                       Text(
                         '$value',
+                        key: ValueKey('admin-metric-value-$label'),
                         style: TextStyle(
                           color: foreground,
                           fontSize: compact ? 20 : 23,
