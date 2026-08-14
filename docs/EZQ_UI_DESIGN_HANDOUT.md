@@ -375,6 +375,7 @@ Responsive behavior:
 Queue card content:
 
 - Waiting parties remain in authoritative FIFO order by join time; table availability, recommendations, highlights, and search filtering do not change their relative order.
+- Selecting an eligible table highlights its exact Best Fit queue entry and exposes a table-specific seating action; confirmation revalidates the queue-entry ID and selected-table ID before using the canonical atomic seating transaction.
 - Token code.
 - Customer name.
 - Party size.
@@ -817,6 +818,7 @@ Manager flow:
 - The system shall show the canonical Firestore restaurant name as the primary admin-navbar identity and the branch name directly beneath it at phone, tablet, and desktop widths.
 - The system shall show live waiting queue entries for the selected branch.
 - The system shall preserve the relative FIFO order of waiting entries when table availability, recommendations, or highlights change; only queue lifecycle events may add, remove, or legitimately reposition an entry.
+- The system shall retain the selected table as authoritative when seating a table-click Best Fit recommendation, operate on the exact recommended queue-entry ID, and reject stale or ineligible recommendations before writing.
 - The system shall allow the Live Queue to be collapsed and reopened by touch, mouse, or keyboard on desktop, tablet, and mobile layouts.
 - The system shall expand the table dashboard into all released space when the Live Queue is closed.
 - The system shall use an adaptive split panel at usable wide widths and a right-side drawer on portrait or narrow viewports without device-name detection.

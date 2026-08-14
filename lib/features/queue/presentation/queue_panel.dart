@@ -18,12 +18,15 @@ class QueuePanel extends StatefulWidget {
     this.spotlightLabel,
     this.secondarySpotlightEntryId,
     this.secondarySpotlightLabel,
+    this.bestFitSeatEntryId,
+    this.bestFitSeatLabel,
     this.autoScrollSpotlight = false,
     required this.availableTables,
     required this.onReserve,
     required this.onSkip,
     this.onEntryTapped,
     this.onRecommendationSelected,
+    this.onBestFitSeat,
     this.onNoAvailableTables,
   });
 
@@ -34,6 +37,8 @@ class QueuePanel extends StatefulWidget {
   final String? spotlightLabel;
   final String? secondarySpotlightEntryId;
   final String? secondarySpotlightLabel;
+  final String? bestFitSeatEntryId;
+  final String? bestFitSeatLabel;
   final bool autoScrollSpotlight;
   final List<RestaurantTable> availableTables;
   final void Function(QueueEntry entry) onReserve;
@@ -44,6 +49,7 @@ class QueuePanel extends StatefulWidget {
     QueueTableRecommendation recommendation,
   )?
   onRecommendationSelected;
+  final void Function(QueueEntry entry)? onBestFitSeat;
   final VoidCallback? onNoAvailableTables;
 
   @override
@@ -147,6 +153,15 @@ class _QueuePanelState extends State<QueuePanel> {
                           spotlightLabel: _spotlightLabelFor(entry.id),
                           availableTables: widget.availableTables,
                           onReserve: () => widget.onReserve(entry),
+                          bestFitSeatLabel:
+                              widget.bestFitSeatEntryId == entry.id
+                              ? widget.bestFitSeatLabel
+                              : null,
+                          onBestFitSeat:
+                              widget.bestFitSeatEntryId == entry.id &&
+                                  widget.onBestFitSeat != null
+                              ? () => widget.onBestFitSeat!(entry)
+                              : null,
                           onSkip: () => widget.onSkip(entry),
                           onNoAvailableTables: widget.onNoAvailableTables,
                           onTap: widget.onEntryTapped != null
@@ -382,6 +397,8 @@ class _QueueEntryCard extends StatelessWidget {
     required this.spotlightLabel,
     required this.availableTables,
     required this.onReserve,
+    this.bestFitSeatLabel,
+    this.onBestFitSeat,
     required this.onSkip,
     this.onNoAvailableTables,
     this.onTap,
@@ -394,6 +411,8 @@ class _QueueEntryCard extends StatelessWidget {
   final String? spotlightLabel;
   final List<RestaurantTable> availableTables;
   final VoidCallback onReserve;
+  final String? bestFitSeatLabel;
+  final VoidCallback? onBestFitSeat;
   final VoidCallback onSkip;
   final VoidCallback? onNoAvailableTables;
   final VoidCallback? onTap;
@@ -490,6 +509,8 @@ class _QueueEntryCard extends StatelessWidget {
                     statusLabel: entry.status.wireName,
                     onReserve: onReserve,
                     onNoAvailableTables: onNoAvailableTables,
+                    overrideLabel: bestFitSeatLabel,
+                    overrideAction: onBestFitSeat,
                   ),
                   const SizedBox(height: 8),
                   _SkipAction(canSkip: canReserve, onSkip: onSkip),
@@ -505,6 +526,8 @@ class _QueueEntryCard extends StatelessWidget {
                       statusLabel: entry.status.wireName,
                       onReserve: onReserve,
                       onNoAvailableTables: onNoAvailableTables,
+                      overrideLabel: bestFitSeatLabel,
+                      overrideAction: onBestFitSeat,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -987,6 +1010,8 @@ class _ReserveAction extends StatelessWidget {
     required this.statusLabel,
     required this.onReserve,
     this.onNoAvailableTables,
+    this.overrideLabel,
+    this.overrideAction,
   });
 
   final bool canReserve;
@@ -994,6 +1019,8 @@ class _ReserveAction extends StatelessWidget {
   final String statusLabel;
   final VoidCallback onReserve;
   final VoidCallback? onNoAvailableTables;
+  final String? overrideLabel;
+  final VoidCallback? overrideAction;
 
   @override
   Widget build(BuildContext context) {
@@ -1001,8 +1028,10 @@ class _ReserveAction extends StatelessWidget {
       return OutlinedButton(onPressed: null, child: Text(statusLabel));
     }
     return EzqButton(
-      label: 'Reserve',
-      onPressed: availableTables.isEmpty ? onNoAvailableTables : onReserve,
+      label: overrideLabel ?? 'Reserve',
+      onPressed:
+          overrideAction ??
+          (availableTables.isEmpty ? onNoAvailableTables : onReserve),
     );
   }
 }

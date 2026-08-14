@@ -810,8 +810,25 @@ export const reserveTable = onCall(async (request) => {
     if (!queueSnap.exists || queueSnap.get("status") !== "waiting") {
       throw new HttpsError("failed-precondition", "Queue entry is not waiting");
     }
+    const partySize = (queueSnap.get("partySize") as number | undefined) ?? 0;
+    const acceptsSharedSeating = !isEmptyTableOnlyPreference(
+      queueSnap.get("customerPreferences"),
+    );
     if (tableSnaps.some(
-      (tableSnap) => !tableSnap.exists || tableSnap.get("status") !== "available",
+      (tableSnap) => {
+        if (!tableSnap.exists) return true;
+        const status = tableSnap.get("status");
+        if (status === "available") return false;
+        const capacity = (tableSnap.get("capacity") as number | undefined) ?? 0;
+        const occupiedSeats =
+          (tableSnap.get("currentPartySize") as number | undefined) ?? 0;
+        return !(
+          tableIds.length === 1 &&
+          status === "occupied" &&
+          acceptsSharedSeating &&
+          occupiedSeats + partySize <= capacity
+        );
+      },
     )) {
       throw new HttpsError("failed-precondition", "A selected table is not available");
     }
@@ -834,7 +851,6 @@ export const reserveTable = onCall(async (request) => {
       }
       return (tableSnap.get("tableNumber") as string | undefined) ?? "";
     });
-    const partySize = (queueSnap.get("partySize") as number | undefined) ?? 0;
     const capacities = tableSnaps.map(
       (tableSnap) => (tableSnap.get("capacity") as number | undefined) ?? 0,
     );
@@ -867,16 +883,35 @@ export const reserveTable = onCall(async (request) => {
     });
     for (let index = 0; index < tableRefs.length; index++) {
       const capacity = (tableSnaps[index].get("capacity") as number | undefined) ?? 0;
-      const occupiedSeatCount = shouldFillAssignedTables ?
-        capacity :
-        Math.max(0, Math.min(remainingPartySize, capacity));
-      if (!shouldFillAssignedTables) {
+      const wasOccupied = tableSnaps[index].get("status") === "occupied";
+      const priorOccupiedSeats =
+        (tableSnaps[index].get("currentPartySize") as number | undefined) ?? 0;
+      const priorQueueEntryIds = tableSnaps[index].get("currentQueueEntryIds");
+      const priorTokenCodes = tableSnaps[index].get("currentTokenCodes");
+      const queueEntryIds = Array.isArray(priorQueueEntryIds) ?
+        priorQueueEntryIds.filter((value): value is string => typeof value === "string") :
+        [tableSnaps[index].get("currentQueueEntryId")].filter(
+          (value): value is string => typeof value === "string",
+        );
+      const tokenCodes = Array.isArray(priorTokenCodes) ?
+        priorTokenCodes.filter((value): value is string => typeof value === "string") :
+        [tableSnaps[index].get("currentTokenCode")].filter(
+          (value): value is string => typeof value === "string",
+        );
+      const occupiedSeatCount = wasOccupied ?
+        priorOccupiedSeats + partySize :
+        shouldFillAssignedTables ?
+          capacity :
+          Math.max(0, Math.min(remainingPartySize, capacity));
+      if (!shouldFillAssignedTables && !wasOccupied) {
         remainingPartySize -= occupiedSeatCount;
       }
       transaction.update(tableRefs[index], {
         status: "occupied" satisfies TableStatus,
         currentQueueEntryId: queueEntryId,
         currentTokenCode: queueSnap.get("tokenCode"),
+        currentQueueEntryIds: [...queueEntryIds, queueEntryId],
+        currentTokenCodes: [...tokenCodes, queueSnap.get("tokenCode")],
         currentPartySize: occupiedSeatCount,
         reservedAt: assignedAt,
         occupiedAt: assignedAt,

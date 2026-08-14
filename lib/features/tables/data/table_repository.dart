@@ -29,6 +29,23 @@ int occupiedSeatCountForSeatedEntry({
   return partySize.clamp(0, tableCapacity).toInt();
 }
 
+@visibleForTesting
+bool canSeatWaitingPartyAtTable({
+  required TableStatus status,
+  required int tableCapacity,
+  required int occupiedSeats,
+  required int partySize,
+  required SeatingPreference seatingPreference,
+  int selectedTableCount = 1,
+}) {
+  if (partySize <= 0) return false;
+  if (status == TableStatus.available) return partySize <= tableCapacity;
+  return selectedTableCount == 1 &&
+      status == TableStatus.occupied &&
+      seatingPreference == SeatingPreference.anyAvailable &&
+      occupiedSeats + partySize <= tableCapacity;
+}
+
 enum MealCompletionQueueAction { complete, preserveTerminal }
 
 @visibleForTesting
@@ -67,6 +84,8 @@ Map<String, dynamic> completedTableUpdate({
     'status': TableStatus.available.wireName,
     'currentQueueEntryId': null,
     'currentTokenCode': null,
+    'currentQueueEntryIds': const <String>[],
+    'currentTokenCodes': const <String>[],
     'currentPartySize': null,
     'reservedAt': null,
     'occupiedAt': null,
@@ -276,11 +295,26 @@ class FirebaseTableRepository implements TableRepository {
           QueueStatus.waiting) {
         throw StateError('Queue entry is no longer waiting.');
       }
+      final seatingPreference = SeatingPreference.fromWireName(
+        (entryData?['customerPreferences'] as Map?)?['seatingPreference']
+            as String?,
+      );
       for (final tableSnapshot in tableSnapshots) {
         final status = TableStatus.fromWireName(
           tableSnapshot.data()?['status'] as String?,
         );
-        if (status != TableStatus.available) {
+        final tableData = tableSnapshot.data();
+        final capacity = tableData?['capacity'] as int? ?? 0;
+        final occupiedSeats = tableData?['currentPartySize'] as int? ?? 0;
+        final partySize = entryData?['partySize'] as int? ?? 0;
+        if (!canSeatWaitingPartyAtTable(
+          status: status,
+          tableCapacity: capacity,
+          occupiedSeats: occupiedSeats,
+          partySize: partySize,
+          seatingPreference: seatingPreference,
+          selectedTableCount: uniqueTableIds.length,
+        )) {
           throw StateError('A selected table is no longer available.');
         }
       }
@@ -328,13 +362,31 @@ class FirebaseTableRepository implements TableRepository {
 
       for (var index = 0; index < tableSnapshots.length; index++) {
         final tableData = tableSnapshots[index].data();
+        final wasOccupied =
+            TableStatus.fromWireName(tableData?['status'] as String?) ==
+            TableStatus.occupied;
+        final priorQueueEntryIds = _stringList(
+          tableData?['currentQueueEntryIds'],
+          fallback: tableData?['currentQueueEntryId'] as String?,
+        );
+        final priorTokenCodes = _stringList(
+          tableData?['currentTokenCodes'],
+          fallback: tableData?['currentTokenCode'] as String?,
+        );
+        final priorOccupiedSeats = tableData?['currentPartySize'] as int? ?? 0;
         final previousCycleEndAt =
             tableData?['lastCycleEndAt'] ?? tableData?['lastCompletedAt'];
-        final cycleStartAt = previousCycleEndAt ?? assignedAt;
-        final cycleSource = previousCycleEndAt == null
-            ? 'first_reservation'
-            : 'previous_completion';
-        final occupiedSeatCount = occupiedSeatCounts[index];
+        final cycleStartAt = wasOccupied
+            ? (tableData?['currentCycleStartAt'] ?? assignedAt)
+            : (previousCycleEndAt ?? assignedAt);
+        final cycleSource = wasOccupied
+            ? (tableData?['currentCycleSource'] as String? ?? 'shared_seating')
+            : (previousCycleEndAt == null
+                  ? 'first_reservation'
+                  : 'previous_completion');
+        final occupiedSeatCount = wasOccupied
+            ? priorOccupiedSeats + partySize
+            : occupiedSeatCounts[index];
         tableNumbers.add(
           (tableData?['displayTableName'] as String?)?.trim().isNotEmpty == true
               ? (tableData?['displayTableName'] as String).trim()
@@ -347,6 +399,8 @@ class FirebaseTableRepository implements TableRepository {
           'status': TableStatus.occupied.wireName,
           'currentQueueEntryId': queueEntryId,
           'currentTokenCode': tokenCode,
+          'currentQueueEntryIds': [...priorQueueEntryIds, queueEntryId],
+          'currentTokenCodes': [...priorTokenCodes, tokenCode],
           'currentPartySize': occupiedSeatCount,
           'reservedAt': assignedAt,
           'occupiedAt': assignedAt,
@@ -420,26 +474,50 @@ class FirebaseTableRepository implements TableRepository {
         entryData?['status'] as String?,
       );
 
-      if (tableSnapshots.any(
-            (table) =>
-                !table.exists ||
-                table.data()?['currentQueueEntryId'] != queueEntryId,
-          ) ||
+      if (tableSnapshots.any((table) {
+            if (!table.exists) return true;
+            return !_stringList(
+              table.data()?['currentQueueEntryIds'],
+              fallback: table.data()?['currentQueueEntryId'] as String?,
+            ).contains(queueEntryId);
+          }) ||
           entryStatus != QueueStatus.seated) {
         throw StateError('This reservation can no longer be undone.');
       }
 
       final undoneAt = FieldValue.serverTimestamp();
-      for (final tableRef in tableRefs) {
-        transaction.update(tableRef, {
-          'status': TableStatus.available.wireName,
-          'currentQueueEntryId': null,
-          'currentTokenCode': null,
-          'currentPartySize': null,
-          'reservedAt': null,
-          'occupiedAt': null,
-          'currentCycleStartAt': null,
-          'currentCycleSource': null,
+      for (var index = 0; index < tableRefs.length; index++) {
+        final tableData = tableSnapshots[index].data();
+        final queueIds = _stringList(
+          tableData?['currentQueueEntryIds'],
+          fallback: tableData?['currentQueueEntryId'] as String?,
+        );
+        final tokenCodes = _stringList(
+          tableData?['currentTokenCodes'],
+          fallback: tableData?['currentTokenCode'] as String?,
+        );
+        final removedIndex = queueIds.indexOf(queueEntryId);
+        queueIds.removeAt(removedIndex);
+        if (removedIndex < tokenCodes.length) tokenCodes.removeAt(removedIndex);
+        final remainingSeats =
+            (tableData?['currentPartySize'] as int? ?? 0) -
+            (entryData?['partySize'] as int? ?? 0);
+        final remainsOccupied = queueIds.isNotEmpty && remainingSeats > 0;
+        transaction.update(tableRefs[index], {
+          'status': remainsOccupied
+              ? TableStatus.occupied.wireName
+              : TableStatus.available.wireName,
+          'currentQueueEntryId': remainsOccupied ? queueIds.last : null,
+          'currentTokenCode': remainsOccupied && tokenCodes.isNotEmpty
+              ? tokenCodes.last
+              : null,
+          'currentQueueEntryIds': queueIds,
+          'currentTokenCodes': tokenCodes,
+          'currentPartySize': remainsOccupied ? remainingSeats : null,
+          if (!remainsOccupied) 'reservedAt': null,
+          if (!remainsOccupied) 'occupiedAt': null,
+          if (!remainsOccupied) 'currentCycleStartAt': null,
+          if (!remainsOccupied) 'currentCycleSource': null,
           'updatedAt': undoneAt,
         });
       }
@@ -664,6 +742,14 @@ List<int> _occupiedSeatCountsForSeatedEntry(
     return List<int>.unmodifiable(capacities);
   }
   return _allocatePartyAcrossCapacities(partySize, capacities);
+}
+
+List<String> _stringList(Object? value, {String? fallback}) {
+  final values = value is Iterable
+      ? value.whereType<String>().where((item) => item.isNotEmpty).toList()
+      : <String>[];
+  if (values.isEmpty && fallback?.isNotEmpty == true) values.add(fallback!);
+  return values;
 }
 
 List<int> _allocatePartyAcrossCapacities(int partySize, List<int> capacities) {

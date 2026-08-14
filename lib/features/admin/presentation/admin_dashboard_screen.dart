@@ -333,6 +333,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   String? _spotlightLabel;
   String? _secondarySpotlightQueueEntryId;
   String? _secondarySpotlightLabel;
+  ({RestaurantTable table, String entryId})? _bestFitSeatTarget;
   int _spotlightGeneration = 0;
   int _tableFocusGeneration = 0;
   QueueEntry? _selectedQueueEntry;
@@ -440,6 +441,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _tableFocusGeneration++;
       _spotlightQueueEntryId = null;
       _spotlightLabel = null;
+      _bestFitSeatTarget = null;
       _secondarySpotlightQueueEntryId = null;
       _secondarySpotlightLabel = null;
       _spotlightGeneration++;
@@ -505,6 +507,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _tableFocusGeneration++;
       _spotlightQueueEntryId = null;
       _spotlightLabel = null;
+      _bestFitSeatTarget = null;
       _secondarySpotlightQueueEntryId = null;
       _secondarySpotlightLabel = null;
     });
@@ -557,6 +560,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _selectedQueueEntry = null;
       _spotlightQueueEntryId = null;
       _spotlightLabel = null;
+      _bestFitSeatTarget = null;
       _secondarySpotlightQueueEntryId = null;
       _secondarySpotlightLabel = null;
       _spotlightGeneration++;
@@ -792,6 +796,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                           secondarySpotlightEntryId:
                               _secondarySpotlightQueueEntryId,
                           secondarySpotlightLabel: _secondarySpotlightLabel,
+                          bestFitSeatEntryId: _bestFitSeatTarget?.entryId,
+                          bestFitSeatLabel: _bestFitSeatTarget == null
+                              ? null
+                              : 'Seat at ${_dashboardTableDisplayName(_bestFitSeatTarget!.table, surface: 'best_fit_action')}',
                           autoScrollSpotlight: true,
                           availableTables: availableTables,
                           onReserve: (entry) => _reserveQueueEntry(
@@ -799,6 +807,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                             entry: entry,
                             tables: tables,
                             availableTables: availableTables,
+                            occupiedCountFor: occupiedFor,
+                          ),
+                          onBestFitSeat: (entry) => _confirmBestFitSeat(
+                            context: context,
+                            entry: entry,
+                            target: _bestFitSeatTarget,
+                            liveQueue: liveQueue,
                             occupiedCountFor: occupiedFor,
                           ),
                           onNoAvailableTables: () => _showAdminPopup(
@@ -1092,6 +1107,62 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       entry: entry,
       table: selectedTable,
     );
+  }
+
+  Future<void> _confirmBestFitSeat({
+    required BuildContext context,
+    required QueueEntry entry,
+    required ({RestaurantTable table, String entryId})? target,
+    required List<QueueEntry> liveQueue,
+    required int Function(RestaurantTable) occupiedCountFor,
+  }) async {
+    if (target == null || target.entryId != entry.id) return;
+    final table = target.table;
+    final openSeats = _openSeatsForTable(table, occupiedCountFor(table));
+    final currentBest = _bestQueueEntriesForTable(
+      table: table,
+      openSeats: openSeats,
+      liveQueue: liveQueue,
+    );
+    if (currentBest.isEmpty || currentBest.first.id != entry.id) {
+      _clearTableGridSelection();
+      _showAdminPopup(
+        context,
+        message: 'That Best Fit recommendation is no longer available.',
+        tone: _AdminPopupTone.warning,
+      );
+      return;
+    }
+
+    final tableLabel = _dashboardTableDisplayName(
+      table,
+      surface: 'best_fit_confirmation',
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Seat ${entry.tokenCode} at $tableLabel?'),
+        content: Text(
+          '${entry.customerName} · Party ${entry.partySize}\n'
+          'This uses the selected table with $openSeats open '
+          '${openSeats == 1 ? 'seat' : 'seats'}.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            key: const ValueKey('confirm-best-fit-seat'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.event_seat_rounded),
+            label: const Text('Seat now'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await _seatQueueEntryAtTable(context: context, entry: entry, table: table);
   }
 
   Future<void> _assignRecommendedTable({
@@ -1444,7 +1515,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     if (_selectedQueueEntry == null &&
         _selectedMetricFilter == null &&
         _spotlightQueueEntryId == null &&
-        _secondarySpotlightQueueEntryId == null) {
+        _secondarySpotlightQueueEntryId == null &&
+        _bestFitSeatTarget == null) {
       return;
     }
 
@@ -1456,6 +1528,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       _spotlightLabel = null;
       _secondarySpotlightQueueEntryId = null;
       _secondarySpotlightLabel = null;
+      _bestFitSeatTarget = null;
       _spotlightGeneration++;
     });
     ScaffoldMessenger.of(context).clearSnackBars();
@@ -1494,6 +1567,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       nextLabel:
           'Next best fit for ${_dashboardTableDisplayName(table, surface: 'next_best_label')}',
     );
+    setState(() {
+      _bestFitSeatTarget = (table: table, entryId: bestEntry.id);
+    });
     final nextText = nextEntry == null ? '' : ' · Next: ${nextEntry.tokenCode}';
     _showAdminPopup(
       context,
@@ -1714,6 +1790,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       setState(() {
         _spotlightQueueEntryId = null;
         _spotlightLabel = null;
+        _bestFitSeatTarget = null;
         _secondarySpotlightQueueEntryId = null;
         _secondarySpotlightLabel = null;
       });

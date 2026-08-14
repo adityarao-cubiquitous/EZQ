@@ -254,4 +254,52 @@ void main() {
     expect(selected, same(recommendation));
     expect(selected?.tableIds, ['table-9', 'table-13']);
   });
+
+  testWidgets('Best Fit action passes the exact highlighted queue entry', (
+    tester,
+  ) async {
+    final first = entryWithNotes('queue-q05', null);
+    final recommended = QueueEntry(
+      id: 'queue-q06',
+      tokenNumber: 6,
+      tokenCode: 'Q06',
+      businessDate: '2026-08-14',
+      customerName: 'One man army',
+      phone: '+919999999996',
+      partySize: 1,
+      partySizeBand: '1-2',
+      status: QueueStatus.waiting,
+      estimatedWaitMinutes: 8,
+      queuePosition: 2,
+      extensionUsed: false,
+      joinedAt: DateTime(2026, 8, 14, 12, 6),
+    );
+    QueueEntry? activated;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 500,
+            child: QueuePanel(
+              queue: [first, recommended],
+              spotlightEntryId: recommended.id,
+              spotlightLabel: 'Best fit for F1-T6',
+              bestFitSeatEntryId: recommended.id,
+              bestFitSeatLabel: 'Seat at F1-T6',
+              availableTables: const [],
+              onReserve: (_) {},
+              onSkip: (_) {},
+              onBestFitSeat: (entry) => activated = entry,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Seat at F1-T6'), findsOneWidget);
+    await tester.tap(find.text('Seat at F1-T6'));
+    expect(activated?.id, 'queue-q06');
+    expect(activated?.tokenCode, 'Q06');
+  });
 }
