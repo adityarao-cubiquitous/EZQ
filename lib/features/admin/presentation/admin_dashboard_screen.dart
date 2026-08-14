@@ -1561,20 +1561,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final secondarySpotlightId = _secondarySpotlightQueueEntryId;
     if (secondarySpotlightId != null) actionIds.add(secondarySpotlightId);
 
-    final actionQueue = liveQueue
-        .where((entry) => actionIds.contains(entry.id))
-        .toList();
-    final overflowQueue = liveQueue
-        .where((entry) => !actionIds.contains(entry.id))
-        .toList();
-    final queue = [...actionQueue, ...overflowQueue];
-    final fallbackCount = liveQueue.length < 8 ? liveQueue.length : 8;
-
-    return (
-      queue: queue,
-      initialVisibleCount: actionQueue.isEmpty
-          ? fallbackCount
-          : actionQueue.length,
+    return buildFifoQueuePresentation(
+      liveQueue: liveQueue,
+      emphasizedEntryIds: actionIds,
     );
   }
 

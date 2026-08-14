@@ -374,6 +374,7 @@ Responsive behavior:
 
 Queue card content:
 
+- Waiting parties remain in authoritative FIFO order by join time; table availability, recommendations, highlights, and search filtering do not change their relative order.
 - Token code.
 - Customer name.
 - Party size.
@@ -813,6 +814,7 @@ Manager flow:
 - The system shall use one canonical admin-branch readiness result for login, dashboard, onboarding, and reports routing.
 - The system shall show the canonical Firestore restaurant name as the primary admin-navbar identity and the branch name directly beneath it at phone, tablet, and desktop widths.
 - The system shall show live waiting queue entries for the selected branch.
+- The system shall preserve the relative FIFO order of waiting entries when table availability, recommendations, or highlights change; only queue lifecycle events may add, remove, or legitimately reposition an entry.
 - The system shall allow the Live Queue to be collapsed and reopened by touch, mouse, or keyboard on desktop, tablet, and mobile layouts.
 - The system shall expand the table dashboard into all released space when the Live Queue is closed.
 - The system shall use an adaptive split panel at usable wide widths and a right-side drawer on portrait or narrow viewports without device-name detection.

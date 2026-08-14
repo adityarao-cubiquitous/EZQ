@@ -37,6 +37,89 @@ void main() {
     });
   });
 
+  group('buildFifoQueuePresentation', () {
+    final joinedAt = DateTime(2026, 8, 14, 18);
+
+    List<QueueEntry> queue() => [
+      for (var token = 1; token <= 11; token++)
+        _entry(
+          id: 'q$token',
+          tokenNumber: token,
+          tokenCode: 'Q${token.toString().padLeft(2, '0')}',
+          joinedAt: joinedAt.add(Duration(minutes: token)),
+        ),
+    ];
+
+    test('table recommendation changes never reorder FIFO entries', () {
+      final before = buildFifoQueuePresentation(
+        liveQueue: queue().reversed.toList(),
+        emphasizedEntryIds: const ['q1', 'q3'],
+      );
+      final afterOneTableUpdate = buildFifoQueuePresentation(
+        liveQueue: queue().reversed.toList(),
+        emphasizedEntryIds: const ['q2', 'q10'],
+      );
+      final afterTwoTableUpdates = buildFifoQueuePresentation(
+        liveQueue: queue().reversed.toList(),
+        emphasizedEntryIds: const ['q11', 'q3'],
+      );
+
+      for (final presentation in [
+        before,
+        afterOneTableUpdate,
+        afterTwoTableUpdates,
+      ]) {
+        expect(presentation.queue.map((entry) => entry.tokenCode), [
+          for (var token = 1; token <= 11; token++)
+            'Q${token.toString().padLeft(2, '0')}',
+        ]);
+      }
+      expect(afterOneTableUpdate.initialVisibleCount, 10);
+      expect(afterTwoTableUpdates.initialVisibleCount, 11);
+    });
+
+    test(
+      'recommendation completion order is ID enrichment, not list order',
+      () {
+        final recommendationCompletionOrder = ['q3', 'q1', 'q2'];
+        final presentation = buildFifoQueuePresentation(
+          liveQueue: queue().take(3).toList(),
+          emphasizedEntryIds: recommendationCompletionOrder,
+        );
+
+        expect(presentation.queue.map((entry) => entry.tokenCode), [
+          'Q01',
+          'Q02',
+          'Q03',
+        ]);
+      },
+    );
+
+    test('new and lifecycle-changed entries retain authoritative order', () {
+      final initial = queue().take(3).toList();
+      final withNewCustomer = buildFifoQueuePresentation(
+        liveQueue: [...initial, queue()[3]],
+      );
+      final afterFirstLeaves = buildFifoQueuePresentation(
+        liveQueue: withNewCustomer.queue
+            .where((entry) => entry.id != 'q1')
+            .toList(),
+      );
+
+      expect(withNewCustomer.queue.map((entry) => entry.tokenCode), [
+        'Q01',
+        'Q02',
+        'Q03',
+        'Q04',
+      ]);
+      expect(afterFirstLeaves.queue.map((entry) => entry.tokenCode), [
+        'Q02',
+        'Q03',
+        'Q04',
+      ]);
+    });
+  });
+
   group('QueueEntry wait start', () {
     test('joinedAt defines waiting time', () {
       final joinedAt = DateTime(2026, 6, 25, 17, 30);

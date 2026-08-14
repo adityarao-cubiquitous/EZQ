@@ -242,6 +242,27 @@ int compareQueueEntriesByFifo(QueueEntry a, QueueEntry b) {
   return a.id.compareTo(b.id);
 }
 
+({List<QueueEntry> queue, int initialVisibleCount}) buildFifoQueuePresentation({
+  required List<QueueEntry> liveQueue,
+  Iterable<String> emphasizedEntryIds = const <String>[],
+  int defaultVisibleCount = 8,
+}) {
+  final queue = [...liveQueue]..sort(compareQueueEntriesByFifo);
+  final emphasizedIds = emphasizedEntryIds.toSet();
+  var initialVisibleCount = queue.length < defaultVisibleCount
+      ? queue.length
+      : defaultVisibleCount;
+
+  for (var index = 0; index < queue.length; index++) {
+    if (emphasizedIds.contains(queue[index].id) &&
+        index + 1 > initialVisibleCount) {
+      initialVisibleCount = index + 1;
+    }
+  }
+
+  return (queue: queue, initialVisibleCount: initialVisibleCount);
+}
+
 int countQueueEntriesAhead(
   List<QueueEntry> liveQueue, {
   required String currentEntryId,
