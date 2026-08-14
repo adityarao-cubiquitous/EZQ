@@ -419,6 +419,7 @@ Meal finished behavior:
 - Manager clicks finish meal on the occupied table tile.
 - Manager enters or confirms how many people finished the meal.
 - Table becomes available.
+- If an occupied table retains a stale link to a terminal queue entry, finishing the meal releases the linked table assignment while preserving the terminal queue status.
 - The end time for the previous customer becomes the start time for the next customer for that table where applicable.
 
 ### Walk-In Dialog
@@ -826,6 +827,7 @@ Manager flow:
 - The system shall keep every recommended table combination on one floor, restrict combinations to exactly two tables, show all exact pairs as best fit, and show all higher-capacity pairs as next best fit.
 - The system shall exclude partially occupied tables from multi-table combination recommendations.
 - The system shall atomically occupy every table selected in a multi-table recommendation and release the full combination on undo or meal completion.
+- The system shall recover stale occupied-table links to terminal queue entries by releasing the complete linked table assignment without rewriting the terminal queue status.
 - The system shall recommend partially occupied tables only when the waiting party accepts shared seating and the table has enough spare seats.
 - The system shall allow a manager to reserve a waiting party by selecting a fitting table from recommendations or the table picker.
 - The system shall avoid free-text table assignment in the reserve flow.

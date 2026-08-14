@@ -29,6 +29,59 @@ int occupiedSeatCountForSeatedEntry({
   return partySize.clamp(0, tableCapacity).toInt();
 }
 
+enum MealCompletionQueueAction { complete, preserveTerminal }
+
+@visibleForTesting
+MealCompletionQueueAction mealCompletionQueueAction(QueueStatus status) {
+  if (status == QueueStatus.seated) {
+    return MealCompletionQueueAction.complete;
+  }
+  if (status.isTerminal) {
+    return MealCompletionQueueAction.preserveTerminal;
+  }
+  throw StateError(
+    'Queue entry cannot transition from '
+    '${status.wireName} to ${QueueStatus.completed.wireName}.',
+  );
+}
+
+@visibleForTesting
+bool isIdempotentMealCompletion({
+  required Map<String, dynamic>? tableData,
+  required String queueEntryId,
+}) {
+  return TableStatus.fromWireName(tableData?['status'] as String?) ==
+          TableStatus.available &&
+      tableData?['currentQueueEntryId'] == null &&
+      tableData?['lastCompletedQueueEntryId'] == queueEntryId;
+}
+
+@visibleForTesting
+Map<String, dynamic> completedTableUpdate({
+  required String queueEntryId,
+  required int completedPartySize,
+  required Object completionTimestamp,
+  required Object? cycleStartAt,
+}) {
+  return {
+    'status': TableStatus.available.wireName,
+    'currentQueueEntryId': null,
+    'currentTokenCode': null,
+    'currentPartySize': null,
+    'reservedAt': null,
+    'occupiedAt': null,
+    'cleaningStartedAt': null,
+    'lastCompletedQueueEntryId': queueEntryId,
+    'lastCompletedPartySize': completedPartySize,
+    'lastCompletedAt': completionTimestamp,
+    'lastCycleStartAt': cycleStartAt,
+    'lastCycleEndAt': completionTimestamp,
+    'currentCycleStartAt': null,
+    'currentCycleSource': null,
+    'updatedAt': completionTimestamp,
+  };
+}
+
 abstract class TableRepository {
   Stream<List<RestaurantTable>> watchTables({
     required String restaurantId,
@@ -499,6 +552,15 @@ class FirebaseTableRepository implements TableRepository {
       if (tableSnapshots.any((table) => !table.exists)) {
         throw StateError('An assigned table was not found.');
       }
+      if (tableSnapshots.every(
+        (table) => isIdempotentMealCompletion(
+          tableData: table.data(),
+          queueEntryId: queueEntryId,
+        ),
+      )) {
+        return;
+      }
+      MealCompletionQueueAction? queueAction;
       if (!entrySnapshot.exists) {
         debugPrint(
           '[TABLE_REPO] Completing meal for tableId=$tableId with missing '
@@ -508,10 +570,12 @@ class FirebaseTableRepository implements TableRepository {
         final entryStatus = QueueStatus.fromWireName(
           entrySnapshot.data()?['status'] as String?,
         );
-        if (!entryStatus.canTransitionTo(QueueStatus.completed)) {
-          throw StateError(
-            'Queue entry cannot transition from '
-            '${entryStatus.wireName} to ${QueueStatus.completed.wireName}.',
+        queueAction = mealCompletionQueueAction(entryStatus);
+        if (queueAction == MealCompletionQueueAction.preserveTerminal) {
+          debugPrint(
+            '[TABLE_REPO] Completing meal for tableId=$tableId with terminal '
+            'queueEntryId=$queueEntryId status=${entryStatus.wireName}. '
+            'Freeing table and preserving queue status.',
           );
         }
       }
@@ -542,25 +606,17 @@ class FirebaseTableRepository implements TableRepository {
             entryData?['tableCycleStartAt'] ??
             assignedTableData?['reservedAt'] ??
             assignedTableData?['occupiedAt'];
-        transaction.update(tableRefs[index], {
-          'status': TableStatus.available.wireName,
-          'currentQueueEntryId': null,
-          'currentTokenCode': null,
-          'currentPartySize': null,
-          'reservedAt': null,
-          'occupiedAt': null,
-          'cleaningStartedAt': null,
-          'lastCompletedQueueEntryId': queueEntryId,
-          'lastCompletedPartySize': completedPartySizes[index],
-          'lastCompletedAt': completionTimestamp,
-          'lastCycleStartAt': assignedCycleStartAt,
-          'lastCycleEndAt': completionTimestamp,
-          'currentCycleStartAt': null,
-          'currentCycleSource': null,
-          'updatedAt': completionTimestamp,
-        });
+        transaction.update(
+          tableRefs[index],
+          completedTableUpdate(
+            queueEntryId: queueEntryId,
+            completedPartySize: completedPartySizes[index],
+            completionTimestamp: completionTimestamp,
+            cycleStartAt: assignedCycleStartAt,
+          ),
+        );
       }
-      if (entrySnapshot.exists) {
+      if (queueAction == MealCompletionQueueAction.complete) {
         transaction.update(entryRef, {
           'status': QueueStatus.completed.wireName,
           'completedAt': completionTimestamp,
@@ -570,11 +626,14 @@ class FirebaseTableRepository implements TableRepository {
           'updatedAt': completionTimestamp,
         });
       }
-      transaction.set(counterRef, {
-        'totalCompleted': FieldValue.increment(1),
-        'totalGuestsCompleted': FieldValue.increment(completedPartySize),
-        'updatedAt': completionTimestamp,
-      }, SetOptions(merge: true));
+      if (!entrySnapshot.exists ||
+          queueAction == MealCompletionQueueAction.complete) {
+        transaction.set(counterRef, {
+          'totalCompleted': FieldValue.increment(1),
+          'totalGuestsCompleted': FieldValue.increment(completedPartySize),
+          'updatedAt': completionTimestamp,
+        }, SetOptions(merge: true));
+      }
     });
   }
 }
